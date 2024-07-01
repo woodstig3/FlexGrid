@@ -30,6 +30,10 @@ PatternGenModule::PatternGenModule()
 
 	m_bCalibDataOk = g_patternCalib->Get_LUT_Load_Status();
 
+#ifdef _TWIN_WSS_
+	m_customLCOS_Height = g_LCOS_Height/2;
+#endif
+
 }
 
 PatternGenModule::~PatternGenModule()
@@ -664,7 +668,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 int PatternGenModule::Calculate_Pattern_Formulas(const int ch,const float lamda, const int pixelSize, float sigmaRad, const float Aopt, const float Kopt, const float Aatt,const float Katt)
 {
 	/* Reset Channel Data Array */
-	memset(channelColumnData, 0, sizeof(unsigned char)*g_Total_Channels*g_LCOS_Height);
+	memset(channelColumnData, 0, sizeof(unsigned char)*g_Total_Channels*m_customLCOS_Height);
 
 	// LOGICS ARE ONLY SUITABLE FOR +VE SIGMA
 	//printf("lamda = %f \t sigmaRad = %f \t Aopt = %f \t Kopt = %f \t Aatt = %f \t Katt = %f \n\r", lamda, sigmaRad, Aopt, Kopt,Aatt,Katt);
@@ -694,7 +698,7 @@ int PatternGenModule::Calculate_Pattern_Formulas(const int ch,const float lamda,
 
 int PatternGenModule::Calculate_PhaseLine(const float pixelSize, float sigmaRad, const float lamda)
 {
-	for (int Y = 1; Y <= g_LCOS_Height; Y++)
+	for (int Y = 1; Y <= m_customLCOS_Height; Y++)
 	{
 		phaseLine[Y-1] = (g_phaseDepth*Y*pixelSize*sigmaRad) / lamda;
 		//printf("phaseLine[y] = %f \n\r", phaseLine[Y-1]);
@@ -703,14 +707,12 @@ int PatternGenModule::Calculate_PhaseLine(const float pixelSize, float sigmaRad,
 	return (0);
 }
 
-void PatternGenModule::Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[g_LCOS_Height], int factorsForDiv[g_LCOS_Height])
+void PatternGenModule::Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[], int factorsForDiv[])
 {
 	int factorForDiv_increament = 0;
 	periods.clear();		// For tracking periods number in each channel 10,11,11,10,10 ....
 
-	// Calculate Mod of Phase Line and rebuild period together in single loop
-
-	for (int i = 0; i < g_LCOS_Height; i++)
+	for (int i = 0; i < m_customLCOS_Height; i++)
 	{
 		phaseLine_MOD[i] = std::fmod(phaseLine[i], g_phaseDepth);	//mod of 2
 
@@ -752,29 +754,23 @@ void PatternGenModule::Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[
 	// So we push the last periodCount to periods. It will also help when sigma is too small.
 	// In case if sigma is too small that only one period exist which size is equal to whole height of LCOS
 
-	periods.push_back(periodCount[g_LCOS_Height-1]);
-
-//	for(unsigned int i=0; i < periods.size(); i++)
-//	{
-//		printf("periods = %d\n", periods[i]);
-//	}
-
+	periods.push_back(periodCount[m_customLCOS_Height-1]);
 }
 
 void PatternGenModule::Calculate_Period(const float pixelSize, float sigmaRad, const float lamda)
 {
 	if(sigmaRad == 0)
 	{
-		calculatedPeriod = g_LCOS_Height;
+		calculatedPeriod = m_customLCOS_Height;
 	}
 	else
 	{
 		calculatedPeriod = lamda/(pixelSize*sigmaRad);	 	// From EXCEL
 
-		if (calculatedPeriod > g_LCOS_Height)
+		if (calculatedPeriod > m_customLCOS_Height)
 		{
 			// IMPORTANT: Make sure calculated Period heigh can never exceed the height of display i.e. g_LCOS_Height
-			calculatedPeriod = g_LCOS_Height;
+			calculatedPeriod = m_customLCOS_Height;
 		}
 		else if (calculatedPeriod <= 0)
 		{
@@ -799,14 +795,14 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 	float minAtt = 0;
 	float maxAtt = g_phaseDepth + (1/calculatedPeriod)*(g_phaseDepth/2);
 
-	float temp[g_LCOS_Height];	// Use to temporary store attenuated_limited data to flip all periods in case of -ve Sigma
+	float temp[m_customLCOS_Height];	// Use to temporary store attenuated_limited data to flip all periods in case of -ve Sigma
 	std::vector<float> flipArray;
 	int periodIndex_track = 0;
 	int jump=0;
 
 	//std::cout << " Aopt = " << Aopt << " Kopt  " << Kopt <<" Aatt = " << Aatt << " Katt  " << Katt << " calculate Period = " << calculatedPeriod <<"\n";
 	/*REMEMBER: Due to algorithm in excel sometimes is A_att is not unique it will cause no change in output data*/
-	for (int Y = 0; Y < g_LCOS_Height; Y++)
+	for (int Y = 0; Y < m_customLCOS_Height; Y++)
 	{
 		optFactor = Kopt*abs(sin((Aopt*(Y+1)*g_phaseDepth*PI)/(calculatedPeriod)));		// (Y+1) because pixel number must starts from 1 to 1080
 
@@ -872,9 +868,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 
 	if(g_bSigmaNegative == true)
 	{
-		// Run another loop to copy back temp[] flipped data to attenuatedPattern_limited[]
-
-		for(int y = 0; y < g_LCOS_Height; y++)
+		for(int y = 0; y < m_customLCOS_Height; y++)
 		{
 			attenuatedPattern_limited[y] = temp[y];
 			//printf("attenuatedPattern_limited = %f \n", attenuatedPattern_limited[y]);
@@ -887,7 +881,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 {
 	// For every attenuated value in degree find the graylevel from LUT
-	for(int i =0 ; i<g_LCOS_Height; i++)
+	for(int i =0 ; i<m_customLCOS_Height; i++)
 	{
 		unsigned int degree = round(attenuatedPattern_limited[i]*180);		// IMPORTANT: NOT DIVIDE BY PI, because attenuatedPattern values have unit PI, so the value doesnt include PI itself
 
@@ -896,9 +890,7 @@ void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 		else if (degree > (linearLUT.size()-1-endOffsetLUT))				// if endOffset is more than 0, i.e. 5, then any value of degree above max range of LUT available will get max value from LUT, max = linearLUT.size()-1-endOffsetLUT
 			degree = (linearLUT.size()-1-endOffsetLUT);
 
-		channelColumnData[i + g_LCOS_Height*ch] = linearLUT[degree];
-
-		//printf("%d \t degree = %d \t channelColumnData = %d \n", i, degree, channelColumnData[i + g_LCOS_Height*ch]);
+		channelColumnData[i + m_customLCOS_Height*ch] = linearLUT[degree];
 	}
 }
 
@@ -931,18 +923,74 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 	}
 	else
 	{
-		while (i < g_LCOS_Height)
+		while (i < m_customLCOS_Height)
 		{
-			unsigned char value = 0;
+			unsigned char value = m_backColor;
 
-			value = channelColumnData[i + g_LCOS_Height *chNum];
+			if(g_moduleNum == 1)		// Top side of LCOS
+			{
+				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
+#ifdef _TWIN_WSS_
+					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
+						value = channelColumnData[i + m_customLCOS_Height *chNum];
+					}
 
-				// logic explained in notebook	.. i= is the verticle index to read 2d matrix,, ch_start_pixelLocation= is the horizontal index to reach matrix, and g_LCOS_Width is matrix width
+					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+
+					if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
+						if(i>=startMidGap && i <= endMidGap){
+							value = m_backColor;
+						}
+					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+						if(i > startMidGap){
+							value = m_backColor;
+						}
+					}
+#else
+					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap && i < m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap){
+							value = channelColumnData[i + m_customLCOS_Height *chNum];
+					}
+#endif
+				}else{
+					value = channelColumnData[i + m_customLCOS_Height *chNum];
+				}
+
 #ifndef _FLIP_DISPLAY_
 				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
 #else
-				memset((fullPatternData + ((g_LCOS_Height -i) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
+				memset((fullPatternData + ((m_customLCOS_Height -i) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));
 #endif
+			}
+			else if (g_moduleNum == 2)	// Bottom side of LCOS
+			{
+				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
+					if(i < (m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap)){
+						value = channelColumnData[i + m_customLCOS_Height *chNum];
+					}
+
+					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+
+					if(startMidGap > m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+						if(i>=(startMidGap%m_customLCOS_Height) && i <= (endMidGap%m_customLCOS_Height)){
+							value = m_backColor;
+						}
+					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+						if(i < (endMidGap%m_customLCOS_Height)){
+							value = m_backColor;
+						}
+					}
+				}else{
+					value = channelColumnData[i + m_customLCOS_Height *chNum];
+				}
+
+#ifndef _FLIP_DISPLAY_
+				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+#else
+				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
+#endif
+			}
 
 			i++;
 		}
@@ -1041,20 +1089,75 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 	}
 
 	slot_Start_Location = ch_start_pixelLocation + (prev_slot_width_inPixels);
-	//std::cout << "slotNum "  << slotNum << "\n" <<"prev_slot_width_inPixels " << prev_slot_width_inPixels << "\n" << "slot_Width_inPixels " << slot_Width_inPixels << "\n" << std::endl;
-	while (i < g_LCOS_Height)
+
+	while (i < m_customLCOS_Height)
 	{
-		unsigned char value = 0;
+		unsigned char value = m_backColor;
 
-		value = channelColumnData[i + g_LCOS_Height *chNum];
+		if(g_moduleNum == 1)		// Top side of LCOS
+		{
+			if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
+#ifdef _TWIN_WSS_
+					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
+						value = channelColumnData[i + m_customLCOS_Height *chNum];
+					}
 
-			// logic explained in notebook	.. i= is the verticle index to read 2d matrix,, ch_start_pixelLocation= is the horizontal index to reach matrix, and g_LCOS_Width is matrix width
+					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+
+					if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
+						if(i>=startMidGap && i <= endMidGap){
+							value = m_backColor;
+						}
+					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+						if(i > startMidGap){
+							value = m_backColor;
+						}
+					}
+#else
+					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap && i < m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap){
+							value = channelColumnData[i + m_customLCOS_Height *chNum];
+					}
+#endif
+			}else{
+				value = channelColumnData[i + m_customLCOS_Height *chNum];
+			}
+
 #ifndef _FLIP_DISPLAY_
 			memset((fullPatternData + (i *g_LCOS_Width) + slot_Start_Location), value, slot_Width_inPixels* sizeof(char));
 #else
-			memset((fullPatternData + ((g_LCOS_Height -i) *g_LCOS_Width) - slot_Start_Location - slot_Width_inPixels), value, slot_Width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
+			memset((fullPatternData + ((m_customLCOS_Height -i) *g_LCOS_Width) - slot_Start_Location - slot_Width_inPixels), value, slot_Width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
 #endif
+		}
+		else if (g_moduleNum == 2)	// Bottom side of LCOS
+		{
+			if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
+				if(i < (m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap)){
+					value = channelColumnData[i + m_customLCOS_Height *chNum];
+				}
 
+				int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+				int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+
+				if(startMidGap > m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+					if(i>=(startMidGap%m_customLCOS_Height) && i <= (endMidGap%m_customLCOS_Height)){
+						value = m_backColor;
+					}
+				}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+					if(i < (endMidGap%m_customLCOS_Height)){
+						value = m_backColor;
+					}
+				}
+			}else{
+				value = channelColumnData[i + m_customLCOS_Height *chNum];
+			}
+
+#ifndef _FLIP_DISPLAY_
+			memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + slot_Start_Location), value, slot_Width_inPixels* sizeof(char));
+#else
+			memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) - slot_Start_Location - slot_Width_inPixels), value, slot_Width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
+#endif
+		}
 		i++;
 	}
 
@@ -1071,7 +1174,7 @@ int PatternGenModule::Find_Parameters_By_Interpolation(inputParameters &ins, out
 	{
 		g_ready1 = g_ready2 = g_ready3 = g_ready4 = false;			// Initialize all to No-Interpolation
 
-		//std::cout << "PatternGenModule GOT LOCK" << std::endl;
+		//g_patternCalib->Set_Current_Module(g_moduleNum);
 
 		if(interpolateSigma)
 		{
@@ -1356,43 +1459,49 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, int &pixelP
 		   pixelPos = 1919;
 }
 
-void PatternGenModule::loadOneColorPattern(int colorVal)
+void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 {
-	if(colorVal == 255 || colorVal == 0) //single color(grayscale for the whole panel) as background pattern
+	if(colorVal == 255 || colorVal == 0) //single color(grayscale for whole panel) as background
 	{
 		memset(fullPatternData, static_cast<unsigned char>(colorVal), sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
 	}
-	else if(colorVal < 255 || colorVal > 0)//init to set single grating pattern for the whole panel as background pattern
+	else//single grating pattern for whole panel as background
 	{
-		/*drc to add initial pattern of one single grating with period of value of colorVal*/
-		unsigned char cPixelLines = 0;
+		/*drc added initial pattern of one single grating with period of value at colorVal*/
+		unsigned char cPixelBlocks = 0, cPixelEndingLines = 0;
 		unsigned char grayVal = 0;
-		cPixelLines = round(g_LCOS_Height/colorVal); //pixel lines per grating period, need to set grayscale from 255 to 0 in each line.
-		//std::cout << "cPixelLines  was : " <<cPixelLines << std::endl;
-		printf("cPixelLines  was : %d\n",cPixelLines);
+		cPixelBlocks = round(g_LCOS_Height/colorVal); //pixel lines per grating period, need to set grayscale from 255 to 0 in each line.
+		cPixelEndingLines = g_LCOS_Height%colorVal;
+
 
 		unsigned char k = 0;
-		while(k < colorVal)
+		while(k < cPixelBlocks) //how many blocks
 		{
 			grayVal = 0;
-			for(unsigned int j = 0; j<cPixelLines; j++)
+			for(unsigned int j = 0; j<colorVal; j++) //how many lines per block
 			{
-				grayVal = round(j*255/cPixelLines); /*calculate grayscale value on slop*/
+				grayVal = round(j*255/colorVal); //calculate grayscale value on slop
 				for(unsigned int i = 0; i<g_LCOS_Width; i++)
 				{
-					memset(fullPatternData + (i + j*g_LCOS_Width) + k*cPixelLines*g_LCOS_Width, grayVal, sizeof(char));//copy gray value on width
-					//memset(backGratingColumnData + j + k*cPixelLines, grayVal, sizeof(char)); // store gray value in single column
-					//printf("Line %d, GrayVal %d", (j + k*cPixelLines),grayVal);
+					memset(fullPatternData + (i + j*g_LCOS_Width) + k*colorVal*g_LCOS_Width, grayVal, sizeof(char));//copy gray value on width
 				}
 			}
 			k++;
 		}
+		while(cPixelEndingLines != 0)
+		{
+			grayVal = 0;
+			for(unsigned int j = 0; j<cPixelEndingLines; j++) //how many lines left unconfigured
+			{
+				grayVal = round(j*255/colorVal); //calculate grayscale value on slop
+				for(unsigned int i = 0; i<g_LCOS_Width; i++)
+				{
+					memset(fullPatternData + (i + j*g_LCOS_Width) + cPixelBlocks*colorVal*g_LCOS_Width, grayVal, sizeof(char));//copy gray value on width
+				}
+			}
+			break;
+		}
 	}
-	/*else
-	{
-		msg = "\01Driver<PATTERN> Init Background Grating data Failed\04\n";
-	}*/
-/* end of drc */
 }
 
 void PatternGenModule::loadPatternFile_Bin(std::string path)

@@ -74,9 +74,10 @@ public:
 	int 			Set_Aatt_Katt_Args(int port, double freq, double ATT);
 	int 			Set_Sigma_Args(int port, double freq, double temperature);
 	int 			Set_Pixel_Pos_Args(double f1, double f2, double fc, double temperature);
-
+	void			Set_Current_Module(int moduleNo);
 	int 			Get_Interpolation_Status();		// Return -1 for error otherwise 0
 	int 			Get_LUT_Load_Status();
+
 
 
 private:

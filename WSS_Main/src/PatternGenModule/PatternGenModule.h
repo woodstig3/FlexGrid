@@ -159,7 +159,7 @@ private:
 
 	void 			getStartEndOffset(int startGrayVal, int endGrayVal);
 	void			loadPatternFile_Bin(std::string path);													// send pattern file .bin to ocm
-	void			loadOneColorPattern(int colorVal);
+	void			loadOneColorPattern(unsigned int colorVal);
 
 };
 

@@ -55,10 +55,10 @@ int main(int argc, char* argv[])
 	if(serialIns->MoveToThread() != 0)
 		printf("SerialModule: MoveToThread Failed!\n");
 
-	/*MUST implement two different LUts for Temperature sensors. Changjiang gave me excel file*/
-	TemperatureMonitor *tempIns = TemperatureMonitor::GetInstance();
-	if(tempIns->MoveToThread() != 0)
-		printf("TemperatureModule: MoveToThread Failed!\n");
+//	/*MUST implement two different LUts for Temperature sensors. Changjiang gave me excel file*/
+//	TemperatureMonitor *tempIns = TemperatureMonitor::GetInstance();
+//	if(tempIns->MoveToThread() != 0)
+//		printf("TemperatureModule: MoveToThread Failed!\n");
 
 	PatternCalibModule *patternCalibIns = PatternCalibModule::GetInstance();
 	if(patternCalibIns->MoveToThread() != 0)
@@ -68,9 +68,31 @@ int main(int argc, char* argv[])
 	if(patternIns->MoveToThread() != 0)
 		printf("PatternGenModule: MoveToThread Failed!\n");
 
+//	if(argc > 1)	// SEND COMMAND DIRECTLY FROM CONSOLE ARGUMENTS
+//	{
+//		for(int c=1; c< argc; ++c)
+//		{
+//			std::cout << "count "<< argc << " arg = " << argv[c];
+//			std::string temp(argv[c]);
+//			serialIns->Serial_InitiateCommandDecoding(temp);
+//		}
+//	}
 	AlarmModule *InterUIO = AlarmModule::GetInstance();
 	if(InterUIO->MoveToThread() != 0)
 		printf("Alarm for UIO: MoveToThread Failed");
+
+//	MemoryMapping MMAP(MemoryMapping::CLUT);
+//
+//	uint8_t val;
+//	printf("\n\nReading CLUT from PL/FPGA\n\n");
+//	for(int i=0; i<100; i++)
+//	{
+//		MMAP.ReadRegister_CLUT(i, &val);
+//		printf("%02x ", val);
+//
+//		if(!((i+1)%20))
+//			printf("\n");
+//	}
 
 	while(!serialIns->b_endMainSignal) 												// To close main loop and end application when serial thread ends
 	{
@@ -79,7 +101,7 @@ int main(int argc, char* argv[])
 
 	patternIns->StopThread();
 	patternCalibIns->StopThread();
-	tempIns->StopThread();
+//	tempIns->StopThread();
 	serialIns->StopThread();
 	InterUIO->StopThread();
 
