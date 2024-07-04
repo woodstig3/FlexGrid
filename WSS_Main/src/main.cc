@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 	if(serialIns->MoveToThread() != 0)
 		printf("SerialModule: MoveToThread Failed!\n");
 
-//	/*MUST implement two different LUts for Temperature sensors. Changjiang gave me excel file*/
+	/*MUST implement two different LUts for Temperature sensors. Changjiang gave me excel file*/
 //	TemperatureMonitor *tempIns = TemperatureMonitor::GetInstance();
 //	if(tempIns->MoveToThread() != 0)
 //		printf("TemperatureModule: MoveToThread Failed!\n");

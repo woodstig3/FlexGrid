@@ -21,7 +21,7 @@
 #define VENDOR_FREQ_RANGE_HIGH	196275
 #define VENDOR_BW_RANGE_LOW 37.5
 #define VENDOR_BW_RANGE_HIGH 500
-#define VENDIR_MAX_PORT 23
+#define VENDOR_MAX_PORT 23
 #define VENDOR_MIN_BW 6.25
 
 constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI resolution too)

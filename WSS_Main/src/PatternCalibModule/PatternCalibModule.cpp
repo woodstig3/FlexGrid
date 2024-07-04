@@ -155,6 +155,21 @@ void *PatternCalibModule::ThreadHandle4(void *args)
 	return (NULL);
 }
 
+void PatternCalibModule::Set_Current_Module(int moduleNo)
+{
+	if(moduleNo == 1){
+		lut_Opt = &M1_lut_Opt;
+		lut_Att = &M1_lut_Att;
+		lut_Sigma = &M1_lut_Sigma;
+		lut_PixelPos = &M1_lut_PixelPos;
+	}else{
+		lut_Opt = &M2_lut_Opt;
+		lut_Att = &M2_lut_Att;
+		lut_Sigma = &M2_lut_Sigma;
+		lut_PixelPos = &M2_lut_PixelPos;
+	}
+}
+
 int PatternCalibModule::Set_Aopt_Kopt_Args(int port, double freq)
 {
 	Aopt_Kopt_params.port = port;
@@ -410,9 +425,9 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 }
 
 int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int port, double Attenuation, double &result_Aatt, double &result_Katt)
-{	//std::cout << "freq " << frequency << "port " << port << "ATT" << Attenuation << std::endl;
+{
 	// For Aatt
-	result_Aatt = lut_Att_Aatt[port];
+	result_Aatt = lut_Att->Aatt[port];
 
 	// For Katt
 
@@ -421,8 +436,8 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	int attLow;
 	int attHigh;
 
-	int error1 = BinarySearch_LowIndex(lut_Att_Freq, LUT_ATT_FREQ_NUM, frequency, freqLow);
-	int error2 = BinarySearch_LowIndex(lut_Att_ATT, LUT_ATT_ATT_NUM, Attenuation, attLow);
+	int error1 = BinarySearch_LowIndex(lut_Att->Freq, LUT_ATT_FREQ_NUM, frequency, freqLow);
+	int error2 = BinarySearch_LowIndex(lut_Att->ATT, LUT_ATT_ATT_NUM, Attenuation, attLow);
 
 	if(error1 == -1 || error2 == -1)
 	{
@@ -438,10 +453,10 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	freqHigh = freqLow + 1;
 	attHigh = attLow + 1;
 
-	float a1 = lut_Att_ATT[attLow];
-	float a2 = lut_Att_ATT[attHigh];
-	float f1 = lut_Att_Freq[freqLow];
-	float f2 = lut_Att_Freq[freqHigh];
+	float a1 = lut_Att->ATT[attLow];
+	float a2 = lut_Att->ATT[attHigh];
+	float f1 = lut_Att->Freq[freqLow];
+	float f2 = lut_Att->Freq[freqHigh];
 
 	//std::cout << "a1 " << a1 << " a2 " << a2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
 
@@ -450,15 +465,10 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	float wF1 = (f2 - frequency) / (f2 - f1);
 	float wF2 = (frequency - f1) / (f2 - f1);
 
-	float v11 = lut_Att_Katt[port][freqLow][attLow];
-	float v12 = lut_Att_Katt[port][freqHigh][attLow];
-	float v21 = lut_Att_Katt[port][freqLow][attHigh];
-	float v22 = lut_Att_Katt[port][freqHigh][attHigh];
-
-	//std::cout << "wT1 " << wT1 << " wT2 " << wT2 << " wF1 " << wF1 << " wF2 " << wF2 << std::endl;
-
-
-	//std::cout << "v11 " << v11 << " v12 " << v12 << " v21 " << v21 << " v22 " << v22 << std::endl;
+	float v11 = lut_Att->Katt[port][freqLow][attLow];
+	float v12 = lut_Att->Katt[port][freqHigh][attLow];
+	float v21 = lut_Att->Katt[port][freqLow][attHigh];
+	float v22 = lut_Att->Katt[port][freqHigh][attHigh];
 
 	// Two interpolation along x-axis (temperature)
 	float R1 = wT1*v11 + wT2*v21;
@@ -478,26 +488,21 @@ int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(double frequency, int port,
     int freqLow;		// low freq index
 	int freqHigh;		// high freq index
 
-	int error = BinarySearch_LowIndex(lut_Opt_Freq, LUT_OPT_FREQ_NUM, frequency, freqLow);
+	int error = BinarySearch_LowIndex(lut_Opt->Freq, LUT_OPT_FREQ_NUM, frequency, freqLow);
 
 	if(error == -1)
 	{
 		std::cout << "[ERROR] Calibration File Format is Modified <OPT>" << std::endl;
 		return (-1);
 	}
-	else
-	{
-		//std::cout << "freqLow " << freqLow << "freqHigh " << freqLow + 1 << std::endl;
-	}
 
 	freqHigh = freqLow + 1;
 
 	// Perform Linear interpolation for Aopt first
-
-	double x1 = lut_Opt_Freq[freqLow];			// x-axis is independent variable which is frequency
-	double x2 = lut_Opt_Freq[freqHigh];			// x-axis is independent variable which is frequency
-	double y1 = lut_Opt_Aopt[port][freqLow];
-	double y2 = lut_Opt_Aopt[port][freqHigh];
+	double x1 = lut_Opt->Freq[freqLow];				// x-axis is independent variable which is frequency
+	double x2 = lut_Opt->Freq[freqHigh];			// x-axis is independent variable which is frequency
+	double y1 = lut_Opt->Aopt[port][freqLow];
+	double y2 = lut_Opt->Aopt[port][freqHigh];
 
 	double slope = (y2-y1)/(x2-x1);
 
@@ -505,9 +510,8 @@ int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(double frequency, int port,
 
 
 	// Perform Linear interpolation for Kopt first
-
-	y1 = lut_Opt_Kopt[port][freqLow];
-	y2 = lut_Opt_Kopt[port][freqHigh];
+	y1 = lut_Opt->Kopt[port][freqLow];
+	y2 = lut_Opt->Kopt[port][freqHigh];
 
 	slope = (y2-y1)/(x2-x1);
 
@@ -526,30 +530,22 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double fr
 	int tempLow;		// low temperature index
 	int tempHigh;		// high temperature index
 
-	int error1 = BinarySearch_LowIndex(lut_Sigma_Freq, LUT_SIGMA_FREQ_NUM, frequency, freqLow);
-	int error2 = BinarySearch_LowIndex(lut_Sigma_Temp, LUT_SIGMA_TEMP_NUM, temperature, tempLow);
+	int error1 = BinarySearch_LowIndex(lut_Sigma->Freq, LUT_SIGMA_FREQ_NUM, frequency, freqLow);
+	int error2 = BinarySearch_LowIndex(lut_Sigma->Temp, LUT_SIGMA_TEMP_NUM, temperature, tempLow);
 
 	if(error1 == -1 || error2 == -1)
 	{
 		std::cout << "[ERROR] Calibration File Format is Modified <Sigma>" << std::endl;
 		return (-1);
 	}
-	else
-	{
-		   //std::cout << "freqLow " << freqLow << "freqHigh " << freqLow + 1 << std::endl;
-		   //std::cout << "tempLow " << tempLow << "tempHigh " << tempLow + 1 << std::endl;
-	}
 
 	    freqHigh = freqLow + 1;
 	    tempHigh = tempLow + 1;
 
-	 // https://x-engineer.org/bilinear-interpolation/
-	 // https://www.ajdesigner.com/phpinterpolation/bilinear_interpolation_equation.php#ajscroll
-
-	    double t1 = lut_Sigma_Temp[tempLow];
-	    double t2 = lut_Sigma_Temp[tempHigh];
-	    double f1 = lut_Sigma_Freq[freqLow];
-	    double f2 = lut_Sigma_Freq[freqHigh];
+	    double t1 = lut_Sigma->Temp[tempLow];
+	    double t2 = lut_Sigma->Temp[tempHigh];
+	    double f1 = lut_Sigma->Freq[freqLow];
+	    double f2 = lut_Sigma->Freq[freqHigh];
 
 	    //std::cout << "t1 " << t1 << " t2 " << t2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
 
@@ -558,10 +554,10 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double fr
 	    double wF1 = (f2 - frequency) / (f2 - f1);
 	    double wF2 = (frequency - f1) / (f2 - f1);
 
-	    double v11 = lut_Sigma_Sigma[portNum][freqLow][tempLow];
-	    double v12 = lut_Sigma_Sigma[portNum][freqHigh][tempLow];
-	    double v21 = lut_Sigma_Sigma[portNum][freqLow][tempHigh];
-	    double v22 = lut_Sigma_Sigma[portNum][freqHigh][tempHigh];
+	    double v11 = lut_Sigma->Sigma[portNum][freqLow][tempLow];
+	    double v12 = lut_Sigma->Sigma[portNum][freqHigh][tempLow];
+	    double v21 = lut_Sigma->Sigma[portNum][freqLow][tempHigh];
+	    double v22 = lut_Sigma->Sigma[portNum][freqHigh][tempHigh];
 
 	    //std::cout << "wT1 " << wT1 << " wT2 " << wT2 << " wF1 " << wF1 << " wF2 " << wF2 << std::endl;
 
@@ -588,48 +584,33 @@ int PatternCalibModule::Interpolate_PixelPos_Bilinear(double temperature, double
 	int tempLow;		// low temperature index
 	int tempHigh;		// high temperature index
 
-	int error1 = BinarySearch_LowIndex(lut_PixelPos_Freq, LUT_PIXELPOS_FREQ_NUM, frequency, freqLow);
+	int error1 = BinarySearch_LowIndex(lut_PixelPos->Freq, LUT_PIXELPOS_FREQ_NUM, frequency, freqLow);
 
-	int error2 = BinarySearch_LowIndex(lut_PixelPos_Temp, LUT_PIXELPOS_TEMP_NUM, temperature, tempLow);
+	int error2 = BinarySearch_LowIndex(lut_PixelPos->Temp, LUT_PIXELPOS_TEMP_NUM, temperature, tempLow);
 
 	if(error1 == -1 || error2 == -1)
 	{
 		std::cout << "[ERROR] Calibration File Format is Modified <PixelPos>" << std::endl;
 		return (-1);
 	}
-	else
-	{
-		   //std::cout << "freqLow " << freqLow << "freqHigh " << freqLow + 1 << std::endl;
-		   //std::cout << "tempLow " << tempLow << "tempHigh " << tempLow + 1 << std::endl;
-	}
 
 		freqHigh = freqLow + 1;
 		tempHigh = tempLow + 1;
 
-	 // https://x-engineer.org/bilinear-interpolation/
-	 // https://www.ajdesigner.com/phpinterpolation/bilinear_interpolation_equation.php#ajscroll
-
-		double t1 = lut_PixelPos_Temp[tempLow];
-		double t2 = lut_PixelPos_Temp[tempHigh];
-		double f1 = lut_PixelPos_Freq[freqLow];
-		double f2 = lut_PixelPos_Freq[freqHigh];
-
-		//std::cout << "t1 " << t1 << " t2 " << t2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
+		double t1 = lut_PixelPos->Temp[tempLow];
+		double t2 = lut_PixelPos->Temp[tempHigh];
+		double f1 = lut_PixelPos->Freq[freqLow];
+		double f2 = lut_PixelPos->Freq[freqHigh];
 
 		double wT1 = (t2 - temperature) / (t2 - t1);
 		double wT2 = (temperature - t1) / (t2 - t1);
 		double wF1 = (f2 - frequency) / (f2 - f1);
 		double wF2 = (frequency - f1) / (f2 - f1);
 
-		double v11 = lut_PixelPos_Pos[freqLow][tempLow];
-		double v12 = lut_PixelPos_Pos[freqHigh][tempLow];
-		double v21 = lut_PixelPos_Pos[freqLow][tempHigh];
-		double v22 = lut_PixelPos_Pos[freqHigh][tempHigh];
-
-		//std::cout << "wT1 " << wT1 << " wT2 " << wT2 << " wF1 " << wF1 << " wF2 " << wF2 << std::endl;
-
-
-		//std::cout << "v11 " << v11 << " v12 " << v12 << " v21 " << v21 << " v22 " << v22 << std::endl;
+		double v11 = lut_PixelPos->Pos[freqLow][tempLow];
+		double v12 = lut_PixelPos->Pos[freqHigh][tempLow];
+		double v21 = lut_PixelPos->Pos[freqLow][tempHigh];
+		double v22 = lut_PixelPos->Pos[freqHigh][tempHigh];
 
 		// Two interpolation along x-axis (temperature)
 		double R1 = wT1*v11 + wT2*v21;
@@ -725,12 +706,18 @@ void PatternCalibModule::PatternCalib_Closure(void)
 
 int PatternCalibModule::PatternCalib_LoadLUTs(void)
 {
-	int status;
+	int status{0};
+	status |= Load_Opt_LUT(M1_lut_Opt, "/mnt/Opt_LUT_M1.csv");
+	status |= Load_Att_LUT(M1_lut_Att, "/mnt/Att_LUT_M1.csv");
+	status |= Load_Sigma_LUT(M1_lut_Sigma, "/mnt/Sigma_LUT_M1.csv");
+	status |= Load_PixelPos_LUT(M1_lut_PixelPos, "/mnt/PixelPos_LUT_M1.csv");
 
-	status = Load_Opt_LUT();		// All .csv independent varibles MUST BE in ascending order
-	status = Load_Att_LUT();		// All .csv independent varibles MUST BE in ascending order
-	status = Load_Sigma_LUT();		// All .csv independent varibles MUST BE in ascending order
-	status = Load_PixelPos_LUT();	// All .csv independent varibles MUST BE in ascending order
+#ifdef _TWIN_WSS_
+	status |= Load_Opt_LUT(M2_lut_Opt, "/mnt/Opt_LUT_M2.csv");
+	status |= Load_Att_LUT(M2_lut_Att, "/mnt/Att_LUT_M2.csv");
+	status |= Load_Sigma_LUT(M2_lut_Sigma, "/mnt/Sigma_LUT_M2.csv");
+	status |= Load_PixelPos_LUT(M2_lut_PixelPos, "/mnt/PixelPos_LUT_M2.csv");
+#endif
 
 	if(status != 0)
 	{
@@ -740,9 +727,9 @@ int PatternCalibModule::PatternCalib_LoadLUTs(void)
 	return (0);
 }
 
-int PatternCalibModule::Load_Opt_LUT(void)
+int PatternCalibModule::Load_Opt_LUT(Opt& lut, const std::string& path)
 {
-    std::ifstream file("/mnt/Opt_LUT.csv");
+    std::ifstream file(path);
 
     if (file.is_open()) {
         std::cout << "[Opt_LUT] File has been opened" << std::endl;
@@ -774,26 +761,23 @@ int PatternCalibModule::Load_Opt_LUT(void)
            if(rowNumber >= 4 && columnNumber == 1)
            {
                std::istringstream(column) >> value;
-               lut_Opt_Freq[freqIndex] = value;
+               lut.Freq[freqIndex] = value;
            }
            else if (rowNumber >= 4 && columnNumber > 1)
            {
                if(!(columnNumber%2))        // even coulmn number is a
                {
                    std::istringstream(column) >> value;
-                   //std::cout << column << std::endl;
-                   lut_Opt_Aopt[portIndex][freqIndex] = value;
+                   lut.Aopt[portIndex][freqIndex] = value;
                }
                else                      // odd coulmn number is k
                {
                    std::istringstream(column) >> value;
-                   //std::cout << column << std::endl;
-                   lut_Opt_Kopt[portIndex][freqIndex] = value;
+                   lut.Kopt[portIndex][freqIndex] = value;
 
                    portIndex++;
                }
            }
-
            columnNumber++;
        }
 
@@ -812,7 +796,7 @@ int PatternCalibModule::Load_Opt_LUT(void)
 
     for(int f=0; f< LUT_OPT_FREQ_NUM; f++)
     {
-    	std::cout << "f = " << lut_Opt_Freq[f] << std::endl;
+    	std::cout << "f = " << lut.Freq[f] << std::endl;
     }
 
     for(int port =0; port < 23; port++)
@@ -821,7 +805,7 @@ int PatternCalibModule::Load_Opt_LUT(void)
 
     	for(int index =0; index<LUT_OPT_FREQ_NUM; index++)
     	{
-    		std::cout << "Aopt = " << lut_Opt_Aopt[port][index] << "Kopt = "<< lut_Opt_Kopt[port][index] << std::endl;
+    		std::cout << "Aopt = " << lut.Aopt[port][index] << "Kopt = "<< lut.Kopt[port][index] << std::endl;
     	}
 
     	std::cout << std::endl;
@@ -830,9 +814,9 @@ int PatternCalibModule::Load_Opt_LUT(void)
 	return (0);
 }
 
-int PatternCalibModule::Load_Att_LUT(void)
+int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
 {
-    std::ifstream file("/mnt/Att_LUT.csv");
+    std::ifstream file(path);
 
     if (file.is_open()) {
         std::cout << "[Att_LUT] File has been opened" << std::endl;
@@ -841,9 +825,6 @@ int PatternCalibModule::Load_Att_LUT(void)
         std::cout << "[Att_LUT] File opening Error" << std::endl;
         return (-1);
     }
-
-
-    // The file reading is based on EXCEL/CSV LUT file template.
 
     int portIndex = 0;
     int attIndex = 0;
@@ -865,24 +846,23 @@ int PatternCalibModule::Load_Att_LUT(void)
           if(rowNumber == 3 && columnNumber == 2)               // Fetch value of Aatt
           {
               std::istringstream(column) >> value;
-              lut_Att_Aatt[portIndex] = value;
+              lut.Aatt[portIndex] = value;
           }
           else if(rowNumber >= 6 && columnNumber == 1)
           {
               std::istringstream(column) >> value;
-              lut_Att_ATT[attIndex] = value;
+              lut.ATT[attIndex] = value;
           }
           else if (rowNumber == 4 && columnNumber > 1 && portIndex == 0)           // Since Freqs are same for each port, we load it onces only
           {
               std::istringstream(column) >> value;
-              lut_Att_Freq[freqIndex] = value;
+              lut.Freq[freqIndex] = value;
               ++freqIndex;
           }
           else if (rowNumber >= 6 && columnNumber > 1)
           {
               std::istringstream(column) >> value;
-              lut_Att_Katt[portIndex][freqIndex][attIndex] = value;
-
+              lut.Katt[portIndex][freqIndex][attIndex] = value;
               ++freqIndex;
           }
 
@@ -910,21 +890,21 @@ int PatternCalibModule::Load_Att_LUT(void)
     // Verify
      for(int f=0; f<LUT_ATT_FREQ_NUM; f++)
      {
-         std::cout << lut_Att_Freq[f] << std::endl;
+         std::cout << lut.Freq[f] << std::endl;
      }
 
      std::cout<< "ATT values=" << std::endl;
 
      for(int a=0; a<LUT_ATT_ATT_NUM; a++)
      {
-          std::cout << lut_Att_ATT[a] << std::endl;
+          std::cout << lut.ATT[a] << std::endl;
      }
 
      std::cout<< "a values=" << std::endl;
 
      for(int port = 0; port < 23; port++)
      {
-         std::cout << port << " " <<lut_Att_Aatt[port] << std::endl;
+         std::cout << port << " " <<lut.Aatt[port] << std::endl;
      }
 
      for(int port = 0; port < 23; port++)
@@ -933,7 +913,7 @@ int PatternCalibModule::Load_Att_LUT(void)
 
          for(int f=0; f<LUT_ATT_FREQ_NUM; f++)
          {
-             std::cout << "Freq " << lut_Att_Freq[f] << "\t";
+             std::cout << "Freq " << lut.Freq[f] << "\t";
          }
 
          std::cout << std::endl;
@@ -942,7 +922,7 @@ int PatternCalibModule::Load_Att_LUT(void)
          {
              for(int f=0; f<LUT_ATT_FREQ_NUM; f++)
              {
-                std::cout << lut_Att_Katt[port][f][a] << "\t\t";
+                std::cout << lut.Katt[port][f][a] << "\t\t";
              }
 
              std::cout << std::endl;
@@ -956,9 +936,9 @@ int PatternCalibModule::Load_Att_LUT(void)
 	return (0);
 }
 
-int PatternCalibModule::Load_Sigma_LUT(void)
+int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 {
-    std::ifstream file("/mnt/Sigma_LUT.csv");
+    std::ifstream file(path);
 
     if (file.is_open()) {
         std::cout << "[Sigma_LUT] File has been opened" << std::endl;
@@ -990,17 +970,17 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 		  if(rowNumber == 3 && (columnNumber > 1 && columnNumber <=4))       // Temperature readings, only 3 readings from first 3 columns, rest are same
 		  {
 			  std::istringstream(column) >> value;
-			  lut_Sigma_Temp[tempIndex] = value;
+			  lut.Temp[tempIndex] = value;
 		  }
 		  else if (rowNumber >= 5 && columnNumber == 1)
 		  {
 			  std::istringstream(column) >> value;
-			  lut_Sigma_Freq[freqIndex] = value;
+			  lut.Freq[freqIndex] = value;
 		  }
 		  else if (rowNumber >= 5 && columnNumber > 1)
 		  {
 			  std::istringstream(column) >> value;
-			  lut_Sigma_Sigma[portIndex][freqIndex][tempIndex] = value;
+			  lut.Sigma[portIndex][freqIndex][tempIndex] = value;
 		  }
 
 		  if(rowNumber >= 3 && columnNumber > 1)
@@ -1013,7 +993,6 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 				  ++portIndex;
 			  }
 		  }
-
 		  columnNumber++;
 	  }
 
@@ -1023,7 +1002,6 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 	  }
 	  // Now you have a vector of floats, each float is a column value
 	  // You can access them by index, e.g. columns[0], columns[1], etc.
-
 	  rowNumber++;
 	}
 
@@ -1034,12 +1012,12 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 
 	 for(int f=0; f<LUT_SIGMA_FREQ_NUM; f++)
 	 {
-		 std::cout << "Freq: " << lut_Sigma_Freq[f] << std::endl;
+		 std::cout << "Freq: " << lut.Freq[f] << std::endl;
 	 }
 
 	 for(int t=0; t<LUT_SIGMA_TEMP_NUM; t++)
 	 {
-		 std::cout << "Temp: " << lut_Sigma_Temp[t] << std::endl;
+		 std::cout << "Temp: " << lut.Temp[t] << std::endl;
 	 }
 
 	 for(int port = 0; port< 23 ; port++)
@@ -1048,7 +1026,7 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 
 		 for(int temp =0; temp < LUT_SIGMA_TEMP_NUM; temp++)
 		 {
-			 std::cout << lut_Sigma_Temp[temp] << "  ";
+			 std::cout << lut.Temp[temp] << "  ";
 		 }
 
 		 std::cout << std::endl;
@@ -1057,7 +1035,7 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 		 {
 			 for(int temp =0; temp< LUT_SIGMA_TEMP_NUM; temp++)
 			 {
-				 std::cout << lut_Sigma_Sigma[port][f][temp] << "  ";
+				 std::cout << lut.Sigma[port][f][temp] << "  ";
 			 }
 
 			 std::cout << std::endl;
@@ -1068,9 +1046,9 @@ int PatternCalibModule::Load_Sigma_LUT(void)
 	return (0);
 }
 
-int PatternCalibModule::Load_PixelPos_LUT(void)
+int PatternCalibModule::Load_PixelPos_LUT(PixelPos& lut, const std::string& path)
 {
-    std::ifstream file("/mnt/PixelPos_LUT.csv");
+    std::ifstream file(path);
 
     if (file.is_open()) {
         std::cout << "[PixelPos_LUT] File has been opened" << std::endl;
@@ -1099,19 +1077,18 @@ int PatternCalibModule::Load_PixelPos_LUT(void)
           if(rowNumber >= 3 && columnNumber == 1)
           {
               std::istringstream(column) >> value;
-              lut_PixelPos_Temp[tempIndex] = value;
+              lut.Temp[tempIndex] = value;
           }
           else if (rowNumber == 2 && columnNumber > 1)
           {
               std::istringstream(column) >> value;
-              lut_PixelPos_Freq[freqIndex] = value;
+              lut.Freq[freqIndex] = value;
           }
           else if (rowNumber >=3 && columnNumber > 1)
           {
               std::istringstream(column) >> value;
-              lut_PixelPos_Pos[freqIndex][tempIndex] = value;
+              lut.Pos[freqIndex][tempIndex] = value;
           }
-
           columnNumber++;
 
           if(rowNumber >=2 && columnNumber > 2)
@@ -1124,7 +1101,6 @@ int PatternCalibModule::Load_PixelPos_LUT(void)
       {
           ++tempIndex;
       }
-
       rowNumber++;
     }
 
@@ -1135,12 +1111,12 @@ int PatternCalibModule::Load_PixelPos_LUT(void)
 
      for(int t=0; t<LUT_PIXELPOS_TEMP_NUM; t++)
      {
-         std::cout << lut_PixelPos_Temp[t] << std::endl;
+         std::cout << lut.Temp[t] << std::endl;
      }
 
      for(int f=0; f<LUT_PIXELPOS_FREQ_NUM; f++)
      {
-         std::cout << lut_PixelPos_Freq[f] << "\t";
+         std::cout << lut.Freq[f] << "\t";
      }
 
      std::cout << std::endl;
@@ -1149,7 +1125,7 @@ int PatternCalibModule::Load_PixelPos_LUT(void)
      {
          for(int f=0; f<LUT_PIXELPOS_FREQ_NUM; f++)
          {
-             std::cout << lut_PixelPos_Pos[f][t] << "\t";
+             std::cout << lut.Pos[f][t] << "\t";
          }
 
          std::cout << std::endl;
@@ -1162,7 +1138,6 @@ int PatternCalibModule::Load_PixelPos_LUT(void)
 
 void PatternCalibModule::StopThread()
 {
-	// Break all loops
 	PatternCalib_Closure();
 
 
@@ -1192,14 +1167,9 @@ void PatternCalibModule::StopThread()
 int PatternCalibModule::Get_Interpolation_Status()
 {
 	if(g_Status_Opt == ERROR || g_Status_Att == ERROR || g_Status_Sigma == ERROR || g_Status_PixelPos== ERROR)
-	{
 		return -1;
-	}
 	else
-	{
 		return 0;
-	}
-
 }
 
 int PatternCalibModule::Get_LUT_Load_Status()

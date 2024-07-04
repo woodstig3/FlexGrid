@@ -120,11 +120,11 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			else
 			{
 				if(g_bNewCommandData || g_bTempChanged)
-				{	//std::cerr << "if(g_bNewCommandData || g_bTempChanged) \n";
+				{
+					status = Get_LCOS_Temperature();
+
 					if(g_bTempChanged)
 					{
-						status = Get_LCOS_Temperature();
-
 						g_bTempChanged = false;
 						etrigger = TEMP_CHANGED;
 						//std::cout << "TEMP Changed... " << std::endl;
@@ -313,9 +313,9 @@ int PatternGenModule::Init_PatternGen_All_Modules(int *mode)
 
 int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 {
-	bool backColor = false; // drc added for background grating init(e.g. SET:PANEL.1:BACK_COLOR=10 in PROD mode)
+	bool backColor = false; // drc added for background grating init(e.g. SET:PANEL.1:BACK_COLOR=10 in DEV mode)
 
-	#ifdef _DEVELOPMENT_MODE_
+#ifdef _DEVELOPMENT_MODE_
 
 	bool updatePhase = false;
 	bool updateLUTRange = false;
@@ -364,7 +364,7 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 			color = g_serialMod->cmd_decoder.structDevelopMode.colorValue;
 			g_serialMod->cmd_decoder.structDevelopMode.b_sendColor = false;
 		}
-#endif
+
 
 		if(g_serialMod->cmd_decoder.structDevelopMode.b_backColor == true)
 		{
@@ -373,7 +373,6 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 			g_serialMod->cmd_decoder.structDevelopMode.b_backColor = false;
 			//memset(fullPatternData, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
 		}
-#ifdef _DEVELOPMENT_MODE_
 
 		if (pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]) != 0)	// Unlocking and checking the result, if lock was successful and no deadlock happened
 			std::cout << "global_mutex[LOCK_DEVMODE_VARS] unlock unsuccessful" << std::endl;
@@ -401,13 +400,13 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 		loadOneColorPattern(color);
 		return -2;				   // Indicate that we are sending pattern file to OCM, no need to calculate pattern for channels.
 	}
-#endif
+
 	if(backColor == true)
 	{
 		loadOneColorPattern(m_backColor);
 		return -2;				   // Indicate that we are setting background pattern, no need to calculate pattern for channels.
 	}
-
+#endif
 	return (0);
 
 
@@ -813,7 +812,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 
 		if(theta != 2 && theta != 1)		// Two cases when Sin output is ZERO
 		{
-			attFactor = Katt*(sin((Y+1)*g_phaseDepth*PI/Aatt));		// (Y+1) because pixel number must starts from 1 to 1080
+			attFactor = Katt*abs(sin((Y+1)*g_phaseDepth*PI/Aatt));		// (Y+1) because pixel number must starts from 1 to 1080
 		}
 
 		attenuatedPattern[Y] = optimizedPattern[Y] + attFactor;
@@ -1174,7 +1173,7 @@ int PatternGenModule::Find_Parameters_By_Interpolation(inputParameters &ins, out
 	{
 		g_ready1 = g_ready2 = g_ready3 = g_ready4 = false;			// Initialize all to No-Interpolation
 
-		//g_patternCalib->Set_Current_Module(g_moduleNum);
+		g_patternCalib->Set_Current_Module(g_moduleNum);
 
 		if(interpolateSigma)
 		{
@@ -1344,7 +1343,7 @@ int PatternGenModule::BreakThreadLoop()
 void PatternGenModule::Create_Linear_LUT(float phaseDepth)
 {
 	//int lutSize = round(phaseDepth*(180));					// Not divide by PI because phaseDepth has no PI in it
-	int lutSize = round(2.2*(180));								// Dr.Du said always create LUT for 2.2 PI and we can change range of LUT using phaseDepth
+	int lutSize = round(g_phaseDepth*(180));					// Dr.Du said always create LUT for 2.2 PI and we can change range of LUT using phaseDepth
 	//std::cout << "lutSize " <<lutSize <<std::endl;
 
 	int phaseLow = 0;
@@ -1455,8 +1454,8 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, int &pixelP
 
 	   if(pixelPos < 0)
 		   pixelPos = 0;
-	   else if (pixelPos > 1919)
-		   pixelPos = 1919;
+	   else if (pixelPos > g_LCOS_Width-1)
+		   pixelPos = g_LCOS_Width-1;
 }
 
 void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
@@ -1465,9 +1464,12 @@ void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 	{
 		memset(fullPatternData, static_cast<unsigned char>(colorVal), sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
 	}
-	else//single grating pattern for whole panel as background
+
+#ifndef _TWIN_WSS_
+
+	else //single grating pattern for whole panel as background
 	{
-		/*drc added initial pattern of one single grating with period of value at colorVal*/
+		//drc added initial pattern of one single grating with period of value at colorVal
 		unsigned char cPixelBlocks = 0, cPixelEndingLines = 0;
 		unsigned char grayVal = 0;
 		cPixelBlocks = round(g_LCOS_Height/colorVal); //pixel lines per grating period, need to set grayscale from 255 to 0 in each line.
@@ -1502,6 +1504,48 @@ void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 			break;
 		}
 	}
+#endif //m_customLCOS_Height   g_moduleNum
+	else //two grating pattern for two modules in panel as different background
+	{
+		unsigned char cPixelBlocks = 0, cPixelEndingLines = 0;
+		unsigned char grayVal = 0;
+
+		cPixelBlocks = round(m_customLCOS_Height/colorVal); //pixel lines per grating period, need to set grayscale from 255 to 0 in each line.
+		cPixelEndingLines = m_customLCOS_Height%colorVal;
+
+		for(unsigned char m = 0; m < g_moduleNum; m++)
+		{
+			unsigned char k = 0;
+			while(k < cPixelBlocks) //how many stripes
+			{
+				grayVal = 0;
+				for(unsigned int j = 0; j<colorVal; j++) //how many lines per block
+				{
+					grayVal = (m == 0 ? (round(j*255/colorVal)):(255 - (round(j*255/colorVal)))); //calculate grayscale value on slop
+					for(unsigned int i = 0; i<g_LCOS_Width; i++)
+					{
+						memset(fullPatternData + m*m_customLCOS_Height*g_LCOS_Width + (i + j*g_LCOS_Width) + k*colorVal*g_LCOS_Width, grayVal, sizeof(char));//copy gray value on width
+					}
+				}
+				k++;
+			}
+			while(cPixelEndingLines != 0) // for incomplete stripes
+			{
+				grayVal = 0;
+				for(unsigned int j = 0; j<cPixelEndingLines; j++) //how many lines left
+				{
+					grayVal = (m == 0 ? (round(j*255/colorVal)):(255 - (round(j*255/colorVal)))); //calculate grayscale value on slop
+					for(unsigned int i = 0; i<g_LCOS_Width; i++)
+					{
+						memset(fullPatternData + m*m_customLCOS_Height*g_LCOS_Width + (i + j*g_LCOS_Width) + cPixelBlocks*colorVal*g_LCOS_Width, grayVal, sizeof(char));//copy gray value on width
+					}
+				}
+				break;
+			}
+		}
+
+	}
+
 }
 
 void PatternGenModule::loadPatternFile_Bin(std::string path)

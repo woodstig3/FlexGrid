@@ -67,7 +67,7 @@ public:
      */
     static PatternGenModule *GetInstance();
 
-	SerialModule 	*g_serialMod{nullptr};		// create an instance of CmdDecoder so that we can access its member and data via singleton method
+	SerialModule 	   *g_serialMod{nullptr};		// create an instance of CmdDecoder so that we can access its member and data via singleton method
 	PatternCalibModule *g_patternCalib{nullptr};
 	TemperatureMonitor *g_tempMonitor{nullptr};
 
@@ -90,15 +90,15 @@ private:
 
 	static PatternGenModule *pinstance_;
 
-	std::vector<int> linearLUT{};								// The range depends on Phase_depth 2pi or 2.2pi etc
-	unsigned int 	startOffsetLUT{0};										// These offsets can modify the range of LUT available to compare
-	unsigned int 	endOffsetLUT{0};										// These offsets can modify the range of LUT available to compare
+	std::vector<int> linearLUT{};									// The range depends on Phase_depth 2pi or 2.2pi etc
+	unsigned int 	startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
+	unsigned int 	endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 
-	bool 			m_bCalibDataOk = true;									// If calibration data has no issue then pattern will perform calculations otherwise no calculations
+	bool 			m_bCalibDataOk = true;							// If calibration data has no issue then pattern will perform calculations otherwise no calculations
 
 	int 			g_moduleNum{};
-	float 			g_LCOS_Temp{63};										// Default minimum
-	bool 			g_bSigmaNegative{false};								// Flip pattern per period for -ve sigma
+	float 			g_LCOS_Temp{63};								// Default minimum
+	bool 			g_bSigmaNegative{false};						// Flip pattern per period for -ve sigma
 
 	const double 	g_wavelength{1.55};
 	const int 		g_pixelSize{8};
@@ -111,29 +111,29 @@ private:
 	float 			phaseLine_MOD[g_LCOS_Height]{0};
 	float 			rebuildPeriod[g_LCOS_Height]{0};
 	float 			attenuatedPattern[g_LCOS_Height]{0};
-	float 			attenuatedPattern_limited[g_LCOS_Height]{0};			// The max and mix values are limited, the border values are cut off
+	float 			attenuatedPattern_limited[g_LCOS_Height]{0};	// The max and min values are limited, the border values are cut off
 	float 			optimizedPattern[g_LCOS_Height]{0};
 	unsigned int 	periodCount[g_LCOS_Height]{0};
 	std::vector<unsigned int> periods{};
 	int 			factorsForDiv[g_LCOS_Height]{0};
 
-	pthread_t 		thread_id{0};										// Create Thread id
-	pthread_attr_t 	thread_attrb{};								// Create Attributes
+	pthread_t 		thread_id{0};									// Create Thread id
+	pthread_attr_t 	thread_attrb{};									// Create Attributes
 
-	bool 			b_LoopOn{};												// Loop running on thread
+	bool 			b_LoopOn{};										// Loop running on thread
 
 private:
 
-	int 			BreakThreadLoop(void);				// Control when to end all thread loops, usually when class dies
+	int 			BreakThreadLoop(void);							// Control when to end all thread loops, usually when class dies
 	void 			GetErrorMessage(std::string &);
 
 	int 			PatternGen_Initialize(void);
 	void 			Create_Linear_LUT(float phaseDepth);
 	void 			PatternGen_Closure(void);
 	static void 	*ThreadHandle(void *);
-	void 			ProcessPatternGeneration(void);								// Thread looping while in the function
+	void 			ProcessPatternGeneration(void);					// Thread looping while in the function
 
-	int 			Init_PatternGen_All_Modules(int *mode);					// Needs to know which mode to initiate pattern generation for
+	int 			Init_PatternGen_All_Modules(int *mode);			// Needs to know which mode to initiate pattern generation for
 	void 			Save_Pattern_In_FileSysten(void);
 	void 			Find_OperationMode(int *mode);
 	int 			Get_LCOS_Temperature(void);
@@ -158,7 +158,7 @@ private:
 	void 			rotateArray(double angle, int width, int height);
 
 	void 			getStartEndOffset(int startGrayVal, int endGrayVal);
-	void			loadPatternFile_Bin(std::string path);													// send pattern file .bin to ocm
+	void			loadPatternFile_Bin(std::string path);				// send pattern file .bin to ocm
 	void			loadOneColorPattern(unsigned int colorVal);
 
 };

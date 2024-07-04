@@ -1251,6 +1251,10 @@ int CmdDecoder::SearchObject(std::string &object)
 								{
 									eObject = PANEL;
 								}
+								else if (g_moduleNum == 2 )
+								{
+									eObject = MODULE;  //drc added for twin wss
+								}
 								else
 								{
 									cout << "ERROR: The Module Number is wrong" << endl;
@@ -1898,7 +1902,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					{
 						if (Sscanf(attr[1], iValue, 'i'))
 						{
-							if(iValue >=1 && iValue <=VENDIR_MAX_PORT)	// Port 1 to 12
+							if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	// Port 1 to 12
 							{
 								TF_Channel_DS[g_moduleNum][g_channelNum].ADP = iValue;	// g_moduleNum and g_channelNums were found in SearchObject
 							}
@@ -2217,7 +2221,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					{
 						if (Sscanf(attr[1], iValue, 'i'))
 						{
-							if(iValue >=1 && iValue <=VENDIR_MAX_PORT)	// Port 1 to 12
+							if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	// Port 1 to 12
 							{
 								FG_Channel_DS[g_moduleNum][g_channelNum].ADP = iValue;
 							}
@@ -3560,6 +3564,35 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						return (-1);
 					}
 
+					break;
+				}
+				case 'B': //drc added
+				{
+					int i_Value;
+					if (attr[0] == "BACK_COLOR" && eVerb == SET)
+					{
+						if(Sscanf(attr[1],i_Value,'i'))
+						{
+							if(i_Value >=0 && i_Value <= 255)
+							{
+								pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
+								structDevelopMode.b_backColor = true;
+								structDevelopMode.backColorValue = i_Value;
+								pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
+							}
+							else
+							{
+								cout << "ERROR: The Color Value out of range (0-255)" << endl;
+								return (-1);
+							}
+						}
+						else
+						{
+							cout << "ERROR: The command attribute BACK_COLOR is not supported" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
+					}
 					break;
 				}
 				case 'E':
