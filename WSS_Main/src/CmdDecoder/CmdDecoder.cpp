@@ -1175,7 +1175,7 @@ int CmdDecoder::SearchObject(std::string &object)
 					}
 					case 6:
 					{
-						if (objVec[0] == "MODULE")
+						if (objVec[0] == "MODULE") //drc
 						{
 							if ((objVec.size() == 2))
 							{
