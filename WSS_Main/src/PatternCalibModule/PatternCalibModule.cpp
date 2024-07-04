@@ -430,7 +430,6 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	result_Aatt = lut_Att->Aatt[port];
 
 	// For Katt
-
 	int freqLow;
 	int freqHigh;
 	int attLow;
@@ -443,11 +442,6 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	{
 		std::cout << "[ERROR] Calibration File Format is Modified <ATT>" << std::endl;
 		return (-1);
-	}
-	else
-	{
-		   //std::cout << "freqLow " << freqLow << "freqHigh " << freqLow + 1 << std::endl;
-		   //std::cout << "attLow " << attLow << "attHigh " << attLow + 1 << std::endl;
 	}
 
 	freqHigh = freqLow + 1;
@@ -477,8 +471,6 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	// One interpolation along y-axis (Frequency)
 
 	result_Katt = R1*wF1 + R2*wF2;
-
-	//std::cout << "Aatt = " << result_Aatt << "Katt = " << result_Katt << std::endl;
 
 	return (0);
 }
