@@ -201,6 +201,7 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 #endif
         	}
 #if 0
+//delete by jihongwang on 20240722
         	else
         	{
 
@@ -219,6 +220,7 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
         			g_serialMod->cmd_decoder.SetPanelInfo(true);
         	}
 #endif
+//begin add by jihongwang on 20240722
    		    if((m_direct_Heater2_Temp > TEC_STRCHEECK_LOW)  && ( m_direct_Heater2_Temp < TEC_STRCHEECK_HIGH))
    		    {
    		           if(isTECStableInFPGA())
@@ -238,6 +240,7 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
    			      b_isTECStable = false;
    			      g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
    		     }
+//end add by jihongwang on 20240722
         }
 
 		//std::cout << "LOOPING... " << std::endl;
