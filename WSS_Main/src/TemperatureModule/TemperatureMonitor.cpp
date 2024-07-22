@@ -8,6 +8,8 @@
 #include "TemperatureMonitor.h"
 #include <cassert>
 long PRIMARK = 0.0;
+#define TEC_STRCHEECK_LOW 50.0
+#define TEC_STRCHEECK_HIGH 58.0
 /*
  * When delta Temp change is more than +- 0.2 we calculate pattern
  * TEC working range is 65+-2C... 63-67C ,if temperature goes
@@ -200,6 +202,7 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
         	}
         	else
         	{
+#if 0
 //        		if(isTECStableInFPGA())
 //        		{
         			b_isTECStable = true;
@@ -214,6 +217,26 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
         		if(b_isTECStable)
         			g_serialMod->cmd_decoder.SetPanelInfo(true);
         	}
+#endif
+   		    if((m_direct_Heater2_Temp > TEC_STRCHEECK_LOW)  && ( m_direct_Heater2_Temp < TEC_STRCHEECK_HIGH))
+   		    {
+   		           if(isTECStableInFPGA())
+   		           {
+   		                b_isTECStable = true;
+   		           }
+   		           else
+   		           {
+   		                b_isTECStable = false;
+   		           }
+
+                   g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
+   		           //std::cout << "TEC STABLE = " << b_isTECStable << std::endl;
+   		     }
+   	         else
+   		     {
+   			      b_isTECStable = false;
+   			      g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
+   		     }
         }
 
 		//std::cout << "LOOPING... " << std::endl;
