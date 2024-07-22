@@ -18,13 +18,13 @@
 	// Struct same as class no need to nest it inside another class
 	struct TrueFlex
 	{
-		bool 			active = false;	//default all channels are active	//1 means channels are active and 0 means deleted
+		bool 			active = false;	   //default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;			//NOT IN USE IN PRODUCTION MODE
-		float 			ATT =0;			//NOT IN USE IN PRODUCTION MODE
+		float 			ATT =0;			  //NOT IN USE IN PRODUCTION MODE
 		int 			CMP =0;				//NOT IN USE IN PRODUCTION MODE
 
-		double 			FC =0;			// for position
-		double 			BW =0;			// for channel width
+		double 			FC =0;				// for position
+		double 			BW =0;				// for channel width
 
 		float 			LAMDA=0;
 		float 			SIGMA=0;
@@ -118,6 +118,16 @@
 		int 			TEC1_PERIOD=0, TEC2_PERIOD=0;
 	};
 
+
+	struct BackgroundCalibPara{
+		//drc added for background pattern parameters
+		int				Sigma = 0.025;
+		float			PD = 2.2;
+		float			A_Opt = 0.5;
+		float			K_Opt = 0.03;
+
+	};
+
 	struct DevelopModeVar{
 
 		int 			developMode = 0;
@@ -148,11 +158,13 @@
 		bool 			b_sendColor = false;
 		int				colorValue = 0;
 
-		//Background color
+		//Background pattern
 		int				backColorValue =0;
 		bool			b_backColor = false;
 
-		//Switch Temperaure on TestRig Display LCOS vs Grating
+		BackgroundCalibPara structBackgroundPara; //drc added
+
+		//Switch Temperature on TestRig Display LCOS vs Grating
 		bool			m_switch = 0;
 	};
 

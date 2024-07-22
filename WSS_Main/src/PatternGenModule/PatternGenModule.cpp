@@ -203,7 +203,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 				g_serialMod->cmd_decoder.PrintResponse(msg, g_serialMod->cmd_decoder.PrintType::ERROR_HI_PRIORITY);	 // If Command came and caused error then write message to PrintResponse
 			}
 
-			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);
+			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);  //drc why still true here?
 		}
 
 	}
@@ -215,10 +215,10 @@ int PatternGenModule::Get_LCOS_Temperature()
 {
 	double temp = g_tempMonitor->GetLCOSTemperature();
 
-	if(temp > 55)
-		temp = 55;
-	else if (temp < 51)
-		temp = 51;
+	if(temp > g_Max_Normal_Temperature)  //55
+		temp = g_Max_Normal_Temperature;
+	else if (temp < g_Min_Normal_Temperature)  //51
+		temp = g_Min_Normal_Temperature;
 
 	g_LCOS_Temp = temp;
 	std::cout << "g_LCOS_Temp = " << g_LCOS_Temp << std::endl;
@@ -229,9 +229,9 @@ int PatternGenModule::Get_LCOS_Temperature()
 int PatternGenModule::Init_PatternGen_All_Modules(int *mode)
 {
 	/* Reset Full Pattern 2D Array */
-	//memset(fullPatternData, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
-	loadOneColorPattern(m_backColor);
-	memset(rotated, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
+	memset(fullPatternData, 0, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
+	loadBackgroundPattern();
+	//memset(rotated, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
 
 	int status = 0;
 
@@ -313,14 +313,13 @@ int PatternGenModule::Init_PatternGen_All_Modules(int *mode)
 
 int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 {
-	bool backColor = false; // drc added for background grating init(e.g. SET:PANEL.1:BACK_COLOR=10 in DEV mode)
-
 #ifdef _DEVELOPMENT_MODE_
 
 	bool updatePhase = false;
 	bool updateLUTRange = false;
 	bool sendPatternFile = false;
 	bool sendColor = false;
+	bool backColor = false; // drc added for background grating init(e.g. SET:PANEL.1:BACK_COLOR=10 in DEV mode)
 
 	std::string filePath;
 	int color{0};
@@ -398,12 +397,12 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 	if(sendColor == true)
 	{
 		loadOneColorPattern(color);
-		return -2;				   // Indicate that we are sending pattern file to OCM, no need to calculate pattern for channels.
+		return -2;				   // Indicate that we are sending one color to OCM, no need to calculate pattern for channels.
 	}
 
 	if(backColor == true)
 	{
-		loadOneColorPattern(m_backColor);
+		loadBackgroundPattern();
 		return -2;				   // Indicate that we are setting background pattern, no need to calculate pattern for channels.
 	}
 #endif
@@ -664,6 +663,42 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 #endif
 }
 
+int PatternGenModule::Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum)
+{
+#ifdef _DEVELOPMENT_MODE_
+#ifdef _TWIN_WSS_
+	for (int mod = 0; mod < g_moduleNum; mod++)
+	{
+			float sigma = Module_Background_DS_For_Pattern[mod].SIGMA;
+			float Aopt = Module_Background_DS_For_Pattern[mod].A_OPT;
+			float Kopt = Module_Background_DS_For_Pattern[mod].K_OPT;
+			float Aatt = Module_Background_DS_For_Pattern[mod].A_ATT;
+			float Katt = Module_Background_DS_For_Pattern[mod].K_ATT;
+			float wavelength = Module_Background_DS_For_Pattern[mod].LAMDA;
+			double FC_PixelPos = Module_Background_DS_For_Pattern[mod].FC_PixelPos;
+			double F1_PixelPos = Module_Background_DS_For_Pattern[mod].F1_PixelPos;
+			double F2_PixelPos = Module_Background_DS_For_Pattern[mod].F2_PixelPos;
+
+			if(Aatt == 0)
+			{
+				Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
+			}
+
+			Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
+            //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
+			RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+
+	}
+
+#else						// Calculate for single pattern
+
+
+#endif
+	return (0);
+
+#endif
+}
+
 int PatternGenModule::Calculate_Pattern_Formulas(const int ch,const float lamda, const int pixelSize, float sigmaRad, const float Aopt, const float Kopt, const float Aatt,const float Katt)
 {
 	/* Reset Channel Data Array */
@@ -768,7 +803,7 @@ void PatternGenModule::Calculate_Period(const float pixelSize, float sigmaRad, c
 
 		if (calculatedPeriod > m_customLCOS_Height)
 		{
-			// IMPORTANT: Make sure calculated Period heigh can never exceed the height of display i.e. g_LCOS_Height
+			// IMPORTANT: Make sure calculated Period height can never exceed the height of display i.e. g_LCOS_Height
 			calculatedPeriod = m_customLCOS_Height;
 		}
 		else if (calculatedPeriod <= 0)
@@ -1282,6 +1317,7 @@ int PatternGenModule::PatternGen_Initialize(void)
 	constexpr float maxPhase = 2.2;
 	Create_Linear_LUT(maxPhase);		// We have fixed LUT for 2.2 PI
 
+
 	return (0);
 }
 
@@ -1458,6 +1494,16 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, int &pixelP
 		   pixelPos = g_LCOS_Width-1;
 }
 
+
+void PatternGenModule::loadBackgroundPattern()
+{
+
+	float sigma = 0.0, PD = 0.0, K_Opt = 0.02, A_Opt = 0.5;  //init para to default value for background pattern
+
+
+}
+
+
 void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 {
 	if(colorVal == 255 || colorVal == 0) //single color(grayscale for whole panel) as background
@@ -1547,6 +1593,7 @@ void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 	}
 
 }
+
 
 void PatternGenModule::loadPatternFile_Bin(std::string path)
 {

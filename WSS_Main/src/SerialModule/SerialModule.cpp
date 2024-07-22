@@ -118,6 +118,7 @@ void SerialModule::ProcessReadWrite(void)
 			else if(num_bytes > 0)
 			{
 
+				std::cout << "Cmd Received = " << temp_search_Str << std::endl;
 				if(temp_search_Str.size() > MAX_BUFFER_LENGTH)	// If data received is more than 50,000 bytes we reset and give overflow error
 				{
 					temp_search_Str.clear();
@@ -156,19 +157,20 @@ void SerialModule::ProcessReadWrite(void)
 			//std::cout << "FINAL COMMAND = " << finalCommand << "Size = " << finalCommand.size() << std::endl;
 
 			//Done
-			mmapGPIO->WriteRegister_GPIO(0x000c/0x4, 0x0);usleep(1000);//Done PIN
-            mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x0);usleep(1000);//Done PIN
+			//mmapGPIO->WriteRegister_GPIO(0x000c/0x4, 0x0);usleep(1000);//Done PIN
+            //mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x0);usleep(1000);//Done PIN
 
             //Error
-            mmapGPIO->WriteRegister_GPIO(0x0004/0x4, 0x0);usleep(1000);//Err PIN
-            mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);//Err PIN
+            //mmapGPIO->WriteRegister_GPIO(0x0004/0x4, 0x0);usleep(1000);//Err PIN
+            //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);//Err PIN
 
-            mmapGPIO->WriteRegister_GPIO(0x0004/0x4, 0x1);usleep(1000);//Err PIN
-            mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);
-	        std::cout << "ErrorPin 0 = " << readData <<std::endl;
+            //mmapGPIO->WriteRegister_GPIO(0x0004/0x4, 0x1);usleep(1000);//Err PIN
+            //mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);
+	        //std::cout << "ErrorPin 0 = " << readData <<std::endl;
 			
-	        mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
-	        mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);
+	        //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
+	        //mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);
+
 	        std::cout << "ErrorPin 1 = " << readData <<std::endl;
 
 			if (finalCommand.size() > 0)

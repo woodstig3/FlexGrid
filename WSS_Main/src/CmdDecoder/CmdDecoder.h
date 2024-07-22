@@ -21,6 +21,39 @@
 #include "InterfaceModule/LCOSDisplayTest.h"
 #include "InterfaceModule/EEPROMUpdate.h"
 
+
+class ActionVrb {
+public:
+						ActionVrb(){
+
+		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels+1] = new TrueFlex[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+
+		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels+1] = new FixedGrid[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+
+		ModulesInfo 	arrModules[2];
+		};
+		virtual 	  	~ActionVrb(){
+
+			delete[]		TF_Channel_DS_For_Save;
+			delete[]		FG_Channel_DS_For_Save;
+		};
+
+
+		bool            StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+		bool			StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+
+		bool 			RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+		bool 			RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+
+private:
+
+		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels+1];
+		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels+1];
+
+		bool			bModuleConfigStored[2]{0,0};           //  to see if two modules config info stored or not when restart,stored = 1, not stored = 0
+
+};
+
 class CmdDecoder {
 public:
 					CmdDecoder();
@@ -62,6 +95,8 @@ public:
 	ModulesInfo 	arrModules[2];										//Two modules info
 
 	Panel 			panelInfo;												// Keep Panel Records
+
+	ActionVrb       actionSR;  //drc added for store and restore action process
 
 #ifdef _DEVELOPMENT_MODE_
 
@@ -150,14 +185,19 @@ private:
 	int 			is_DeleteTFDone(std::string &moduleNum, std::string &chNum);				// When CH.M.N only given TF
 	int 			is_DeleteFGDone(std::string &moduleNum, std::string &chNum);				// When CH.M.N only given FG
 
-	template <typename T> bool Sscanf(std::string &, T &, char);				// For scanning interger and double from string command
+	template <typename T> bool Sscanf(std::string &, T &, char);				// For scanning integer and double from string command
 
 	template <typename T> void FillBuffer_ConcatAttributes(const char* firstTimePrintString , const char* secondTimePrintString, bool b_onlyModuleArg, T arg);								// For GET command, attributes have to be concats in one command one buffer..-> get:ch.1.1:fc:bw;ch.1.2:att:adp:ch.1.3:bw
 
 	bool 			TestChannelsNotActive(std::string &, int &);				// String TF/FG and Int module #
 
-	bool 			PrintAllChannelsTF(int);									// receive count how many chanels need print. channel number is globally retrieve
+	bool 			PrintAllChannelsTF(int);									// receive count how many channels need print. channel number is globally retrieve
 	bool 			PrintAllChannelsFG(int);
+
+
 };
+
+
+
 
 #endif /* SRC_CMDDECODER_CMDDECODER_H_ */

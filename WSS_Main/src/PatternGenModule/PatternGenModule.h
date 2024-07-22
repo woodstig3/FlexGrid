@@ -43,6 +43,20 @@ struct outputParameters{
 
 };
 
+struct Background_DS_For_Pattern{
+
+	float SIGMA;
+	float PD = 2.2;
+	float A_OPT = 0.5;
+	float K_OPT;
+	float A_ATT;
+	float K_ATT;
+	float LAMDA = 1.55;
+	double FC_PixelPos = 960.5;
+	double F1_PixelPos = 191125.0;
+	double F2_PixelPos = 196275.0;
+};
+
 class PatternGenModule {
 protected:
 					PatternGenModule();
@@ -84,7 +98,8 @@ public:
 	unsigned char 	rotated[g_LCOS_Width*g_LCOS_Height];
 	double 			rotationAngle{};
 	unsigned char 	RotatedSquare[2160][4320]{}; // double the resolution
-	unsigned char   backGratingColumnData[g_LCOS_Height]; //drc added to store background grating gray scale value
+	unsigned char   BackgroundColumnData[g_LCOS_Height]; //drc added to store background grating gray scale value
+	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3];
 
 private:
 
@@ -160,7 +175,8 @@ private:
 	void 			getStartEndOffset(int startGrayVal, int endGrayVal);
 	void			loadPatternFile_Bin(std::string path);				// send pattern file .bin to ocm
 	void			loadOneColorPattern(unsigned int colorVal);
-
+	void			loadBackgroundPattern();    //drc added for background pattern generation
+	int 			Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum);
 };
 
 #endif /* SRC_PATTERNGENMODULE_PATTERNGENMODULE_H_ */

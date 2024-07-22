@@ -25,7 +25,7 @@ CmdDecoder::CmdDecoder() {
 	eModule1 = TF;
 	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "TF";
-	arrModules[1].slotSize = "625";
+	arrModules[1].slotSize = "TF"; //drc why 625?
 
 }
 
@@ -100,6 +100,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	int commandCount = 1;									// IMPORTANT: first command in concatenated commands must have verb, rest of the commands following can have no verb, is ok.
 
 	vector<string> commandVector;
+	cout << "Command Received: " << recvCommand <<endl;
 
 	int status = getCommandFormat(commandVector, recvCommand);
 
@@ -166,9 +167,9 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 
 	if ((searchDone != -1) && b_SendString && (eVerb == GET))	// Place Delimiters and send the command if searchDone was successful in GET command
 	{
-		out = "\01\n";
+		out = "\01";
 		out += buff;
-		out += "\04\n";
+		out += "\04";
 
 		return (out);
 	}
@@ -380,7 +381,7 @@ void CmdDecoder::postProcessSingleCommandResult(int* searchDone)
 
 		if (is_BWSlotSizeIntegral(&calculatedSlotsNumber, &newF1, &newF2, &slotSize) == 0)		// Success
 		{
-			int status = ModifySlotCountInChannel(&calculatedSlotsNumber, &newF1, &newF2, &slotSize);
+			int status = ModifySlotCountInChannel(&calculatedSlotsNumber, &newF1, &newF2, &slotSize);  //drc
 
 			if (status == -1)
 			{
@@ -1177,31 +1178,39 @@ int CmdDecoder::SearchObject(std::string &object)
 					{
 						if (objVec[0] == "MODULE") //drc
 						{
+							eObject = MODULE;
 							if ((objVec.size() == 2))
 							{
-								if (Sscanf(objVec[1], g_moduleNum, 'i'))
+								//if (Sscanf(objVec[1], g_moduleNum, 'i'))
+								if(objVec[1] == "1")
 								{
-									if (g_moduleNum == 1 || g_moduleNum == 2)
-									{
+									g_moduleNum = 1;//if (g_moduleNum == 1 || g_moduleNum == 2)
+									/*{
 										eObject = MODULE;
-									}
-									else
-									{
-										cout << "ERROR: The Module Number is wrong" << endl;
-										return (-1);
-									}
+									}*/
+								}
+								else if(objVec[1] == "2")
+								{
+									g_moduleNum = 2;
+
 								}
 								else
 								{
-									cout << "ERROR: The Module Number is not a numerical value" << endl;
+									cout << "ERROR: The Module Number is wrong" << endl;
 									return (-1);
 								}
 							}
+								/*else
+								{
+									cout << "ERROR: The Module Number is not a numerical value" << endl;
+									return (-1);
+								}*/
+							/*}
 							else
 							{
 								cout << "ERROR: The command Object is wrong" << endl;
 								return (-1);
-							}
+							}*/
 						}
 						else
 						{
@@ -3083,23 +3092,23 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "STORE" && eVerb == ACTION)	// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-//							ActionVrb actionSR;	// Store restore
-//
-//							//if ((g_moduleNum == 1 && eModule1 == TF) || (g_moduleNum == 2 && eModule2 == TF))
-//							if (eModule1 == TF || eModule2 == TF)
-//							{
-//								actionSR.StoreModuleTF(g_moduleNum, TF_Channel_DS, arrModules);
-//							}
-//							//else if ((g_moduleNum == 1 && eModule1 == FIXEDGRID) || (g_moduleNum == 2 && eModule2 == FIXEDGRID))
-//							else if (eModule1 == FIXEDGRID || eModule2 == FIXEDGRID)
-//							{
-//								actionSR.StoreModuleFG(g_moduleNum, FG_Channel_DS, arrModules);
-//							}
-//							else
-//							{
-//								cout << "ERROR: Module slotsize is not defined" << endl;
-//								return (-1);
-//							}
+							//ActionVrb actionSR;	// drc Store restore
+
+						    if ((g_moduleNum == 1 && eModule1 == TF) || (g_moduleNum == 2 && eModule2 == TF))
+							//if (eModule1 == TF || eModule2 == TF)
+							{
+								actionSR.StoreModuleTF(g_moduleNum, TF_Channel_DS, arrModules);
+							}
+							else if ((g_moduleNum == 1 && eModule1 == FIXEDGRID) || (g_moduleNum == 2 && eModule2 == FIXEDGRID))
+							//else if (eModule1 == FIXEDGRID || eModule2 == FIXEDGRID)
+							{
+								actionSR.StoreModuleFG(g_moduleNum, FG_Channel_DS, arrModules);
+							}
+							else
+							{
+								cout << "ERROR: Module configuration is not defined" << endl;
+								return (-1);
+							}
 					}
 					else if (attr[0] == "SLOTSIZE" && eVerb == SET)	// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
@@ -3399,38 +3408,38 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "RESTORE" && eVerb == ACTION)		// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-//							ActionVrb actionSR;	// Store restore
-//
-//							if (g_moduleNum == 1)
-//							{
-//								//Software dont know which module has which type initially
-//								actionSR.RestoreModule1(g_moduleNum, TF_Channel_DS, FG_Channel_DS, arrModules);
-//								if (arrModules[g_moduleNum - 1].slotSize == "TF")
-//								{
-//									eModule1 = TF;	// SET THE FLAGS AFTER RESTORING
-//								}
-//								else
-//								{
-//									eModule1 = FIXEDGRID;	// SET THE FLAGS AFTER RESTORING
-//								}
-//							}
-//							else if (g_moduleNum == 2)
-//							{
-//								actionSR.RestoreModule2(g_moduleNum, TF_Channel_DS, FG_Channel_DS, arrModules);
-//								if (arrModules[g_moduleNum - 1].slotSize == "TF")
-//								{
-//									eModule2 = TF;	// SET THE FLAGS AFTER RESTORING
-//								}
-//								else
-//								{
-//									eModule2 = FIXEDGRID;	// SET THE FLAGS AFTER RESTORING
-//								}
-//							}
-//							else
-//							{
-//								cout << "ERROR: The Module Number is Wrong" << endl;
-//								return (-1);
-//							}
+							//ActionVrb actionSR;	// Store restore
+
+							if (g_moduleNum == 1)
+							{
+								//Software dont know which module has which type initially
+								actionSR.RestoreModule1(g_moduleNum, TF_Channel_DS, FG_Channel_DS, arrModules);
+								if (arrModules[g_moduleNum - 1].slotSize == "TF")
+								{
+									eModule1 = TF;	// SET THE FLAGS AFTER RESTORING
+								}
+								else
+								{
+									eModule1 = FIXEDGRID;	// SET THE FLAGS AFTER RESTORING
+								}
+							}
+							else if (g_moduleNum == 2)
+							{
+								actionSR.RestoreModule2(g_moduleNum, TF_Channel_DS, FG_Channel_DS, arrModules);
+								if (arrModules[g_moduleNum - 1].slotSize == "TF")
+								{
+									eModule2 = TF;	// SET THE FLAGS AFTER RESTORING
+								}
+								else
+								{
+									eModule2 = FIXEDGRID;	// SET THE FLAGS AFTER RESTORING
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is Wrong" << endl;
+								return (-1);
+							}
 					}
 #ifdef _DEVELOPMENT_MODE_
 					else if (attr[0] == "ROTATE" && eVerb == SET)
@@ -4161,7 +4170,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 															"OpticsRevision\t=\t%d\nFirmwareRelease\t=\t%d\nBootloaderRelease\t=\t%d\nFPGAVersion\t=\t%d\nDatabaseVersion\t=\t%d\n"
 															"ModuleType \t=\t%d\nUnitSerialNumber\t=\t%d\nDateOfManufacture\t=\t%s\nCalibrationVersion\t=\t%d\nHardwareRelease\t=\t%d\n"
 															"CustomerInfo\t=\t%s\n",
-															"Shanghai Jucheng RunStarTech", 01,202001,01,"2021-07-11","highVintage", 02, 200212, 02, 01, 101, 1001, 02,
+															"Glosine Tech", 01,202001,01,"2024-07-11","highVintage", 02, 200212, 02, 01, 101, 1001, 02,
 															9001,901,01,01,1001,01,01,01,01,01,01,"2021-07-11",01,01,"ZTE CHINA");	//Fill this string and get the length filled.
 
 				g_bNoAttribute = false;
@@ -4305,7 +4314,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				if (attributes == "READY")
 				{
 					bool panelFlag {GetPanelInfo().readyFlag};
-					FillBuffer_ConcatAttributes("PANEL.%d:  READY\t=\t%d", "  READY\t=\t%s", true, panelFlag);
+					FillBuffer_ConcatAttributes("PANEL.%d:  READY\t=\t%d", "  READY\t=\t%s", true, panelFlag); //drc
 				}
 				else
 				{
@@ -5212,4 +5221,23 @@ Panel CmdDecoder::GetPanelInfo()
 			std::cout << "global_mutex[LOCK_MODULE_DS] unlock unsuccessful" << std::endl;
 	}
 	return p;
+}
+
+//drc added for store and restore
+bool ActionVrb::StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+{
+	return true;
+}
+bool ActionVrb::StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+{
+	return true;
+}
+
+bool ActionVrb::RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+{
+	return true;
+}
+bool ActionVrb::RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+{
+	return true;
 }

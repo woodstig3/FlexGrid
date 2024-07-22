@@ -28,6 +28,10 @@ constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI re
 constexpr int g_LCOS_Width{1920};	// compile-time constant 1952
 constexpr int g_Total_Channels{96};	// compile-time constant 96
 
+
+constexpr int g_Max_Normal_Temperature{55}; //grating temperature
+constexpr int g_Min_Normal_Temperature{51}; //grating temperature
+
 // CmdDecoder Special
 #define _TEST_OVERLAP_
 #define _MANDATORY_ATTRIB_
