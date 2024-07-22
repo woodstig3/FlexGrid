@@ -1,0 +1,37 @@
+SET:MODULE.1:developmode=0 // Production mode 
+SET:MODULE.1:developmode=1 // Development mode
+
+add:ch.1.1:sigma=0.001:lamda=1.55:fc=192000:bw=100:a_op=0.1:k_op=0.1:k_att=0.8:a_att=2		// Development mode command
+					OR
+add:ch.1.1:sigma=0.001:lamda=1.55:f1=191950 :f2=192050 :a_op=0.1:k_op=0.1:k_att=0.8:a_att=2		// Development mode command
+
+SET:MODULE.1:phasedepth=2  
+SET:MODULE.1:phaseStart=0:phaseEnd=255		// Optional, we dont use yet..we can select LUT range to use, max LUT range is 2.2PI 255
+GET:MODULE.1:lcosConnection  // Get LCOS Pin Connection output	
+SET:MODULE.1:rotate=2 (in degrees)	// To rotate whole LCOS display
+
+
+
+ACTION:MODULE.1:EEPROMUPDATE	// Update eeprom
+ACTION:MODULE.1:EEPROMVERIFY	// verify eeprom
+ACTION:MODULE.1:EEPROMPRINT	// print full eeproM content
+SET:MODULE.1:EEPROMWRITE=<filename>, <address>, <size>	// filevname and address to write at with file size in Bytes 
+
+ACTION:MODULE.1:TECON
+ACTION:MODULE.1:TECOFF
+
+// Values must be in integer
+SET:MODULE.1:TEC_TV=6543			i.e 55.00C -> 5500
+SET:MODULE.1:TEC1_KP=101
+SET:MODULE.1:TEC1_KI=1
+SET:MODULE.1:TEC1_KD=23
+or
+SET:MODULE.1:TEC2_KP=75;TEC2_KI=1;TEC2_KD=21
+
+
+// Send pattern.bin (pattern image) from FS to LCOS
+SET:MODULE.1:SEND_IMG=/mnt/pattern.bin
+
+// Send grayscale color to LCOS. Color value range 0-255
+SET:MODULE.1:SEND_COLOR=255
+		

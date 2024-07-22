@@ -1,0 +1,5 @@
+---- 0.2 Matches (4 in 1 files) ----
+TemperatureMonitor.cpp (temperaturemodule): * When delta Temp change is more than +- 0.2 we calculate pattern
+TemperatureMonitor.cpp (temperaturemodule): * 			Apply moving average filter and check if temperature changed or not to 0.2 C
+TemperatureMonitor.cpp (temperaturemodule):			 if(delta_temp >= 0.2)
+TemperatureMonitor.cpp (temperaturemodule):			 if(delta_temp >= 0.2)
