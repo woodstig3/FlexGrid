@@ -200,9 +200,10 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 
 #endif
         	}
+#if 0
         	else
         	{
-#if 0
+
 //        		if(isTECStableInFPGA())
 //        		{
         			b_isTECStable = true;
