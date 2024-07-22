@@ -31,9 +31,9 @@
 								<option id="xilinx.gnu.compiler.option.debugging.level.273828032" name="Debug Level" superClass="xilinx.gnu.compiler.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>
 								<option id="xilinx.gnu.compiler.dircategory.includes.551385733" name="Include Paths" superClass="xilinx.gnu.compiler.dircategory.includes" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;C:\Xilinx\SDK\2018.2\gnu\aarch32\nt\gcc-arm-linux-gnueabi\arm-linux-gnueabihf\include\c++\7.2.1\arm-linux-gnueabihf\bits&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;C:\Xilinx\SDK\2018.2\gnu\aarch32\nt\gcc-arm-linux-gnueabi\arm-linux-gnueabihf\include\c++\7.2.1&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;C:\Xilinx\SDK\2018.2\gnu\aarch32\nt\gcc-arm-linux-gnueabi\arm-linux-gnueabihf\libc\usr\include&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;D:\Xilinx\SDK\2018.2\gnu\aarch32\nt\gcc-arm-linux-gnueabi\arm-linux-gnueabihf\include\c++\7.2.1\arm-linux-gnueabihf\bits&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;D:\Xilinx\SDK\2018.2\gnu\aarch32\nt\gcc-arm-linux-gnueabi\arm-linux-gnueabihf\include\c++\7.2.1&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;D:\Xilinx\SDK\2018.2\gnu\aarch32\nt\gcc-arm-linux-gnueabi\arm-linux-gnueabihf\libc\usr\include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src/AlarmModule}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src/CmdDecoder}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src/InterfaceModule}&quot;"/>
