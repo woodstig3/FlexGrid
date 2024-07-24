@@ -355,7 +355,7 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 	return (DelimiterStatus::FOUND);
 }
 
-void SerialModule::Serial_RefineCommand(std::string& finalCommand)
+void SerialModule::Serial_RefineCommand(std::string& finalCommand) //drc to check
 {
 	TrimString(finalCommand, " \t\n\r\f\v");	// remove newline and whitespacess from start and end of string only
 

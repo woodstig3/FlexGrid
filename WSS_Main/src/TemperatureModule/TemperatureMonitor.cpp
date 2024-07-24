@@ -232,14 +232,14 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
    		                b_isTECStable = false;
    		           }
 
-                   g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
+                   //g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
    		           //std::cout << "TEC STABLE = " << b_isTECStable << std::endl;
    		     }
    	         else
    		     {
    			      b_isTECStable = false;
-   			      g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
    		     }
+   		     g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
 //end add by jihongwang on 20240722
         }
 

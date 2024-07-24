@@ -50,7 +50,7 @@ public:
 	VerbError 		eVerbErrors;
 
 	enum 			Modules {NONE_M = 20, TF, FIXEDGRID};
-	Modules 		eModule1, eModule2;												//Two modules defines,... user will decide if they are TF or Fixed grid
+	Modules 		eModule1, eModule2;			//Two modules defines,... user will decide if they are TF or Fixed grid
 
 
 	TrueFlex 		(*TF_Channel_DS)[g_Total_Channels+1] = new TrueFlex[3][g_Total_Channels+1]();			//() brackets are very important. initialize them to default values	//array of structure for 96 channeles			[3] -- TWo Modules- both can have either TF or Fixed or both [0] 0th index for module is ignored

@@ -172,12 +172,12 @@ void PatternGenModule::ProcessPatternGeneration(void)
 		{
 			if(rotationAngle != 0)
 			{
-				rotateArray(rotationAngle, 1952, 1080);
+				rotateArray(rotationAngle, g_LCOS_Width, g_LCOS_Height);
 			}
 
 #ifdef _FETCH_PATTERN_
 			Save_Pattern_In_FileSysten();
-			g_serialMod->Serial_WritePort("FF\n");	// Fetch File string send to PC software to start fetching
+//			g_serialMod->Serial_WritePort("FF\n");	// drc to check //Fetch File string send to PC software to start fetching
 #endif
 			// Perform OCM transfer
 			if(ocmTrans.SendPatternData(fullPatternData) == 0)
@@ -551,7 +551,7 @@ void PatternGenModule::rotateArray(double angle, int width, int height)
             if (newx >= 0 && newx < width && newy >= 0 && newy < height) {
 
             	// Loop through the destination image and find the source pixel positions by rotating in the opposite direction
-            	rotated[1952*y + x] = fullPatternData[1952*newy + newx];
+            	rotated[g_LCOS_Width*y + x] = fullPatternData[g_LCOS_Width*newy + newx];
 
             }
 
@@ -983,7 +983,7 @@ void PatternGenModule::RotateChannel(int x1, int y1, int x2, int y2, int x3, int
 	    for (int col = std::min(x1_new, std::min(x2_new, std::min(x3_new, x4_new))); col <= std::max(x1_new, std::max(x2_new, std::max(x3_new, x4_new))); col++) {
 	        if (isInsideRectangle(col, row, x1_new, y1_new, x2_new, y2_new, x3_new, y3_new, x4_new, y4_new)) {
 
-	        	fullPatternData[1952*col + row] = 255;
+	        	fullPatternData[g_LCOS_Width*col + row] = 255;
 
 	        }
 	        //std::cout << col << " ";
@@ -1358,42 +1358,9 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, int &pixelP
 
 void PatternGenModule::loadOneColorPattern(int colorVal)
 {
-	if(colorVal == 255 || colorVal == 0) //single color(grayscale for the whole panel) as background pattern
-	{
-		memset(fullPatternData, static_cast<unsigned char>(colorVal), sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
-	}
-	else if(colorVal < 255 || colorVal > 0)//init to set single grating pattern for the whole panel as background pattern
-	{
-		/*drc to add initial pattern of one single grating with period of value of colorVal*/
-		unsigned char cPixelLines = 0;
-		unsigned char grayVal = 0;
-		cPixelLines = round(g_LCOS_Height/colorVal); //pixel lines per grating period, need to set grayscale from 255 to 0 in each line.
-		//std::cout << "cPixelLines  was : " <<cPixelLines << std::endl;
-		printf("cPixelLines  was : %d\n",cPixelLines);
-
-		unsigned char k = 0;
-		while(k < colorVal)
-		{
-			grayVal = 0;
-			for(unsigned int j = 0; j<cPixelLines; j++)
-			{
-				grayVal = round(j*255/cPixelLines); /*calculate grayscale value on slop*/
-				for(unsigned int i = 0; i<g_LCOS_Width; i++)
-				{
-					memset(fullPatternData + (i + j*g_LCOS_Width) + k*cPixelLines*g_LCOS_Width, grayVal, sizeof(char));//copy gray value on width
-					//memset(backGratingColumnData + j + k*cPixelLines, grayVal, sizeof(char)); // store gray value in single column
-					//printf("Line %d, GrayVal %d", (j + k*cPixelLines),grayVal);
-				}
-			}
-			k++;
-		}
-	}
-	/*else
-	{
-		msg = "\01Driver<PATTERN> Init Background Grating data Failed\04\n";
-	}*/
-/* end of drc */
+	memset(fullPatternData, static_cast<unsigned char>(colorVal), sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
 }
+
 
 void PatternGenModule::loadPatternFile_Bin(std::string path)
 {

@@ -166,7 +166,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 
 	if ((searchDone != -1) && b_SendString && (eVerb == GET))	// Place Delimiters and send the command if searchDone was successful in GET command
 	{
-		out = "\01\n";
+		out = "\01";   //drc to delete \n
 		out += buff;
 		out += "\04\n";
 
@@ -685,16 +685,16 @@ int CmdDecoder::ModifySlotCountInChannel(const int *calculatedSlotsNumber, const
 	return (0);
 }
 
-bool CmdDecoder::PrintAllChannelsTF(int count)
+bool CmdDecoder::PrintAllChannelsTF(int count)  //drc to modify format
 {
 	int c_channelActive = 0;
 		// \01 delimiter added		//before--->>>> buffLenTemp += sprintf(&buff[buffLenTemp], "\01\nCH\t|\tADP\tATT\tCMP\tFc\tBW\n");		//Fill this string and get the length filled.
 		if((g_moduleNum_prev != g_moduleNum)	|| g_bPrevAttrDisplayed)	// i.e GET:CH.1.2;CH.2.5	or if previously attributes were displayed. GET:CH.1.2:ATT:ADP;CH.1.5
 		{
-			buffLenTemp += sprintf(&buff[buffLenTemp], "CH\t|\tADP\tATT\tCMP\tFc\tBW\n");	//Fill this string and get the length filled.
+			//buffLenTemp += sprintf(&buff[buffLenTemp], "CH\t|\tADP\tATT\tCMP\tFc\tBW\n");	//Fill this string and get the length filled.
 		}
 
-		for (int i = 1; i <= count; i++)
+		for (int i = 1; i < count; i++)
 		{
 			if (count == 1)
 			{
@@ -705,8 +705,19 @@ bool CmdDecoder::PrintAllChannelsTF(int count)
 			{
 				c_channelActive++;
 
-				buffLenTemp += sprintf(&buff[buffLenTemp], "%2d\t|\t%d\t%0.3f\t%d\t%0.3f\t%0.3f\n", i, TF_Channel_DS[g_moduleNum][i].ADP,
-					TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+				//buffLenTemp += sprintf(&buff[buffLenTemp], "%2d\t|\t%d\t%0.3f\t%d\t%0.3f\t%0.3f\n", i, TF_Channel_DS[g_moduleNum][i].ADP,
+					//TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+				if(i == count)
+				{
+					buffLenTemp += sprintf(&buff[buffLenTemp], "CH=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nFC=%0.3f\nBW=%0.3f\n", i, TF_Channel_DS[g_moduleNum][i].ADP,
+							TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+				}
+				else
+				{
+					buffLenTemp += sprintf(&buff[buffLenTemp], "CH=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nFC=%0.3f\nBW=%0.3f\n:\n", i, TF_Channel_DS[g_moduleNum][i].ADP,
+							TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+				}
+
 			}
 		}
 
@@ -846,7 +857,7 @@ void CmdDecoder::CopyDataStructures(void)
 		std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 	else
 	{
-		g_bNewCommandData = true;
+		g_bNewCommandData = true;  //drc to check flag for pattern gen
 
 		std::copy(&TF_Channel_DS[0][0], &TF_Channel_DS[0][0] + 3 * 97, &TF_Channel_DS_For_Pattern[0][0]);	//3 * 97 is the size of array we defined
 		std::copy(&FG_Channel_DS[0][0], &FG_Channel_DS[0][0] + 3 * 97, &FG_Channel_DS_For_Pattern[0][0]);
@@ -3868,7 +3879,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	return (0);
 }
 
-int CmdDecoder::Print_SearchAttributes(std::string &attributes)
+int CmdDecoder::Print_SearchAttributes(std::string &attributes) //drc to modify for response format
 {
 	// Some places we used \t\t two tabs to align the texxt. double tab is used mostly in text length smaller
 	// Search the eObject by using switch cases and then put if else statement on attribute, if attribute doesnt link to eObject used then we cause an error
@@ -4030,7 +4041,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				// \01 delimiter added
 				buffLenTemp += sprintf(&buff[buffLenTemp], "HEATERMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL\t=\t%s\n", "DUMMY 45C");
+				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL\t=\t%s\n", "DUMMY 45C"); //drc to check temperature can be queried
 
 				g_bNoAttribute = false;
 			}
@@ -4055,7 +4066,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				// \01 delimiter added															// string to char *
 				buffLenTemp += sprintf(&buff[buffLenTemp], "MODULE\t|\tSLOTSIZE\tID\n");	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "%d\t|\t%s\t%d\n", g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str(),g_moduleNum);
+				buffLenTemp += sprintf(&buff[buffLenTemp], "Module=%d %s\t%d\n", g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str(),g_moduleNum);
 
 				g_bNoAttribute = false;
 			}
@@ -4128,8 +4139,8 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 															"OpticsRevision\t=\t%d\nFirmwareRelease\t=\t%d\nBootloaderRelease\t=\t%d\nFPGAVersion\t=\t%d\nDatabaseVersion\t=\t%d\n"
 															"ModuleType \t=\t%d\nUnitSerialNumber\t=\t%d\nDateOfManufacture\t=\t%s\nCalibrationVersion\t=\t%d\nHardwareRelease\t=\t%d\n"
 															"CustomerInfo\t=\t%s\n",
-															"Shanghai Jucheng RunStarTech", 01,202001,01,"2021-07-11","highVintage", 02, 200212, 02, 01, 101, 1001, 02,
-															9001,901,01,01,1001,01,01,01,01,01,01,"2021-07-11",01,01,"ZTE CHINA");	//Fill this string and get the length filled.
+															"Glosine Tech", 01,202001,01,"2024-07-11","highVintage", 02, 200212, 02, 01, 101, 1001, 02,
+															9001,901,01,01,1001,01,01,01,01,01,01,"2024-07-11",01,01,"ZTE CHINA");	//Fill this string and get the length filled.
 
 				g_bNoAttribute = false;
 			}
@@ -4272,7 +4283,18 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				if (attributes == "READY")
 				{
 					bool panelFlag {GetPanelInfo().readyFlag};
-					FillBuffer_ConcatAttributes("PANEL.%d:  READY\t=\t%d", "  READY\t=\t%s", true, panelFlag);
+
+					//FillBuffer_ConcatAttributes("PANEL.%d:  READY\t=\t%d", "  READY\t=\t%s", true, panelFlag);
+					//buffLenTemp += sprintf("READY:", "%d", panelFlag);
+					if(panelFlag == true)
+					{
+						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", "TRUE");
+					}
+					else
+					{
+						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", "FALSE");
+					}
+
 				}
 				else
 				{
@@ -4545,7 +4567,7 @@ template <typename T> void CmdDecoder::FillBuffer_ConcatAttributes(const char* f
 	}
 	if(g_currentAttributeCount == 1)
 	{
-		buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	// \04 delimiter added
+		buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	// \04 delimiter added  drc check if  \n is necessary or not
 	}
 }
 
