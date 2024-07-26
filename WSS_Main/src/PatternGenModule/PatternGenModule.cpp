@@ -7,6 +7,9 @@
 
 #include <unistd.h>
 #include <algorithm>
+#include <string>
+#include <map>
+#include <ostream>
 
 #include "PatternGenModule.h"
 
@@ -33,6 +36,7 @@ PatternGenModule::PatternGenModule()
 #ifdef _TWIN_WSS_
 	m_customLCOS_Height = g_LCOS_Height/2;
 #endif
+
 
 }
 
@@ -98,6 +102,10 @@ void PatternGenModule::ProcessPatternGeneration(void)
 	int status;
 	enum bTrigger {NONE,TEMP_CHANGED, COMMAND_CAME};
 	bTrigger etrigger = NONE;
+
+	Load_Background_LUT(); //drc added for loading parameters for background pattern display
+	loadBackgroundPattern();
+
 
 	while(true)
 	{
@@ -402,8 +410,8 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 
 	if(backColor == true)
 	{
-		loadBackgroundPattern();
-		return -2;				   // Indicate that we are setting background pattern, no need to calculate pattern for channels.
+//		loadBackgroundPattern();
+		return 0;				   // Indicate that we are setting background pattern,.
 	}
 #endif
 	return (0);
@@ -468,6 +476,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 				//outputs.Katt = 0;
 				Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
 
+//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
                 //std::cout << "RelocateChannel  slotSize == 'T'" << std::endl;
 				RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 
@@ -599,8 +608,13 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
 				Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
 
-                            //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
-				RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+                //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
+				//drc added for background pattern calculation command from test station where no relocate is needed
+				if(ch_bw != 5150.0) {
+					RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+				}
+
+
 			}
 		}
 	}
@@ -665,44 +679,13 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 
 int PatternGenModule::Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum)
 {
-#ifdef _DEVELOPMENT_MODE_
-#ifdef _TWIN_WSS_
-	for (int mod = 0; mod < g_moduleNum; mod++)
-	{
-			float sigma = Module_Background_DS_For_Pattern[mod].SIGMA;
-			float Aopt = Module_Background_DS_For_Pattern[mod].A_OPT;
-			float Kopt = Module_Background_DS_For_Pattern[mod].K_OPT;
-			float Aatt = Module_Background_DS_For_Pattern[mod].A_ATT;
-			float Katt = Module_Background_DS_For_Pattern[mod].K_ATT;
-			float wavelength = Module_Background_DS_For_Pattern[mod].LAMDA;
-			double FC_PixelPos = Module_Background_DS_For_Pattern[mod].FC_PixelPos;
-			double F1_PixelPos = Module_Background_DS_For_Pattern[mod].F1_PixelPos;
-			double F2_PixelPos = Module_Background_DS_For_Pattern[mod].F2_PixelPos;
-
-			if(Aatt == 0)
-			{
-				Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
-			}
-
-			Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
-            //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
-			RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
-
-	}
-
-#else						// Calculate for single pattern
-
-
-#endif
-	return (0);
-
-#endif
+	return 0;
 }
 
 int PatternGenModule::Calculate_Pattern_Formulas(const int ch,const float lamda, const int pixelSize, float sigmaRad, const float Aopt, const float Kopt, const float Aatt,const float Katt)
 {
 	/* Reset Channel Data Array */
-	memset(channelColumnData, 0, sizeof(unsigned char)*g_Total_Channels*m_customLCOS_Height);
+//	memset(channelColumnData, 0, sizeof(unsigned char)*g_Total_Channels*m_customLCOS_Height);
 
 	// LOGICS ARE ONLY SUITABLE FOR +VE SIGMA
 	//printf("lamda = %f \t sigmaRad = %f \t Aopt = %f \t Kopt = %f \t Aatt = %f \t Katt = %f \n\r", lamda, sigmaRad, Aopt, Kopt,Aatt,Katt);
@@ -847,7 +830,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 
 		if(theta != 2 && theta != 1)		// Two cases when Sin output is ZERO
 		{
-			attFactor = Katt*abs(sin((Y+1)*g_phaseDepth*PI/Aatt));		// (Y+1) because pixel number must starts from 1 to 1080
+			attFactor = Katt*abs(sin((Y+1)*g_phaseDepth*PI/Aatt));		// (Y+1) because pixel number must starts from 1 to 1080  //drc why used abs here for att?
 		}
 
 		attenuatedPattern[Y] = optimizedPattern[Y] + attFactor;
@@ -882,7 +865,6 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 //					std::cout << a << std::endl;
 //				}
 
-
 				for(unsigned int j=0; j< flipArray.size(); j++)
 				{
 					temp[j + jump] = flipArray[j];
@@ -908,8 +890,11 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 			//printf("attenuatedPattern_limited = %f \n", attenuatedPattern_limited[y]);
 		}
 	}
+}
 
-
+void  PatternGenModule::AjustEdgePixelAttenuation(unsigned int ch, float F1_PixelPos, float F2_PixelPos, float FC_PixelPos)
+{
+//	ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos
 }
 
 void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
@@ -963,7 +948,7 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
-				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
+				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){ //drc to check if gap is needed
 #ifdef _TWIN_WSS_
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
 						value = channelColumnData[i + m_customLCOS_Height *chNum];
@@ -974,11 +959,13 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 
 					if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
 						if(i>=startMidGap && i <= endMidGap){
-							value = m_backColor;
+							//value = m_backColor;
+							value = BackgroundColumnData[i];
 						}
 					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i > startMidGap){
-							value = m_backColor;
+							//value = m_backColor;
+							value = BackgroundColumnData[i];
 						}
 					}
 #else
@@ -1008,11 +995,13 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 
 					if(startMidGap > m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i>=(startMidGap%m_customLCOS_Height) && i <= (endMidGap%m_customLCOS_Height)){
-							value = m_backColor;
+							//value = m_backColor;
+							value = BackgroundColumnData[i + m_customLCOS_Height];
 						}
 					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i < (endMidGap%m_customLCOS_Height)){
-							value = m_backColor;
+							//value = m_backColor;
+							value = BackgroundColumnData[i + m_customLCOS_Height];
 						}
 					}
 				}else{
@@ -1132,20 +1121,22 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 		{
 			if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
 #ifdef _TWIN_WSS_
-					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
-						value = channelColumnData[i + m_customLCOS_Height *chNum];
+				if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
+					value = channelColumnData[i + m_customLCOS_Height *chNum];
+				}
+
+				int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+				int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
+
+				if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
+					if(i>=startMidGap && i <= endMidGap){
+						//value = m_backColor;
+						value = BackgroundColumnData[i];
 					}
-
-					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
-					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
-
-					if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
-						if(i>=startMidGap && i <= endMidGap){
-							value = m_backColor;
-						}
-					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+				}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i > startMidGap){
-							value = m_backColor;
+							//value = m_backColor;
+							value = BackgroundColumnData[i];
 						}
 					}
 #else
@@ -1175,11 +1166,13 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 
 				if(startMidGap > m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 					if(i>=(startMidGap%m_customLCOS_Height) && i <= (endMidGap%m_customLCOS_Height)){
-						value = m_backColor;
+						//value = m_backColor;
+						value = BackgroundColumnData[i];
 					}
 				}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 					if(i < (endMidGap%m_customLCOS_Height)){
-						value = m_backColor;
+						//value = m_backColor;
+						value = BackgroundColumnData[i];
 					}
 				}
 			}else{
@@ -1406,6 +1399,107 @@ void PatternGenModule::Create_Linear_LUT(float phaseDepth)
 
 }
 
+//drc added for print map elements in cout below
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::map<std::string, T>& m) {
+     os << "{";
+     bool first = true;
+     for (const auto& pair : m) {
+         if (!first) {
+             os << ", ";
+         }
+         os << "\"" << pair.first << "\": \"" << pair.second << "\"";
+         first = false;
+     }
+     os << "}";
+     return os;
+}
+
+//drc added for background pattern para read and load into data structure to initialize background display when startup
+
+int PatternGenModule::Load_Background_LUT(void)
+{
+	std::ifstream file("/mnt/Background_LUT.ini");
+
+    if (file.is_open()) {
+        std::cout << "[Background_LUT] File has been opened" << std::endl;
+    }
+    else {
+        std::cout << "[Background_LUT] File opening Error" << std::endl;
+        return (-1);
+    }
+
+
+    // The file reading is based on INI LUT file template.
+
+    std::map<std::string, std::map<std::string, std::string>> config;
+    unsigned int mod = 0;
+    std::string line, currentSection;
+    while (std::getline(file, line)) {
+    	if (line.empty() || line[0] == ';') {
+                continue; // Skip empty lines and comments
+    	}
+        if (line[0] == '[') {
+            currentSection = line.substr(1, line.size() - 2);
+            mod++;
+        }
+    	else
+    	{
+            size_t pos = line.find('=');
+            if (pos != std::string::npos) {
+            	std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+                config[currentSection][key] = value;
+                // load parameters into data structure to be used by pattern generation
+                if(key == "SIGMA"){
+					Module_Background_DS_For_Pattern[mod].SIGMA = stof(value);
+					std::cout << "Module: "<< mod <<"SIGMA:" << Module_Background_DS_For_Pattern[mod].SIGMA << std::endl;
+                }
+                else if(key == "PD"){
+					Module_Background_DS_For_Pattern[mod].PD = stof(value);
+
+                }
+                else if(key == "A_OPP"){
+					Module_Background_DS_For_Pattern[mod].A_OPP = stof(value);
+
+                }
+                else if(key == "K_OPP"){
+					Module_Background_DS_For_Pattern[mod].K_OPP = stof(value);
+
+                }
+                else if(key == "A_ATT"){
+                	Module_Background_DS_For_Pattern[mod].A_ATT = stof(value);
+
+                }
+                else if(key == "K_ATT"){
+                	Module_Background_DS_For_Pattern[mod].K_ATT = stof(value);
+
+                }
+                else if(key == "LAMDA"){
+                	Module_Background_DS_For_Pattern[mod].LAMDA = stof(value);
+
+                }
+                else if(key == "FC_PixelPos"){
+                	Module_Background_DS_For_Pattern[mod].FC_PixelPos = stof(value);
+                }
+                else if(key == "F1_PixelPos"){
+                	Module_Background_DS_For_Pattern[mod].F1_PixelPos = stof(value);
+                	std::cout << "Module:" << mod <<" F1_PixelPos:" << Module_Background_DS_For_Pattern[mod].F1_PixelPos << std::endl;
+                }
+                else if(key == "F2_PixelPos"){
+                	Module_Background_DS_For_Pattern[mod].F2_PixelPos = stof(value);
+                }
+                // if more parameters are needed to be adjusted for optimal pattern, add here for more parameters loading
+                else{
+                	std::cout << "[Background_LUT] File reading" << std::endl;
+                }
+            }
+        }
+     }
+     file.close();
+}
+
+
 void PatternGenModule::Save_Pattern_In_FileSysten(void)
 {
 	/* Save file as a binary data, only pure data is saved and no whitespace or newlines
@@ -1494,23 +1588,72 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, int &pixelP
 		   pixelPos = g_LCOS_Width-1;
 }
 
-
+//drc added for calculate pattern for background when startup for two modules
 void PatternGenModule::loadBackgroundPattern()
 {
+	OCMTransfer ocmTrans;
+	unsigned char mod = 1;
 
-	float sigma = 0.0, PD = 0.0, K_Opt = 0.02, A_Opt = 0.5;  //init para to default value for background pattern
+	float sigma = Module_Background_DS_For_Pattern[mod].SIGMA;
+	float Aopt = Module_Background_DS_For_Pattern[mod].A_OPP;
+	float Kopt = Module_Background_DS_For_Pattern[mod].K_OPP;
+	float Aatt = Module_Background_DS_For_Pattern[mod].A_ATT;
+	float Katt = Module_Background_DS_For_Pattern[mod].K_ATT;
+	float wavelength = Module_Background_DS_For_Pattern[mod].LAMDA;
+	double FC_PixelPos = Module_Background_DS_For_Pattern[mod].FC_PixelPos;
+	double F1_PixelPos = Module_Background_DS_For_Pattern[mod].F1_PixelPos;
+	double F2_PixelPos = Module_Background_DS_For_Pattern[mod].F2_PixelPos;
+	if(Aatt == 0){
+		Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
+	}
+	g_moduleNum = mod;
+	Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
+	//std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
+	memcpy(BackgroundColumnData, channelColumnData, m_customLCOS_Height);
+	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
+
+	if(ocmTrans.SendPatternData(fullPatternData) == 0)
+	std::cerr << "Pattern Transfer Success!!\n";
+	usleep(15000); //transfer pattern data
+	Save_Pattern_In_FileSysten();
+
+#ifdef _TWIN_WSS_
+	mod++;
+	g_moduleNum = mod;
+	sigma = Module_Background_DS_For_Pattern[mod].SIGMA;
+	Aopt = Module_Background_DS_For_Pattern[mod].A_OPP;
+	Kopt = Module_Background_DS_For_Pattern[mod].K_OPP;
+	Aatt = Module_Background_DS_For_Pattern[mod].A_ATT;
+	Katt = Module_Background_DS_For_Pattern[mod].K_ATT;
+	wavelength = Module_Background_DS_For_Pattern[mod].LAMDA;
+	FC_PixelPos = Module_Background_DS_For_Pattern[mod].FC_PixelPos;
+	F1_PixelPos = Module_Background_DS_For_Pattern[mod].F1_PixelPos;
+	F2_PixelPos = Module_Background_DS_For_Pattern[mod].F2_PixelPos;
+	if(Aatt == 0){
+		Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
+	}
+	Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
+	//std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
+	memcpy(BackgroundColumnData + m_customLCOS_Height, channelColumnData, m_customLCOS_Height);
+	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+
+	if(ocmTrans.SendPatternData(fullPatternData) == 0)
+	std::cerr << "Pattern Transfer Success!!\n";
+#endif
+	Save_Pattern_In_FileSysten();
 
 }
 
 
 void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 {
-	if(colorVal == 255 || colorVal == 0) //single color(grayscale for whole panel) as background
-	{
+//	if(colorVal == 255 || colorVal == 0) //single color(grayscale for whole panel) as background
+//	{
 		memset(fullPatternData, static_cast<unsigned char>(colorVal), sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
-	}
+//	}
 
+	/*
 #ifndef _TWIN_WSS_
 
 	else //single grating pattern for whole panel as background
@@ -1590,7 +1733,7 @@ void PatternGenModule::loadOneColorPattern(unsigned int colorVal)
 			}
 		}
 
-	}
+	}*/
 
 }
 

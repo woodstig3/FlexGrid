@@ -26,6 +26,7 @@
 		double 			FC =0;				// for position
 		double 			BW =0;				// for channel width
 
+		float           PD = 2;             //drc added for when phasedepth can be configured in test procedure to find a optimal for background and channels.
 		float 			LAMDA=0;
 		float 			SIGMA=0;
 		float 			K_OPP=0;
@@ -53,7 +54,7 @@
 
 		std::vector<float> slotsATTEN; 	//holds every slot attentuation within a channel	//dynamic vector allocation
 
-
+		float           PD = 2;             //drc added for when phasedepth can be configured in test procedure to find a optimal for background and channels.
 		float 			LAMDA=0;
 		float 			SIGMA=0;
 		float 			K_OPP=0;

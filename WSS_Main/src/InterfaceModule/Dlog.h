@@ -14,7 +14,7 @@ using namespace std;
 #define MaxLine 200  //limitation line number of log file
 #define VariousF 4 //category for error
 #if 0
-typedef enum FaultName
+enum FaultName
      {
 	    HEATER_1_TEMP,
 	    HEATER_2_TEMP,
@@ -40,7 +40,7 @@ typedef enum FaultName
      };
 #endif
 
-typedef enum FaultName
+enum FaultName
      {
 	    HEATER_1_TEMP,
 	    HEATER_2_TEMP,
@@ -49,7 +49,7 @@ typedef enum FaultName
      };
 
 #if 0
-typedef struct MessRes
+struct MessRes
 	{
 	    char name[30];
 	    char timestamp[20];
@@ -62,7 +62,8 @@ typedef struct MessRes
 	    char DegradeCondition[20];
 	};
 #endif
-typedef struct MessRes
+
+struct MessRes
 	{
 	    char name[30];
 	    bool Degraded;
@@ -71,14 +72,14 @@ typedef struct MessRes
 	    int  RaisedCount;
 	};
 
-typedef struct MessDis
-   {
+struct MessDis
+{
     char name[30];
     char Degraded[2];
     char DegradedCount[10];
     char Raised[2];
     char RaisedCount[10];
-   };
+};
 int Debug_logfile(FaultName nameIndex,char *buf);
 int Fault_logcompress(FaultName nameIndex,MessRes *mess);
 int Extend_log(char *buf,FaultName lineIndex);

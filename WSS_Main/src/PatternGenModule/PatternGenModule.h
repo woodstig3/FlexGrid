@@ -37,9 +37,9 @@ struct outputParameters{
 	float 			Aatt;
 	float 			Katt;
 
-	unsigned int 	F1_PixelPos;
-	unsigned int 	F2_PixelPos;
-	unsigned int 	FC_PixelPos;
+	float 			F1_PixelPos; //drc modified
+	float 			F2_PixelPos;
+	float 			FC_PixelPos;
 
 };
 
@@ -47,8 +47,8 @@ struct Background_DS_For_Pattern{
 
 	float SIGMA;
 	float PD = 2.2;
-	float A_OPT = 0.5;
-	float K_OPT;
+	float A_OPP = 0.5;
+	float K_OPP;
 	float A_ATT;
 	float K_ATT;
 	float LAMDA = 1.55;
@@ -99,7 +99,8 @@ public:
 	double 			rotationAngle{};
 	unsigned char 	RotatedSquare[2160][4320]{}; // double the resolution
 	unsigned char   BackgroundColumnData[g_LCOS_Height]; //drc added to store background grating gray scale value
-	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3];
+	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3];  //drc added for 2 module background configuration, index start from 1 not 0
+
 
 private:
 
@@ -109,9 +110,15 @@ private:
 	unsigned int 	startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 	unsigned int 	endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 
+
+
 	bool 			m_bCalibDataOk = true;							// If calibration data has no issue then pattern will perform calculations otherwise no calculations
 
-	int 			g_moduleNum{};
+#ifdef _TWIN_WSS_
+	int 			g_moduleNum{2};
+#else
+	int 			g_moduleNum{1};
+#endif
 	float 			g_LCOS_Temp{63};								// Default minimum
 	bool 			g_bSigmaNegative{false};						// Flip pattern per period for -ve sigma
 
@@ -177,6 +184,8 @@ private:
 	void			loadOneColorPattern(unsigned int colorVal);
 	void			loadBackgroundPattern();    //drc added for background pattern generation
 	int 			Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum);
+	int 			Load_Background_LUT(void);
+	void            AjustEdgePixelAttenuation(unsigned int ch, float F1_PixelPos, float F2_PixelPos, float FC_PixelPos);
 };
 
 #endif /* SRC_PATTERNGENMODULE_PATTERNGENMODULE_H_ */
