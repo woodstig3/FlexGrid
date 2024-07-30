@@ -625,23 +625,23 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 			status |= mmapTEC->ReadRegister_TEC32(LCOS_TEMP_ADDR/0x4, &hexValue);usleep(1000);
 			break;
 		}
-		case(Sensors::HEATER1):
+		case(Sensors::HEATER1):  //not in use any more
 		{
 			status |= mmapTEC->ReadRegister_TEC32(HEATER1_TEMP_ADDR/0x4, &hexValue);usleep(1000);
 			break;
 		}
-		case(Sensors::HEATER2):
+		case(Sensors::HEATER2):  //grating temperature
 		{
 			status |= mmapTEC->ReadRegister_TEC32(HEATER2_TEMP_ADDR/0x4, &hexValue);usleep(1000);
-			//std::cerr << " status = " << status << " hexValue : " << (hexValue & 0x0FFF) <<std::endl;
-			/*if(PRIMARK % 10 == 0)
-			{
-			    printf("hexvalue 0x%x\n",(hexValue & 0x0FFF));
-			}*/
+			//std::cerr << " status = " << status << " hexValue : " << (hexValue & 0x0FFF) <<std::endl; //start debug
+			//if(PRIMARK % 10 == 0)
+			//{
+			//    printf("hexvalue 0x%x\n",(hexValue & 0x0FFF));
+			//}
 			*temp = ConvertToOldCelsius(hexValue & 0x0FFF);
 			
-			//PRIMARK ++;
-			//*temp = 0;
+			PRIMARK ++;
+			//*temp = 0;  // end for debug
 			return(ConversionStatus::NORMAL_LUT_RANGE);
 			break;
 		}

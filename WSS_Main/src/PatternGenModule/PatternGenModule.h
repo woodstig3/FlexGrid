@@ -98,8 +98,8 @@ public:
 	unsigned char 	rotated[g_LCOS_Width*g_LCOS_Height];
 	float 			rotationAngle{};
 	unsigned char 	RotatedSquare[2160][4320]{}; // double the resolution
-	unsigned char   BackgroundColumnData[g_LCOS_Height]; //drc added to store background grating gray scale value
-	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3];  //drc added for 2 module background configuration, index start from 1 not 0
+	unsigned char   BackgroundColumnData[g_LCOS_Height]{0}; //drc added to store background grating gray scale value
+	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3]{};  //drc added for 2 module background configuration, index start from 1 not 0
 
 
 private:

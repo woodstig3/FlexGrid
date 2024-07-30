@@ -171,7 +171,7 @@ void SerialModule::ProcessReadWrite(void)
 	        //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
 	        //mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);
 
-	        std::cout << "ErrorPin 1 = " << readData <<std::endl;
+	        //std::cout << "ErrorPin 1 = " << readData <<std::endl;
 
 			if (finalCommand.size() > 0)
 			{

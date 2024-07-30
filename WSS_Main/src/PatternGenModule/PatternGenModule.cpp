@@ -42,7 +42,7 @@ PatternGenModule::PatternGenModule()
 
 PatternGenModule::~PatternGenModule()
 {
-	delete[] channelColumnData;
+//	delete[] channelColumnData;
 	delete[] fullPatternData;
 }
 
@@ -1632,8 +1632,9 @@ void PatternGenModule::loadBackgroundPattern()
 	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)
-	std::cerr << "Pattern Transfer Success!!\n";
-	usleep(15000); //transfer pattern data
+	std::cerr << "Background Pattern Transfer Success!!\n";
+	//usleep(15000); //transfer pattern data
+
 
 #ifdef _TWIN_WSS_
 	mod++;
@@ -1656,7 +1657,7 @@ void PatternGenModule::loadBackgroundPattern()
 	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)
-	std::cerr << "Pattern Transfer Success!!\n";
+	std::cerr << "Background Pattern Transfer Success!!\n";
 #endif
 	Save_Pattern_In_FileSysten();
 
