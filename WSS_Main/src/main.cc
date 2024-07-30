@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
 	/*MUST implement two different LUts for Temperature sensors. Changjiang gave me excel file*/
 //	TemperatureMonitor *tempIns = TemperatureMonitor::GetInstance();
 //	if(tempIns->MoveToThread() != 0)
-//		printf("TemperatureModule: MoveToThread Failed!\n");
+//	printf("TemperatureModule: MoveToThread Failed!\n");
 
 	PatternCalibModule *patternCalibIns = PatternCalibModule::GetInstance();
 	if(patternCalibIns->MoveToThread() != 0)

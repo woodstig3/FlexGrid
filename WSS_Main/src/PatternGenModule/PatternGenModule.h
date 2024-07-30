@@ -24,9 +24,9 @@
 
 struct inputParameters{
 	float 			ch_att;
-	double 			ch_fc;
-	double 			ch_f1;
-	double 			ch_f2;
+	float 			ch_fc; //drc modified from double to float
+	float 			ch_f1;
+	float 			ch_f2;
 	int 			ch_adp;
 };
 
@@ -37,24 +37,24 @@ struct outputParameters{
 	float 			Aatt;
 	float 			Katt;
 
-	float 			F1_PixelPos; //drc modified
+	float 			F1_PixelPos; //drc modified from double to float
 	float 			F2_PixelPos;
 	float 			FC_PixelPos;
 
 };
 
-struct Background_DS_For_Pattern{
+struct Background_DS_For_Pattern{  //drc added for background pattern data structure
 
 	float SIGMA;
-	float PD = 2.2;
-	float A_OPP = 0.5;
+	float PD;   //default 2.2;
+	float A_OPP; //default 0.5;
 	float K_OPP;
 	float A_ATT;
 	float K_ATT;
-	float LAMDA = 1.55;
-	double FC_PixelPos = 960.5;
-	double F1_PixelPos = 191125.0;
-	double F2_PixelPos = 196275.0;
+	float LAMDA;  //deault = 1.55;
+	float FC_PixelPos; //default = 960.5;
+	float F1_PixelPos; //default = 191125.0;
+	float F2_PixelPos; //default = 196275.0;
 };
 
 class PatternGenModule {
@@ -93,10 +93,10 @@ public:
 	enum 			PatternOutcome {SUCCESS = 0, FAILED, NO_OPERATION};
 	ErrorMessage 	g_errorMsg = NO_ERROR;
 
-	unsigned char 	*channelColumnData = new unsigned char[g_Total_Channels*g_LCOS_Height]();       // channelColumnData hold only 1 pixel width data value for each channel
+	unsigned char 	channelColumnData [3][g_Total_Channels*g_LCOS_Height]{};       // channelColumnData hold only 1 pixel width data value for each channel
 	unsigned char 	*fullPatternData = new unsigned char[g_LCOS_Width*g_LCOS_Height]();		       // fullPatternData hold complete picture of all channels with their widths. This is used by OCM!
 	unsigned char 	rotated[g_LCOS_Width*g_LCOS_Height];
-	double 			rotationAngle{};
+	float 			rotationAngle{};
 	unsigned char 	RotatedSquare[2160][4320]{}; // double the resolution
 	unsigned char   BackgroundColumnData[g_LCOS_Height]; //drc added to store background grating gray scale value
 	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3];  //drc added for 2 module background configuration, index start from 1 not 0
@@ -122,9 +122,9 @@ private:
 	float 			g_LCOS_Temp{63};								// Default minimum
 	bool 			g_bSigmaNegative{false};						// Flip pattern per period for -ve sigma
 
-	const double 	g_wavelength{1.55};
+	const float 	g_wavelength{1.55};
 	const int 		g_pixelSize{8};
-	double 			g_phaseDepth{2.2};
+	float 			g_phaseDepth{2.2};
 	int				m_backColor{0};
 	int				m_customLCOS_Height{g_LCOS_Height};
 
@@ -132,8 +132,8 @@ private:
 	float 			phaseLine[g_LCOS_Height]{0};
 	float 			phaseLine_MOD[g_LCOS_Height]{0};
 	float 			rebuildPeriod[g_LCOS_Height]{0};
-	float 			attenuatedPattern[g_LCOS_Height]{0};
-	float 			attenuatedPattern_limited[g_LCOS_Height]{0};	// The max and min values are limited, the border values are cut off
+	float 			attenuatedPattern[3][g_LCOS_Height]{0};
+	float 			attenuatedPattern_limited[3][g_LCOS_Height]{0};	// The max and min values are limited, the border values are cut off
 	float 			optimizedPattern[g_LCOS_Height]{0};
 	unsigned int 	periodCount[g_LCOS_Height]{0};
 	std::vector<unsigned int> periods{};
@@ -164,20 +164,20 @@ private:
 	int 			Check_Need_For_GlobalParameterUpdate();
 	int 			Calculate_Every_ChannelPattern(char);
 	int 			Calculate_Every_ChannelPattern_DevelopMode(char);
-	void 			Find_LinearPixelPos_DevelopMode(double &freq, int &pixelPos);
+	void 			Find_LinearPixelPos_DevelopMode(float &freq, int &pixelPos);
 
 	int 			Calculate_Pattern_Formulas(const int ch, const float lamda, const int pixelSize, float sigmaRad, const float Aopt, const float Kopt, const float Aatt,const float Katt);
 	int 			Calculate_PhaseLine(const float pixelSize, float sigmaRad, const float lamda);
 	void 			Calculate_Period(const float pixelSize, float sigmaRad, const float lamda);
 	void 			Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[], int factorsForDiv[]);
-	void 			Calculate_Optimization_And_Attenuation(const float Aopt, const float Kopt, const float Aatt,const float Katt);
+	void 			Calculate_Optimization_And_Attenuation(const float Aopt, const float Kopt, const float Aatt,const float Katt, const int col);
 	void 			Fill_Channel_ColumnData(unsigned int ch);
 	void 			RelocateChannel(unsigned int chNum, unsigned int f1_PixelPos, unsigned int f2_PixelPos, unsigned int fc_PixelPos);
 	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, unsigned int f1_PixelPos, unsigned int f2_PixelPos);
 
-	void 			RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, double angleRad, int centerX, int centerY);
-	bool 			isInsideRectangle(double x, double y, double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4);
-	void 			rotateArray(double angle, int width, int height);
+	void 			RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, float angleRad, int centerX, int centerY);
+	bool 			isInsideRectangle(float x, float y, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4);
+	void 			rotateArray(float angle, int width, int height);
 
 	void 			getStartEndOffset(int startGrayVal, int endGrayVal);
 	void			loadPatternFile_Bin(std::string path);				// send pattern file .bin to ocm

@@ -52,7 +52,7 @@ int OCMTransfer::SendPatternData(uint8_t *pattern)
 {	std::cout << "SendPatternData..." << ocm << std::endl;
 
 	int pixel_count;
-	int required_size = 1952*1080;
+	int required_size = g_LCOS_Width*g_LCOS_Height;
 	int RP=0;
 	int WP=0;
 	int j;

@@ -184,7 +184,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 		{
 			if(rotationAngle != 0)
 			{
-				rotateArray(rotationAngle, 1952, 1080);
+				rotateArray(rotationAngle, g_LCOS_Width, g_LCOS_Height);
 			}
 
 #ifdef _FETCH_PATTERN_
@@ -221,7 +221,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 
 int PatternGenModule::Get_LCOS_Temperature()
 {
-	double temp = g_tempMonitor->GetLCOSTemperature();
+	float temp = g_tempMonitor->GetLCOSTemperature();
 
 	if(temp > g_Max_Normal_Temperature)  //55
 		temp = g_Max_Normal_Temperature;
@@ -450,6 +450,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 	inputParameters inputs;
 	outputParameters outputs;
 	int status = 0;
+	float edgeK_Att = 0.0;
 
 	if (slotSize == 'T')		// Calculate for TrueFlex Module
 	{
@@ -463,7 +464,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 				inputs.ch_att = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ATT;
 				inputs.ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
 				inputs.ch_adp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
-				double ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
+				float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw/2) + 2.0;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw/2) - 2.0;
 
@@ -471,13 +472,21 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 
 				if(status != 0)
 					return (-1);
-				//std::cout << "Sigma = "  << outputs.sigma << " Aopt " << outputs.Aopt <<"  Kopt  " <<outputs.Kopt << " Aatt " << outputs.Aatt << "Katt " << outputs.Katt << "\n";
-				//outputs.sigma = 0.0135; outputs.Aopt = 1; outputs.Kopt = 0.0377; outputs.Aatt = 2;outputs.Katt = 0.5;
-				//outputs.Katt = 0;
-				Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
 
+				Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+				//to calculate for edge attenuated value
+				edgeK_Att = outputs.Katt + abs(1- (outputs.F1_PixelPos - round(outputs.F1_PixelPos)));
+//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0);
+				Fill_Channel_ColumnData(ch);
+
+				edgeK_Att = outputs.Katt + abs(outputs.F2_PixelPos- round(outputs.F2_PixelPos));
+//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2);
+				Fill_Channel_ColumnData(ch);
 //				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
-                //std::cout << "RelocateChannel  slotSize == 'T'" << std::endl;
+
 				RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 
 			}
@@ -540,12 +549,12 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 	return (0);
 }
 
-void PatternGenModule::rotateArray(double angle, int width, int height)
+void PatternGenModule::rotateArray(float angle, int width, int height)
 {
 	std::cout << "rotating .." << std::endl;
-    double rad = angle * M_PI / 180.0;
-    double cos_theta = cos(rad);
-    double sin_theta = sin(rad);
+    float rad = angle * M_PI / 180.0;
+    float cos_theta = cos(rad);
+    float sin_theta = sin(rad);
 
 
     for (int y = 0; y < height; y++) {
@@ -590,10 +599,10 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				float Aatt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].A_ATT;
 				float Katt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_ATT;
 				float wavelength = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].LAMDA;
-				double ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
-				double ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
-				double ch_f1 = ch_fc - (ch_bw/2);
-				double ch_f2 = ch_fc + (ch_bw/2);
+				float ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
+				float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
+				float ch_f1 = ch_fc - (ch_bw/2);
+				float ch_f2 = ch_fc + (ch_bw/2);
 
 				int F1_PixelPos, F2_PixelPos, FC_PixelPos;
 
@@ -632,9 +641,9 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				float Aatt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].A_ATT;
 				float Katt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_ATT;
 				float wavelength = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].LAMDA;
-				double ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
-				double ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1;
-				double ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2;
+				float ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
+				float ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1;
+				float ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2;
 
 				int F1_PixelPos, F2_PixelPos, FC_PixelPos;
 
@@ -679,6 +688,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 
 int PatternGenModule::Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum)
 {
+	//here for command configuring background. If using biggest bw value to configure is ok, then nothing needs to be done here.
 	return 0;
 }
 
@@ -706,7 +716,7 @@ int PatternGenModule::Calculate_Pattern_Formulas(const int ch,const float lamda,
 
 	Calculate_Mod_And_RebuildPeriod(&periodCount[0], &factorsForDiv[0]);
 
-	Calculate_Optimization_And_Attenuation(Aopt, Kopt, Aatt, Katt);
+	Calculate_Optimization_And_Attenuation(Aopt, Kopt, Aatt, Katt, 1);
 
 	Fill_Channel_ColumnData(ch);
 
@@ -798,7 +808,7 @@ void PatternGenModule::Calculate_Period(const float pixelSize, float sigmaRad, c
 	//printf("calculatedPeriod = %f \n", calculatedPeriod);
 }
 
-void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, const float Kopt, const float Aatt,const float Katt)
+void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, const float Kopt, const float Aatt,const float Katt, const int col)
 {
 	/* Based on EXCEL FILE:
 	 * Opt Factor = Kopt*ABS(sin((Aopt*Y*Phase_depth*PI)/(cal_period)))
@@ -826,34 +836,34 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 		optimizedPattern[Y] = (phaseLine[Y] + optFactor) - (factorsForDiv[Y]*g_phaseDepth);
 
 		// Must do this to Optimize Algorithm !! Don't perform SINE calculation if SINE parameter is 2PI or PI, which results in ZERO anyway
-		double theta = g_phaseDepth/Aatt;
+		float theta = g_phaseDepth/Aatt;
 
 		if(theta != 2 && theta != 1)		// Two cases when Sin output is ZERO
 		{
 			attFactor = Katt*abs(sin((Y+1)*g_phaseDepth*PI/Aatt));		// (Y+1) because pixel number must starts from 1 to 1080  //drc why used abs here for att?
 		}
 
-		attenuatedPattern[Y] = optimizedPattern[Y] + attFactor;
+		attenuatedPattern[col][Y] = optimizedPattern[Y] + attFactor;
 
 		// For Boundary values which are below 0 or above 2PI we will restrict them
 
-		if(attenuatedPattern[Y] < minAtt)
+		if(attenuatedPattern[col][Y] < minAtt)
 		{
-			attenuatedPattern_limited[Y] = minAtt;
+			attenuatedPattern_limited[col][Y] = minAtt;
 		}
-		else if (attenuatedPattern[Y] > maxAtt)
+		else if (attenuatedPattern[col][Y] > maxAtt)
 		{
-			attenuatedPattern_limited[Y] = maxAtt;
+			attenuatedPattern_limited[col][Y] = maxAtt;
 		}
 		else
 		{
-			attenuatedPattern_limited[Y] = attenuatedPattern[Y];
+			attenuatedPattern_limited[col][Y] = attenuatedPattern[col][Y];
 		}
 
-		if(g_bSigmaNegative == true)
+		if(g_bSigmaNegative == true)    //drc to check how to modify here for edge
 		{
 			// Need to flip each period data
-			flipArray.push_back(attenuatedPattern_limited[Y]);
+			flipArray.push_back(attenuatedPattern_limited[col][Y]);
 
 			if(periods[periodIndex_track] == periodCount[Y])
 			{
@@ -886,11 +896,12 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 	{
 		for(int y = 0; y < m_customLCOS_Height; y++)
 		{
-			attenuatedPattern_limited[y] = temp[y];
+			attenuatedPattern_limited[col][y] = temp[y];
 			//printf("attenuatedPattern_limited = %f \n", attenuatedPattern_limited[y]);
 		}
 	}
 }
+
 
 void  PatternGenModule::AjustEdgePixelAttenuation(unsigned int ch, float F1_PixelPos, float F2_PixelPos, float FC_PixelPos)
 {
@@ -900,16 +911,18 @@ void  PatternGenModule::AjustEdgePixelAttenuation(unsigned int ch, float F1_Pixe
 void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 {
 	// For every attenuated value in degree find the graylevel from LUT
-	for(int i =0 ; i<m_customLCOS_Height; i++)
-	{
-		unsigned int degree = round(attenuatedPattern_limited[i]*180);		// IMPORTANT: NOT DIVIDE BY PI, because attenuatedPattern values have unit PI, so the value doesnt include PI itself
+	for(int col = 0; col < 3; col++) {
+		for(int i =0 ; i<m_customLCOS_Height; i++)
+		{
+			unsigned int degree = round(attenuatedPattern_limited[col][i]*180);		// IMPORTANT: NOT DIVIDE BY PI, because attenuatedPattern values have unit PI, so the value doesnt include PI itself
 
-		if(degree < (0 + startOffsetLUT))										// if startOffset is more than 0, i.e. 2, then any value of degree below 2 will get value of 2 from LUT
-			degree = 0 + startOffsetLUT;
-		else if (degree > (linearLUT.size()-1-endOffsetLUT))				// if endOffset is more than 0, i.e. 5, then any value of degree above max range of LUT available will get max value from LUT, max = linearLUT.size()-1-endOffsetLUT
-			degree = (linearLUT.size()-1-endOffsetLUT);
+			if(degree < (0 + startOffsetLUT))										// if startOffset is more than 0, i.e. 2, then any value of degree below 2 will get value of 2 from LUT
+				degree = 0 + startOffsetLUT;
+			else if (degree > (linearLUT.size()-1-endOffsetLUT))				// if endOffset is more than 0, i.e. 5, then any value of degree above max range of LUT available will get max value from LUT, max = linearLUT.size()-1-endOffsetLUT
+				degree = (linearLUT.size()-1-endOffsetLUT);
 
-		channelColumnData[i + m_customLCOS_Height*ch] = linearLUT[degree];
+			channelColumnData[col][i + m_customLCOS_Height*ch] = linearLUT[degree];
+		}
 	}
 }
 
@@ -951,7 +964,7 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){ //drc to check if gap is needed
 #ifdef _TWIN_WSS_
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
-						value = channelColumnData[i + m_customLCOS_Height *chNum];
+						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
 
 					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
@@ -970,15 +983,17 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 					}
 #else
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap && i < m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap){
-							value = channelColumnData[i + m_customLCOS_Height *chNum];
+							value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
 #endif
 				}else{
-					value = channelColumnData[i + m_customLCOS_Height *chNum];
+					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 				}
 
 #ifndef _FLIP_DISPLAY_
-				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
+				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
 #else
 				memset((fullPatternData + ((m_customLCOS_Height -i) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));
 #endif
@@ -987,7 +1002,7 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 			{
 				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
 					if(i < (m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap)){
-						value = channelColumnData[i + m_customLCOS_Height *chNum];
+						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
 
 					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
@@ -1005,11 +1020,14 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 						}
 					}
 				}else{
-					value = channelColumnData[i + m_customLCOS_Height *chNum];
+					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 				}
 
 #ifndef _FLIP_DISPLAY_
-				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum],  sizeof(char));
+				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+1), value, (ch_width_inPixels-2)* sizeof(char));
+				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)),  channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+
 #else
 				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
 #endif
@@ -1020,30 +1038,30 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 	}
 
 }
-void PatternGenModule::RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, double angleRad, int centerX, int centerY)
+void PatternGenModule::RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, float angleRad, int centerX, int centerY)
 {
-	double sin_theta = sin(angleRad);
-	double cos_theta = cos(angleRad);
+	float sin_theta = sin(angleRad);
+	float cos_theta = cos(angleRad);
 
 	// Vertex 1
-	//double x1_new = abs(round((x1 - centerX) * cos_theta - (y1 - centerY) * sin_theta + centerX));
-	double x1_new = 0;
-	double y1_new = abs(round((x1 - centerX) * sin_theta + (y1 - centerY) * cos_theta + centerY));
+	//float x1_new = abs(round((x1 - centerX) * cos_theta - (y1 - centerY) * sin_theta + centerX));
+	float x1_new = 0;
+	float y1_new = abs(round((x1 - centerX) * sin_theta + (y1 - centerY) * cos_theta + centerY));
 
 	// Vertex 2
 	//double x2_new = abs(round((x2 - centerX) * cos_theta - (y2 - centerY) * sin_theta + centerX));
-	double x2_new = 0;
-	double y2_new = abs(round((x2 - centerX) * sin_theta + (y2 - centerY) * cos_theta + centerY));
+	float x2_new = 0;
+	float y2_new = abs(round((x2 - centerX) * sin_theta + (y2 - centerY) * cos_theta + centerY));
 
 	// Vertex 3
 	//double x3_new = abs(round((x3 - centerX) * cos_theta - (y3 - centerY) * sin_theta + centerX));
-	double x3_new = 1079;
-	double y3_new = abs(round((x3 - centerX) * sin_theta + (y3 - centerY) * cos_theta + centerY));
+	float x3_new = 1079;
+	float y3_new = abs(round((x3 - centerX) * sin_theta + (y3 - centerY) * cos_theta + centerY));
 
 	// Vertex 4
 	//double x4_new = abs(round((x4 - centerX) * cos_theta - (y4 - centerY) * sin_theta + centerX));
-	double x4_new = 1079;
-	double y4_new = abs(round((x4 - centerX) * sin_theta + (y4 - centerY) * cos_theta + centerY));
+	float x4_new = 1079;
+	float y4_new = abs(round((x4 - centerX) * sin_theta + (y4 - centerY) * cos_theta + centerY));
 	std::cout << "New coordinates: \n" << std::endl;
 	std::cout << x1_new << "  " <<y1_new << "\n"
 			 << x2_new << "  " <<y2_new << "\n"
@@ -1063,16 +1081,16 @@ void PatternGenModule::RotateChannel(int x1, int y1, int x2, int y2, int x3, int
 	}
 }
 
-bool PatternGenModule::isInsideRectangle(double x, double y, double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4)
+bool PatternGenModule::isInsideRectangle(float x, float y, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4)
 {
     // Compute the area of the rectangle
-    double area = 0.5 * abs(x2*y1 - x1*y2 + x3*y2 - x2*y3 + x4*y3 - x3*y4 + x1*y4 - x4*y1);
+    float area = 0.5 * abs(x2*y1 - x1*y2 + x3*y2 - x2*y3 + x4*y3 - x3*y4 + x1*y4 - x4*y1);
     //std::cout << "area of rectangle = " << area << std::endl;
     // Compute the areas of the four triangles formed by the point (x,y) and the vertices of the rectangle
-    double area1 = 0.5 * abs(x1*y - x*y1 + x2*y1 - x1*y2 + x*y2 - x2*y);
-    double area2 = 0.5 * abs(x2*y - x*y2 + x3*y2 - x2*y3 + x*y3 - x3*y);
-    double area3 = 0.5 * abs(x3*y - x*y3 + x4*y3 - x3*y4 + x*y4 - x4*y);
-    double area4 = 0.5 * abs(x4*y - x*y4 + x1*y4 - x4*y1 + x*y1 - x1*y);
+    float area1 = 0.5 * abs(x1*y - x*y1 + x2*y1 - x1*y2 + x*y2 - x2*y);
+    float area2 = 0.5 * abs(x2*y - x*y2 + x3*y2 - x2*y3 + x*y3 - x3*y);
+    float area3 = 0.5 * abs(x3*y - x*y3 + x4*y3 - x3*y4 + x*y4 - x4*y);
+    float area4 = 0.5 * abs(x4*y - x*y4 + x1*y4 - x4*y1 + x*y1 - x1*y);
 
     // If the sum of the areas of the four triangles is equal to the area of the rectangle, the point is inside the rectangle
     return (area1 + area2 + area3 + area4) == area;
@@ -1122,7 +1140,7 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 			if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
 #ifdef _TWIN_WSS_
 				if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
-					value = channelColumnData[i + m_customLCOS_Height *chNum];
+					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 				}
 
 				int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
@@ -1141,11 +1159,11 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 					}
 #else
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap && i < m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap){
-							value = channelColumnData[i + m_customLCOS_Height *chNum];
+							value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
 #endif
 			}else{
-				value = channelColumnData[i + m_customLCOS_Height *chNum];
+				value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 			}
 
 #ifndef _FLIP_DISPLAY_
@@ -1158,7 +1176,7 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 		{
 			if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
 				if(i < (m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap)){
-					value = channelColumnData[i + m_customLCOS_Height *chNum];
+					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 				}
 
 				int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
@@ -1176,7 +1194,7 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 					}
 				}
 			}else{
-				value = channelColumnData[i + m_customLCOS_Height *chNum];
+				value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 			}
 
 #ifndef _FLIP_DISPLAY_
@@ -1263,7 +1281,7 @@ int PatternGenModule::Find_Parameters_By_Interpolation(inputParameters &ins, out
 				outs.Katt = g_patternCalib->Aatt_Katt_params.result_Katt;
 			}
 
-			if(interpolatePixelPos)
+			if(interpolatePixelPos)   //drc to check how to 
 			{
 				outs.F1_PixelPos = g_patternCalib->Pixel_Pos_params.result_F1_PixelPos;
 				outs.F2_PixelPos = g_patternCalib->Pixel_Pos_params.result_F2_PixelPos;
@@ -1497,6 +1515,7 @@ int PatternGenModule::Load_Background_LUT(void)
         }
      }
      file.close();
+     return(0);
 }
 
 
@@ -1570,12 +1589,12 @@ void PatternGenModule::GetErrorMessage(std::string &msg)
 	}
 }
 
-void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, int &pixelPos)
+void PatternGenModule::Find_LinearPixelPos_DevelopMode(float &freq, int &pixelPos)
 {
-	double fc_range_low = VENDOR_FREQ_RANGE_LOW;
-	double fc_range_high = VENDOR_FREQ_RANGE_HIGH;
+	float fc_range_low = VENDOR_FREQ_RANGE_LOW;
+	float fc_range_high = VENDOR_FREQ_RANGE_HIGH;
 
-	double slope = (fc_range_high-fc_range_low)/(g_LCOS_Width-1);		// Linear relationship between frequency distribution vs pixel number
+	float slope = (fc_range_high-fc_range_low)/(g_LCOS_Width-1);		// Linear relationship between frequency distribution vs pixel number
 
 	  // y = fc_range_low + m(x)
 	  // freq- fc_range_low/m
@@ -1600,23 +1619,21 @@ void PatternGenModule::loadBackgroundPattern()
 	float Aatt = Module_Background_DS_For_Pattern[mod].A_ATT;
 	float Katt = Module_Background_DS_For_Pattern[mod].K_ATT;
 	float wavelength = Module_Background_DS_For_Pattern[mod].LAMDA;
-	double FC_PixelPos = Module_Background_DS_For_Pattern[mod].FC_PixelPos;
-	double F1_PixelPos = Module_Background_DS_For_Pattern[mod].F1_PixelPos;
-	double F2_PixelPos = Module_Background_DS_For_Pattern[mod].F2_PixelPos;
+	float FC_PixelPos = Module_Background_DS_For_Pattern[mod].FC_PixelPos;
+	float F1_PixelPos = Module_Background_DS_For_Pattern[mod].F1_PixelPos;
+	float F2_PixelPos = Module_Background_DS_For_Pattern[mod].F2_PixelPos;
 	if(Aatt == 0){
 		Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
 	}
 	g_moduleNum = mod;
 	Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
 	//std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
-	memcpy(BackgroundColumnData, channelColumnData, m_customLCOS_Height);
+	memcpy(BackgroundColumnData, &channelColumnData[1], m_customLCOS_Height);
 	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
-
 
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)
 	std::cerr << "Pattern Transfer Success!!\n";
 	usleep(15000); //transfer pattern data
-	Save_Pattern_In_FileSysten();
 
 #ifdef _TWIN_WSS_
 	mod++;
@@ -1635,7 +1652,7 @@ void PatternGenModule::loadBackgroundPattern()
 	}
 	Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
 	//std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
-	memcpy(BackgroundColumnData + m_customLCOS_Height, channelColumnData, m_customLCOS_Height);
+	memcpy(BackgroundColumnData + m_customLCOS_Height, &channelColumnData[1], m_customLCOS_Height);
 	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)

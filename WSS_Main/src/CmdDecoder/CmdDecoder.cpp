@@ -25,7 +25,7 @@ CmdDecoder::CmdDecoder() {
 	eModule1 = TF;
 	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "TF";
-	arrModules[1].slotSize = "FG"; //drc why 625?
+	arrModules[1].slotSize = "625"; //drc why 625?
 
 }
 
@@ -375,9 +375,9 @@ void CmdDecoder::postProcessSingleCommandResult(int* searchDone)
 	if ((*searchDone != -1) && (eObject == CH_FG) && g_edgeFreqDefined > 0)
 	{
 		int calculatedSlotsNumber = 0;
-		double slotSize = 0;		// 6.25 or 12.5
-		double newF1 = FG_Channel_DS[g_moduleNum][g_channelNum].F1;
-		double newF2 = FG_Channel_DS[g_moduleNum][g_channelNum].F2;
+		float slotSize = 0;		// 6.25 or 12.5
+		float newF1 = FG_Channel_DS[g_moduleNum][g_channelNum].F1;
+		float newF2 = FG_Channel_DS[g_moduleNum][g_channelNum].F2;
 
 		if (is_BWSlotSizeIntegral(&calculatedSlotsNumber, &newF1, &newF2, &slotSize) == 0)		// Success
 		{
@@ -474,7 +474,7 @@ vector<string> CmdDecoder::SplitCmd(string s, string delimiter)
 	return (res);
 }
 
-int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *newF1, const double *newF2, double *slotSize)
+int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const float *newF1, const float *newF2, float *slotSize)
 {
 	std::string str_slotSize = arrModules[g_moduleNum - 1].slotSize;	//Get the slot size of the module that is configured to fixed grid
 
@@ -533,7 +533,7 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 	return (0);
 }
 
-int CmdDecoder::ModifySlotCountInChannel(const int *calculatedSlotsNumber, const double *newF1, const double *newF2, const double *slotSize)
+int CmdDecoder::ModifySlotCountInChannel(const int *calculatedSlotsNumber, const float *newF1, const float *newF2, const float *slotSize)
 {
 	if (eVerb == ADD)
 	{
@@ -763,8 +763,8 @@ int CmdDecoder::ChannelsOverlapTest(void)
 		if (TF_Channel_DS[g_moduleNum][ch].active)
 		{
 			//Channel we are compare to others, we take that channel's f1,f2,fc first
-			double ch_f1 = (TF_Channel_DS[g_moduleNum][ch].FC - (TF_Channel_DS[g_moduleNum][ch].BW / 2));
-			double ch_f2 = (TF_Channel_DS[g_moduleNum][ch].FC + (TF_Channel_DS[g_moduleNum][ch].BW / 2));
+			float ch_f1 = (TF_Channel_DS[g_moduleNum][ch].FC - (TF_Channel_DS[g_moduleNum][ch].BW / 2));
+			float ch_f2 = (TF_Channel_DS[g_moduleNum][ch].FC + (TF_Channel_DS[g_moduleNum][ch].BW / 2));
 
 			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
 
@@ -772,8 +772,8 @@ int CmdDecoder::ChannelsOverlapTest(void)
 			{
 				if (TF_Channel_DS[g_moduleNum][ch_compared_with].active)
 				{
-					double f1 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC - (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
-					double f2 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC + (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
+					float f1 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC - (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
+					float f2 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC + (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
 
 					int status = Overlap_Logic(&ch_f1, &ch_f2, &f1, &f2);
 
@@ -792,8 +792,8 @@ int CmdDecoder::ChannelsOverlapTest(void)
 		if (FG_Channel_DS[g_moduleNum][ch].active)
 		{
 			//Channel we are compare to others, we take that channel's f1,f2,fc first
-			double ch_f1 = FG_Channel_DS[g_moduleNum][ch].F1;
-			double ch_f2 = FG_Channel_DS[g_moduleNum][ch].F2;
+			float ch_f1 = FG_Channel_DS[g_moduleNum][ch].F1;
+			float ch_f2 = FG_Channel_DS[g_moduleNum][ch].F2;
 
 			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
 
@@ -801,8 +801,8 @@ int CmdDecoder::ChannelsOverlapTest(void)
 			{
 				if (FG_Channel_DS[g_moduleNum][ch_compared_with].active)
 				{
-					double f1 = FG_Channel_DS[g_moduleNum][ch_compared_with].F1;
-					double f2 = FG_Channel_DS[g_moduleNum][ch_compared_with].F2;
+					float f1 = FG_Channel_DS[g_moduleNum][ch_compared_with].F1;
+					float f2 = FG_Channel_DS[g_moduleNum][ch_compared_with].F2;
 
 					int status = Overlap_Logic(&ch_f1, &ch_f2, &f1, &f2);
 
@@ -823,7 +823,7 @@ int CmdDecoder::ChannelsOverlapTest(void)
 	return (0);
 }
 
-int CmdDecoder::Overlap_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2)
+int CmdDecoder::Overlap_Logic(const float *ch_f1, const float *ch_f2, const float *other_ch_f1, const float *other_ch_f2)
 {
 	if (*ch_f1 > *other_ch_f1 && *ch_f1 < *other_ch_f2)	// Edge freqs same are OK
 	{
@@ -1882,7 +1882,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	// Search the eObject by using switch cases and then put if else statement on attribute, if attribute doesn't link to eObject used then we cause an error
 	int attrLen;
 	int iValue;	// Integer converted value from user
-	double fValue;	// Float converted value from user
+	float fValue;	// Float converted value from user
 
 	std::transform(attributes.begin(), attributes.end(), attributes.begin(), ::toupper);
 
@@ -2422,7 +2422,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					if (attr[0] == "F1")
 					{
 						// We ignore if f2 or f1 is not defined at the moment, we only give bandwidth not integral error when both f1 and f2 are defined and then bandwidth not integral of slotsize
-						double f1;
+						float f1;
 						if (Sscanf(attr[1], f1,'f'))
 						{
 							// If F1 is numerical
@@ -2470,7 +2470,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					}
 					else if (attr[0] == "F2")
 					{
-						double f2;
+						float f2;
 						if (Sscanf(attr[1], f2,'f'))
 						{
 							// If F2 is numerical
@@ -2516,7 +2516,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					}
 					else if (attr[0] == "FC")
 					{
-						double fc;
+						float fc;
 						if (Sscanf(attr[1], fc,'f'))
 						{
 							// Get the float value of FC
@@ -2562,7 +2562,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "BW")
 					{
-						double bw;
+						float bw;
 						if (Sscanf(attr[1], bw,'f'))
 						{
 							// Get the float value of FC

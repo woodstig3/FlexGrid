@@ -124,8 +124,8 @@ private:
 	int 			g_edgeFreqDefined = 0;
 	bool 			changeF1 = false;
 	bool 			changeF2 = false;
-	double 			prevF1 = 0;
-	double 			prevF2 = 0;
+	float 			prevF1 = 0;
+	float 			prevF2 = 0;
 
 	char 			buff[10000]{0};												//Buffer to add data that user can read- data send to user
 	int 			buffLenTemp = 0;											//Temporary integer for shifting/jumping in buffer to another index
@@ -166,10 +166,10 @@ private:
 	void 			postProcessSingleCommandResult(int* searchDone);
 	int 			TestMandatoryAttributes(void);								// Test mandatory attributes of current global Module and global channel w.r.t global Object choosen i.e. TF or FG
 
-	int 			is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *newF1, const double *newF2, double *slotSize);
-	int 			ModifySlotCountInChannel(const int *calculatedSlotsNumber, const double *newF1, const double *newF2, const double *slotSize);
+	int 			is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const float *newF1, const float *newF2, float *slotSize);
+	int 			ModifySlotCountInChannel(const int *calculatedSlotsNumber, const float *newF1, const float *newF2, const float *slotSize);
 	int 			ChannelsOverlapTest(void);
-	int 			Overlap_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
+	int 			Overlap_Logic(const float *ch_f1, const float *ch_f2, const float *other_ch_f1, const float *other_ch_f2);
 
 	int 			is_SetTFDone();												// When CH.M.N only given TF
 	int 			is_SetNoSlotFGDone();										// When CH.M.N only given FG
