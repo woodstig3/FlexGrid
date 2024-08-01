@@ -92,7 +92,7 @@ public:
 	FixedGrid 		(*FG_Channel_DS)[g_Total_Channels+1]= new FixedGrid[3][g_Total_Channels+1]();			//() brackets are very important. inialize them to default values
 	FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels+1] = new FixedGrid[3][g_Total_Channels+1]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
-	ModulesInfo 	arrModules[2];										//Two modules info
+	ModulesInfo 	arrModules[3];										// Two modules info, 0 not used
 
 	Panel 			panelInfo;												// Keep Panel Records
 
@@ -118,6 +118,7 @@ public:
 	Panel 			GetPanelInfo();
 	void 			SetPanelInfo(bool);
 	void 			SetPanelInfo(Panel&);
+	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
 
 private:
 
@@ -130,7 +131,7 @@ private:
 	char 			buff[10000]{0};												//Buffer to add data that user can read- data send to user
 	int 			buffLenTemp = 0;											//Temporary integer for shifting/jumping in buffer to another index
 
-	int 			g_moduleNum = 0;												//Module number
+	int 			g_moduleNum = 0;												//Module number parsed from cmd
 	int 			g_moduleNum_prev = 0;											// Holds the last state Module #, it helps us in GET command, get:ch.1.2;ch.2.3.. we can print differently knowing last known state
 	int 			g_channelNum = 0;												//Channel number
 	int 			g_slotNum = 0;													//Slot number
@@ -142,7 +143,7 @@ private:
 	int 			g_totalAttributes = 0;
 	bool 			g_bPrevAttrDisplayed = false;
 
-	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
+
 
 private:
 

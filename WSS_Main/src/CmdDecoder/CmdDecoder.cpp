@@ -3593,32 +3593,47 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 					break;
 				}
-				case 'B': //drc to modify here for background test station configuration command set:module.1: sigma=: pd=:a_opp=:k_opp:fc=:bw=:
+				case 'B': //drc modified here for background test station configuration command set:module.1: sigma=: pd=:k_opp:
 				{
-					int i_Value;
-					if (attr[0] == "BACK_COLOR" && eVerb == SET)
+					float f_Value;
+					if (attr[0] == "BACK_SIGMA" && eVerb == SET)
 					{
-						if(Sscanf(attr[1],i_Value,'i'))
+						if(Sscanf(attr[1],f_Value,'f'))
 						{
-							if(i_Value >=0 && i_Value <= 255)
-							{
-								pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
-								structDevelopMode.b_backColor = true;
-								structDevelopMode.backColorValue = i_Value;
-								pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
-							}
-							else
-							{
-								cout << "ERROR: The Color Value out of range (0-255)" << endl;
-								return (-1);
-							}
+							pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
+							structDevelopMode.b_backSigma = true;
+								//structDevelopMode.backColorValue = i_Value;
+							structDevelopMode.structBackgroundPara[g_moduleNum].Sigma = f_Value;
+							pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
 						}
-						else
+					}
+					else if (attr[0] == "BACK_PD" && eVerb == SET)
+					{
+						if(Sscanf(attr[1],f_Value,'f'))
 						{
-							cout << "ERROR: The command attribute BACK_COLOR is not supported" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
+							pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
+							structDevelopMode.b_backPD = true;
+							structDevelopMode.structBackgroundPara[g_moduleNum].PD = f_Value;
+							pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
 						}
+
+					}
+					else if (attr[0] == "BACK_K_OP" && eVerb == SET)
+					{
+						if(Sscanf(attr[1],f_Value,'f'))
+						{
+							pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
+							structDevelopMode.b_backK_Opt = true;
+							structDevelopMode.structBackgroundPara[g_moduleNum].K_Opt = f_Value;
+							pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
+						}
+
+					}
+					else
+					{
+						cout << "ERROR: The command attribute BACK_* is not supported" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
 					}
 					break;
 				}

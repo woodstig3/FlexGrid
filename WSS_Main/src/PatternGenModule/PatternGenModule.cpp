@@ -12,6 +12,7 @@
 #include <ostream>
 
 #include "PatternGenModule.h"
+#include "DataStructures.h"
 
 clock_t tstart;
 PatternGenModule *PatternGenModule::pinstance_{nullptr};
@@ -135,7 +136,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 					{
 						g_bTempChanged = false;
 						etrigger = TEMP_CHANGED;
-						//std::cout << "TEMP Changed... " << std::endl;
+						std::cout << "Temperature Changed... " << std::endl;
 					}
 					else
 					{
@@ -327,7 +328,12 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 	bool updateLUTRange = false;
 	bool sendPatternFile = false;
 	bool sendColor = false;
-	bool backColor = false; // drc added for background grating init(e.g. SET:PANEL.1:BACK_COLOR=10 in DEV mode)
+//	bool backColor = false;
+	bool backSigma = false; // drc added for background grating init(e.g. SET:PANEL.1:BACK_COLOR=10 in DEV mode)
+	bool backPD = false;
+	bool backK_Opt = false;
+
+	int  currentModule = std::stoi(g_serialMod->cmd_decoder.objVec[1]); //for background pattern setting in developmode
 
 	std::string filePath;
 	int color{0};
@@ -373,12 +379,29 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 		}
 
 
-		if(g_serialMod->cmd_decoder.structDevelopMode.b_backColor == true)
+		/*if(g_serialMod->cmd_decoder.structDevelopMode.b_backColor == true)
 		{
 			backColor = true;
 			m_backColor = g_serialMod->cmd_decoder.structDevelopMode.backColorValue;
 			g_serialMod->cmd_decoder.structDevelopMode.b_backColor = false;
-			//memset(fullPatternData, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
+			memset(fullPatternData, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
+		}*/
+
+		if(g_serialMod->cmd_decoder.structDevelopMode.b_backSigma == true)
+		{
+			backSigma = true;
+			g_serialMod->cmd_decoder.structDevelopMode.b_backSigma = false;
+		}
+		if(g_serialMod->cmd_decoder.structDevelopMode.b_backPD == true)
+		{
+			g_phaseDepth = g_serialMod->cmd_decoder.structDevelopMode.structBackgroundPara[currentModule].PD;
+			backPD = true;
+			g_serialMod->cmd_decoder.structDevelopMode.b_backPD = false;
+		}
+		if(g_serialMod->cmd_decoder.structDevelopMode.b_backK_Opt == true)
+		{
+			backK_Opt = true;
+			g_serialMod->cmd_decoder.structDevelopMode.b_backK_Opt = false;
 		}
 
 		if (pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]) != 0)	// Unlocking and checking the result, if lock was successful and no deadlock happened
@@ -408,10 +431,24 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 		return -2;				   // Indicate that we are sending one color to OCM, no need to calculate pattern for channels.
 	}
 
-	if(backColor == true)
+	if(backSigma == true)
 	{
-//		loadBackgroundPattern();
-		return 0;				   // Indicate that we are setting background pattern,.
+		Module_Background_DS_For_Pattern[currentModule].SIGMA = g_serialMod->cmd_decoder.structDevelopMode.structBackgroundPara[currentModule].Sigma;
+		loadBackgroundPattern();
+		return 0;				   // Indicate that we are setting background pattern //drc modified
+	}
+
+	if(backPD == true)
+	{
+		Module_Background_DS_For_Pattern[currentModule].PD = g_serialMod->cmd_decoder.structDevelopMode.structBackgroundPara[currentModule].PD;
+		loadBackgroundPattern();
+		return 0;				   // Indicate that we are setting background pattern //drc modified
+	}
+	if(backK_Opt == true)
+	{
+		Module_Background_DS_For_Pattern[currentModule].K_OPP = g_serialMod->cmd_decoder.structDevelopMode.structBackgroundPara[currentModule].K_Opt;
+		loadBackgroundPattern();
+		return 0;				   // Indicate that we are setting background pattern //drc modified
 	}
 #endif
 	return (0);
@@ -474,16 +511,16 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 					return (-1);
 
 				Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
 				//to calculate for edge attenuated value
 				edgeK_Att = outputs.Katt + abs(1- (outputs.F1_PixelPos - round(outputs.F1_PixelPos)));
 //				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
-				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0);
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
 				Fill_Channel_ColumnData(ch);
 
 				edgeK_Att = outputs.Katt + abs(outputs.F2_PixelPos- round(outputs.F2_PixelPos));
 //				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
-
-				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2);
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
 				Fill_Channel_ColumnData(ch);
 //				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 
@@ -627,7 +664,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 			}
 		}
 	}
-	else						// Calculate for FixedGrid Module
+	else	// Calculate for FixedGrid Module
 	{
 		for (int ch = 0; ch < g_Total_Channels; ch++)
 		{
@@ -878,7 +915,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 				for(unsigned int j=0; j< flipArray.size(); j++)
 				{
 					temp[j + jump] = flipArray[j];
-					//std::cout << temp[Y] << std::endl;
+//					std::cout << temp[Y] << std::endl;
 				}
 
 				jump+=flipArray.size();
@@ -911,7 +948,7 @@ void  PatternGenModule::AjustEdgePixelAttenuation(unsigned int ch, float F1_Pixe
 void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 {
 	// For every attenuated value in degree find the graylevel from LUT
-	for(int col = 0; col < 3; col++) {
+	for(int col = 0; col < 3; col++) {//added by drc for : 0 left edge; 1:channel;2 right edge
 		for(int i =0 ; i<m_customLCOS_Height; i++)
 		{
 			unsigned int degree = round(attenuatedPattern_limited[col][i]*180);		// IMPORTANT: NOT DIVIDE BY PI, because attenuatedPattern values have unit PI, so the value doesnt include PI itself
@@ -933,7 +970,7 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_Pixel
 	int ch_start_pixelLocation = round(f1_PixelPos);
 	int ch_end_pixelLocation = round(f2_PixelPos);
 
-	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation;
+	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919, width should be 1920
 
 	if ((ch_start_pixelLocation + ch_width_inPixels) > g_LCOS_Width)
 	{
@@ -1628,7 +1665,7 @@ void PatternGenModule::loadBackgroundPattern()
 	g_moduleNum = mod;
 	Calculate_Pattern_Formulas(1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
 	//std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
-	memcpy(BackgroundColumnData, &channelColumnData[1], m_customLCOS_Height);
+	memcpy(BackgroundColumnData, &channelColumnData[1], m_customLCOS_Height); // obtain background column grayvalue
 	RelocateChannel(1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)

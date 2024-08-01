@@ -122,7 +122,7 @@
 
 	struct BackgroundCalibPara{
 		//drc added for background pattern parameters
-		int				Sigma = 0.025;
+		float			Sigma = 0.025;
 		float			PD = 2.2;
 		float			A_Opt = 0.5;
 		float			K_Opt = 0.03;
@@ -163,7 +163,10 @@
 		int				backColorValue =0;
 		bool			b_backColor = false;
 
-		BackgroundCalibPara structBackgroundPara; //drc added
+		BackgroundCalibPara structBackgroundPara[3]; //drc added, 0 notused, 1-2module
+		bool			b_backSigma = false;
+		bool			b_backPD = false;
+		bool			b_backK_Opt= false;
 
 		//Switch Temperature on TestRig Display LCOS vs Grating
 		bool			m_switch = 0;
