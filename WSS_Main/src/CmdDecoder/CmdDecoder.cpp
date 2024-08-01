@@ -182,7 +182,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	{
 		CopyDataStructures();	// Call function and copy data or wait  until pattern finish reading data and then copy.
 
-		PrintResponse("\01OK\04", NO_ERROR);
+		PrintResponse("\x01OK\x04", NO_ERROR);
 
 		WaitPatternTransfer();				// This wait is necessary because other modules can modify the PrintResponse if there is any error
 

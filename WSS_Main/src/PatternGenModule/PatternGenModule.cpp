@@ -410,7 +410,6 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 
 	if(updatePhase == true)
 	{
-		//Create_Linear_LUT(g_phaseDepth);			// We fixed LUT for 2.2 PI, so no need to re-create upon phase change.
 		std::cout << "\n\nGrayscale Maximum = " << linearLUT[static_cast<int>(g_phaseDepth*180)] << "\n\n"<< std::endl;	// Print for Yidan to see what grayscale last value is
 	}
 
@@ -657,12 +656,13 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
 
 				//to calculate for edge attenuated value
-				edgeK_Att = Katt + abs(1- (F1_PixelPos - round(F1_PixelPos)));
+
+				edgeK_Att = Katt + F1_PixelPos - floor(F1_PixelPos);
 //				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
 				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
 				Fill_Channel_ColumnData(ch);
 
-				edgeK_Att = Katt + abs(F2_PixelPos - round(F2_PixelPos));
+				edgeK_Att = Katt + 1 - (F2_PixelPos - floor(F2_PixelPos));
 //				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
 				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
 				Fill_Channel_ColumnData(ch);
@@ -883,17 +883,14 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 	/*REMEMBER: Due to algorithm in excel sometimes is A_att is not unique it will cause no change in output data*/
 	for (int Y = 0; Y < m_customLCOS_Height; Y++)
 	{
-		optFactor = Kopt*abs(sin((Aopt*(Y+1)*g_phaseDepth*PI)/(calculatedPeriod)));		// (Y+1) because pixel number must starts from 1 to 1080
+		optFactor = Kopt*abs(sin((Aopt*(Y+1)*2*PI)/(calculatedPeriod)));		// (Y+1) because pixel number must starts from 1 to 1080
 
 		optimizedPattern[Y] = (phaseLine[Y] + optFactor) - (factorsForDiv[Y]*g_phaseDepth);
 
 		// Must do this to Optimize Algorithm !! Don't perform SINE calculation if SINE parameter is 2PI or PI, which results in ZERO anyway
 		float theta = g_phaseDepth/Aatt;
 
-		if(theta != 2 && theta != 1)		// Two cases when Sin output is ZERO
-		{
-			attFactor = Katt*abs(sin((Y+1)*g_phaseDepth*PI/Aatt));		// (Y+1) because pixel number must starts from 1 to 1080  //drc why used abs here for att?
-		}
+		attFactor = Katt*sin(Aatt*(Y+1)*2*PI/calculatedPeriod);		// (Y+1) because pixel number must starts from 1 to 1080
 
 		attenuatedPattern[col][Y] = optimizedPattern[Y] + attFactor;
 
@@ -985,7 +982,7 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, float f1_PixelPos, fl
 	int ch_start_pixelLocation = round(f1_PixelPos);
 	int ch_end_pixelLocation = round(f2_PixelPos);
 
-	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919, width should be 1920
+	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919/1951, width should be 1920/1952
 
 	if ((ch_start_pixelLocation + ch_width_inPixels) > g_LCOS_Width)
 	{
@@ -1441,8 +1438,8 @@ int PatternGenModule::BreakThreadLoop()
 
 void PatternGenModule::Create_Linear_LUT(float phaseDepth)
 {
-	//int lutSize = round(phaseDepth*(180));					// Not divide by PI because phaseDepth has no PI in it
-	int lutSize = round(g_phaseDepth*(180));					// Dr.Du said always create LUT for 2.2 PI and we can change range of LUT using phaseDepth
+	int lutSize = round(phaseDepth*(180));					// Not divide by PI because phaseDepth has no PI in it
+	//int lutSize = round(g_phaseDepth*(180));					// Dr.Du said always create LUT for 2.2 PI and we can change range of LUT using phaseDepth
 	//std::cout << "lutSize " <<lutSize <<std::endl;
 
 	int phaseLow = 0;
@@ -1470,8 +1467,7 @@ void PatternGenModule::Create_Linear_LUT(float phaseDepth)
 }
 
 //drc added for print map elements in cout below
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::map<std::string, T>& m) {
+template <typename T>std::ostream& operator<<(std::ostream& os, const std::map<std::string, T>& m) {
      os << "{";
      bool first = true;
      for (const auto& pair : m) {
