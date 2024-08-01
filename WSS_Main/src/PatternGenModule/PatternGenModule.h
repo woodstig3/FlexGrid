@@ -164,7 +164,7 @@ private:
 	int 			Check_Need_For_GlobalParameterUpdate();
 	int 			Calculate_Every_ChannelPattern(char);
 	int 			Calculate_Every_ChannelPattern_DevelopMode(char);
-	void 			Find_LinearPixelPos_DevelopMode(float &freq, int &pixelPos);
+	void 			Find_LinearPixelPos_DevelopMode(float &freq, float &pixelPos);
 
 	int 			Calculate_Pattern_Formulas(const int ch, const float lamda, const int pixelSize, float sigmaRad, const float Aopt, const float Kopt, const float Aatt,const float Katt);
 	int 			Calculate_PhaseLine(const float pixelSize, float sigmaRad, const float lamda);
@@ -172,8 +172,8 @@ private:
 	void 			Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[], int factorsForDiv[]);
 	void 			Calculate_Optimization_And_Attenuation(const float Aopt, const float Kopt, const float Aatt,const float Katt, const int col);
 	void 			Fill_Channel_ColumnData(unsigned int ch);
-	void 			RelocateChannel(unsigned int chNum, unsigned int f1_PixelPos, unsigned int f2_PixelPos, unsigned int fc_PixelPos);
-	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, unsigned int f1_PixelPos, unsigned int f2_PixelPos);
+	void 			RelocateChannel(unsigned int chNum, float f1_PixelPos, float f2_PixelPos, float fc_PixelPos);
+	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, float f1_PixelPos, float f2_PixelPos);
 
 	void 			RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, float angleRad, int centerX, int centerY);
 	bool 			isInsideRectangle(float x, float y, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4);

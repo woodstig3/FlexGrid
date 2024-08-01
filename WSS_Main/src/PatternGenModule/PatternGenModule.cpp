@@ -624,6 +624,7 @@ void PatternGenModule::rotateArray(float angle, int width, int height)
 int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 {
 #ifdef _DEVELOPMENT_MODE_
+
 	if (slotSize == 'T')		// Calculate for TrueFlex Module
 	{
 		for (int ch = 0; ch < g_Total_Channels; ch++)
@@ -641,7 +642,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				float ch_f1 = ch_fc - (ch_bw/2);
 				float ch_f2 = ch_fc + (ch_bw/2);
 
-				int F1_PixelPos, F2_PixelPos, FC_PixelPos;
+				float F1_PixelPos, F2_PixelPos, FC_PixelPos;
+				float edgeK_Att = 0.0;
 
 				if(Aatt == 0)
 				{
@@ -654,12 +656,25 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
 				Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
 
+				//to calculate for edge attenuated value
+				edgeK_Att = Katt + abs(1- (F1_PixelPos - round(F1_PixelPos)));
+//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(ch);
+
+				edgeK_Att = Katt + abs(F2_PixelPos - round(F2_PixelPos));
+//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(ch);
+//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+
+//				RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+
                 //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
 				//drc added for background pattern calculation command from test station where no relocate is needed
-				if(ch_bw != 5150.0) {
+//				if(ch_bw != 5150.0) {
 					RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
-				}
-
+//
 
 			}
 		}
@@ -682,7 +697,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				float ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1;
 				float ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2;
 
-				int F1_PixelPos, F2_PixelPos, FC_PixelPos;
+				float F1_PixelPos, F2_PixelPos, FC_PixelPos;
 
 				if(Aatt == 0)
 				{
@@ -717,10 +732,10 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 			}
 		}
 	}
-
+#endif
 	return (0);
 
-#endif
+
 }
 
 int PatternGenModule::Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum)
@@ -963,7 +978,7 @@ void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 	}
 }
 
-void PatternGenModule::RelocateChannel(unsigned int chNum, unsigned int f1_PixelPos, unsigned int f2_PixelPos, unsigned int fc_PixelPos)
+void PatternGenModule::RelocateChannel(unsigned int chNum, float f1_PixelPos, float f2_PixelPos, float fc_PixelPos)
 {
 	int i = 0;
 
@@ -1133,7 +1148,7 @@ bool PatternGenModule::isInsideRectangle(float x, float y, float x1, float y1, f
     return (area1 + area2 + area3 + area4) == area;
 }
 
-void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, unsigned int f1_PixelPos, unsigned int f2_PixelPos)
+void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, float f1_PixelPos, float f2_PixelPos)
 {
 	int i = 0;
 
@@ -1626,7 +1641,7 @@ void PatternGenModule::GetErrorMessage(std::string &msg)
 	}
 }
 
-void PatternGenModule::Find_LinearPixelPos_DevelopMode(float &freq, int &pixelPos)
+void PatternGenModule::Find_LinearPixelPos_DevelopMode(float &freq, float &pixelPos)
 {
 	float fc_range_low = VENDOR_FREQ_RANGE_LOW;
 	float fc_range_high = VENDOR_FREQ_RANGE_HIGH;
@@ -1636,7 +1651,7 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(float &freq, int &pixelPo
 	  // y = fc_range_low + m(x)
 	  // freq- fc_range_low/m
 
-	   pixelPos = round((freq-fc_range_low)/slope);
+	   pixelPos = (freq-fc_range_low)/slope; //drc modified to no round for edge attenuation
 
 	   if(pixelPos < 0)
 		   pixelPos = 0;
