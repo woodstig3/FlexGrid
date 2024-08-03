@@ -757,23 +757,23 @@ bool CmdDecoder::PrintAllChannelsFG(int count)
 int CmdDecoder::ChannelsOverlapTest(void)
 {
 	int ch = 1;
-	while (ch < 96)
+	while (ch < g_Total_Channels)
 	{
 		// last channel doesn't need to compare with anyone because 1st channel compare with 95 channels, 2nd with 94.. 3rd with 93... so on
 		if (TF_Channel_DS[g_moduleNum][ch].active)
 		{
 			//Channel we are compare to others, we take that channel's f1,f2,fc first
-			float ch_f1 = (TF_Channel_DS[g_moduleNum][ch].FC - (TF_Channel_DS[g_moduleNum][ch].BW / 2));
-			float ch_f2 = (TF_Channel_DS[g_moduleNum][ch].FC + (TF_Channel_DS[g_moduleNum][ch].BW / 2));
+			float ch_f1 = (TF_Channel_DS[g_moduleNum][ch].FC - ((TF_Channel_DS[g_moduleNum][ch].BW-10) / 2));
+			float ch_f2 = (TF_Channel_DS[g_moduleNum][ch].FC + ((TF_Channel_DS[g_moduleNum][ch].BW-10) / 2));
 
 			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
 
-			while (ch_compared_with <= 96)
+			while (ch_compared_with <= g_Total_Channels)
 			{
 				if (TF_Channel_DS[g_moduleNum][ch_compared_with].active)
 				{
-					float f1 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC - (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
-					float f2 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC + (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
+					float f1 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC - ((TF_Channel_DS[g_moduleNum][ch_compared_with].BW-10) / 2));
+					float f2 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC + ((TF_Channel_DS[g_moduleNum][ch_compared_with].BW-10) / 2));
 
 					int status = Overlap_Logic(&ch_f1, &ch_f2, &f1, &f2);
 
@@ -840,6 +840,8 @@ int CmdDecoder::Overlap_Logic(const float *ch_f1, const float *ch_f2, const floa
 
 	return 0;
 }
+
+
 
 void CmdDecoder::CopyDataStructures(void)
 {
@@ -2529,8 +2531,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 								if(FG_Channel_DS[g_moduleNum][g_channelNum].BW != 0)
 								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
-									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - (FG_Channel_DS[g_moduleNum][g_channelNum].BW-10)/2;
+									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + (FG_Channel_DS[g_moduleNum][g_channelNum].BW-10)/2;
 									//cout << "F1" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
 									//cout << "F2" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
 								}
@@ -3958,7 +3960,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 		{
 			if (eGet == ALL_CH_ALL_ATTR)
 			{
-				PrintAllChannelsTF(96);
+				PrintAllChannelsTF(g_Total_Channels);
 				g_bNoAttribute = false;
 			}
 			else if (eGet == ALL_ATTR_OF_CH)
@@ -4012,7 +4014,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 		{
 			if (eGet == ALL_CH_ALL_ATTR)
 			{
-				PrintAllChannelsFG(96);
+				PrintAllChannelsFG(g_Total_Channels);
 				g_bNoAttribute = false;
 			}
 			else if (eGet == ALL_ATTR_OF_CH)
@@ -4630,7 +4632,7 @@ bool CmdDecoder::TestChannelsNotActive(std::string &Mode, int &ModuleNum)
 {
 	if(Mode == "TF")
 	{
-		for (int i = 1; i <= 96; i++)
+		for (int i = 1; i <= g_Total_Channels; i++)
 		{
 			if(TF_Channel_DS[ModuleNum][i].active != false)
 			{
@@ -4640,7 +4642,7 @@ bool CmdDecoder::TestChannelsNotActive(std::string &Mode, int &ModuleNum)
 	}
 	else
 	{
-		for (int i = 1; i <= 96; i++)
+		for (int i = 1; i <= g_Total_Channels; i++)
 		{
 			if(FG_Channel_DS[ModuleNum][i].active != false)
 			{
@@ -4658,7 +4660,7 @@ int CmdDecoder::is_SetTFDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i'))
 	{
 		//Check if user provided channel number
-		if (g_channelNum <= 96)
+		if (g_channelNum <= g_Total_Channels)
 		{
 			eObject = CH_TF;	//Set flag that user is using channels of TF mode.
 			if (TF_Channel_DS[g_moduleNum][g_channelNum].active == false)
@@ -4690,7 +4692,7 @@ int CmdDecoder::is_SetNoSlotFGDone(void)
 	{
 		// (CH.M.N) when N is digits
 
-		if (g_channelNum <= 96)
+		if (g_channelNum <= g_Total_Channels)
 		{
 			if (FG_Channel_DS[g_moduleNum][g_channelNum].active == false)
 			{
@@ -4733,7 +4735,7 @@ int CmdDecoder::is_SetSlotFGDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i') && Sscanf(objVec[3], g_slotNum, 'i'))
 	{
 		// when N.S are digits
-		if (g_channelNum <= 96)
+		if (g_channelNum <= g_Total_Channels)
 		{
 			eObject = CH_FG;
 			if (FG_Channel_DS[g_moduleNum][g_channelNum].active == false)
@@ -4782,7 +4784,7 @@ int CmdDecoder::is_GetTFDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i'))
 	{
 		//Check if user provided channel number
-		if (g_channelNum <= 96)
+		if (g_channelNum <= g_Total_Channels)
 		{
 			if (TF_Channel_DS[g_moduleNum][g_channelNum].active)
 			{
@@ -4835,7 +4837,7 @@ int CmdDecoder::is_GetNoSlotFGDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i'))
 	{
 		// when N are digits
-		if (g_channelNum <= 96)
+		if (g_channelNum <= g_Total_Channels)
 		{
 			if (arrModules[g_moduleNum - 1].slotSize == "0")
 			{
@@ -4894,7 +4896,7 @@ int CmdDecoder::is_GetSlotFGDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i') && Sscanf(objVec[3], g_slotNum, 'i'))		//When slot number is give by user,1,2,3...
 	{
 		// when N.S are digits
-		if (g_channelNum <= 96)
+		if (g_channelNum <= g_Total_Channels)
 		{
 			if (arrModules[g_moduleNum - 1].slotSize == "0")
 			{
@@ -4979,7 +4981,7 @@ int CmdDecoder::is_AddTFDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i'))
 	{
 		// when N.S are digits
-		if (g_channelNum >= 1 && g_channelNum <= 96)
+		if (g_channelNum >= 1 && g_channelNum <= g_Total_Channels)
 		{
 			if (TF_Channel_DS[g_moduleNum][g_channelNum].active == false)
 			{
@@ -5015,7 +5017,7 @@ int CmdDecoder::is_AddFGDone(void)
 	if (Sscanf(objVec[2], g_channelNum, 'i'))
 	{
 		// when N.S are digits
-		if (g_channelNum >= 1 && g_channelNum <= 96)
+		if (g_channelNum >= 1 && g_channelNum <= g_Total_Channels)
 		{
 			if (FG_Channel_DS[g_moduleNum][g_channelNum].active == false)
 			{
@@ -5052,7 +5054,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 	if (Sscanf(chNum, g_channelNum, 'i'))
 	{
 		// when N.S are digits
-		if (g_channelNum >= 1 && g_channelNum <= 96)
+		if (g_channelNum >= 1 && g_channelNum <= g_Total_Channels)
 		{
 			eObject = CH_TF;
 			if(TF_Channel_DS[g_moduleNum][g_channelNum].active == true)
@@ -5065,6 +5067,8 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][g_channelNum].CMP = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].FC = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].BW = 0;
+				TF_Channel_DS[g_moduleNum][g_channelNum].F1ContiguousOrNot = 0;
+				TF_Channel_DS[g_moduleNum][g_channelNum].F2ContiguousOrNot = 0;
 
 	#ifdef _DEVELOPMENT_MODE_
 				TF_Channel_DS[g_moduleNum][g_channelNum].LAMDA =0;
@@ -5094,7 +5098,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 	{
 		// when N = *	// delete all channels
 		eObject = CH_TF;
-		for (int i = 1; i <= 96; i++)
+		for (int i = 1; i <= g_Total_Channels; i++)
 		{
 			TF_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
 
@@ -5104,6 +5108,8 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 			TF_Channel_DS[g_moduleNum][i].CMP = 0;
 			TF_Channel_DS[g_moduleNum][i].FC = 0;
 			TF_Channel_DS[g_moduleNum][i].BW = 0;
+			TF_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
+			TF_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
 
 #ifdef _DEVELOPMENT_MODE_
 			TF_Channel_DS[g_moduleNum][i].LAMDA =0;
@@ -5132,7 +5138,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 	if (Sscanf(chNum, g_channelNum, 'i'))
 	{
 		// when N.S are digits
-		if (g_channelNum >= 1 && g_channelNum <= 96)
+		if (g_channelNum >= 1 && g_channelNum <= g_Total_Channels)
 		{
 			eObject = CH_FG;
 
@@ -5148,6 +5154,9 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				FG_Channel_DS[g_moduleNum][g_channelNum].F2 = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].slotNum = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN.clear();
+
+				FG_Channel_DS[g_moduleNum][g_channelNum].F1ContiguousOrNot = 0;
+				FG_Channel_DS[g_moduleNum][g_channelNum].F2ContiguousOrNot = 0;
 
 	#ifdef _DEVELOPMENT_MODE_
 				FG_Channel_DS[g_moduleNum][g_channelNum].LAMDA =0;
@@ -5180,7 +5189,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 	{
 		// when N = *	// delete all channels
 		eObject = CH_FG;
-		for (int i = 1; i <= 96; i++)
+		for (int i = 1; i <= g_Total_Channels; i++)
 		{
 			FG_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
 
@@ -5192,6 +5201,9 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 			FG_Channel_DS[g_moduleNum][i].F2 = 0;
 			FG_Channel_DS[g_moduleNum][i].slotNum = 0;
 			FG_Channel_DS[g_moduleNum][i].slotsATTEN.clear();
+
+			FG_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
+			FG_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
 #ifdef _DEVELOPMENT_MODE_
 			FG_Channel_DS[g_moduleNum][i].LAMDA =0;
 			FG_Channel_DS[g_moduleNum][i].SIGMA =0;

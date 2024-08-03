@@ -26,7 +26,6 @@
 		double 			FC =0;				// for position
 		double 			BW =0;				// for channel width
 
-		float           PD = 2;             //drc added for when phasedepth can be configured in test procedure to find a optimal for background and channels.
 		float 			LAMDA=0;
 		float 			SIGMA=0;
 		float 			K_OPP=0;
@@ -36,6 +35,9 @@
 
 		bool 			b_ColorSet= false;		//full screen on colour
 		int 			COLOR=0;
+		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
+		int				F2ContiguousOrNot = 0;
+
 	};
 
 	struct FixedGrid
@@ -54,7 +56,6 @@
 
 		std::vector<float> slotsATTEN; 	//holds every slot attentuation within a channel	//dynamic vector allocation
 
-		float           PD = 2;             //drc added for when phasedepth can be configured in test procedure to find a optimal for background and channels.
 		float 			LAMDA=0;
 		float 			SIGMA=0;
 		float 			K_OPP=0;
@@ -64,6 +65,8 @@
 
 		bool 			b_ColorSet= false;		//full screen on colour
 		int 			COLOR=0;
+		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
+		int				F2ContiguousOrNot = 0;
 
 		int 			n_ch_1 = 0;		// Each gap pattern carries information of 2 channel numbers which give its position
 		int 			n_ch_2 = 0;		// Each gap pattern carries information of 2 channel numbers which give its position

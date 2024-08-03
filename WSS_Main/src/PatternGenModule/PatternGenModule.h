@@ -24,9 +24,9 @@
 
 struct inputParameters{
 	float 			ch_att;
-	float 			ch_fc; //drc modified from double to float
-	float 			ch_f1;
-	float 			ch_f2;
+	double 			ch_fc; //drc modified from double to float
+	double 			ch_f1;
+	double 			ch_f2;
 	int 			ch_adp;
 };
 
@@ -156,7 +156,7 @@ private:
 	void 			ProcessPatternGeneration(void);					// Thread looping while in the function
 
 	int 			Init_PatternGen_All_Modules(int *mode);			// Needs to know which mode to initiate pattern generation for
-	void 			Save_Pattern_In_FileSysten(void);
+	void 			Save_Pattern_In_FileSystem(void);
 	void 			Find_OperationMode(int *mode);
 	int 			Get_LCOS_Temperature(void);
 	int 			Find_Parameters_By_Interpolation(inputParameters &, outputParameters &, bool interpolateSigma, bool interpolateOpt, bool interpolateAtt, bool interpolatePixelPos);
@@ -186,6 +186,9 @@ private:
 	int 			Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum);
 	int 			Load_Background_LUT(void);
 	void            AjustEdgePixelAttenuation(unsigned int ch, float F1_PixelPos, float F2_PixelPos, float FC_PixelPos);
+
+	int             ChannelsContiguousTest(void);
+	int             Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
 };
 
 #endif /* SRC_PATTERNGENMODULE_PATTERNGENMODULE_H_ */

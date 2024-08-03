@@ -189,7 +189,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			}
 
 #ifdef _FETCH_PATTERN_
-			Save_Pattern_In_FileSysten();
+			Save_Pattern_In_FileSystem();
 			g_serialMod->Serial_WritePort("FF\n");	// Fetch File string send to PC software to start fetching
 #endif
 			// Perform OCM transfer
@@ -437,7 +437,7 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 		return 0;				   // Indicate that we are setting background pattern //drc modified
 	}
 
-	if(backPD == true)
+	if(backPD == true) //although there is a set:module.1:phasedepth= command, drc add here for now and may omit it in case not needed later.
 	{
 		Module_Background_DS_For_Pattern[currentModule].PD = g_serialMod->cmd_decoder.structDevelopMode.structBackgroundPara[currentModule].PD;
 		loadBackgroundPattern();
@@ -481,6 +481,112 @@ void PatternGenModule::getStartEndOffset(int startGrayVal, int endGrayVal)
 
 }
 
+/*
+ drc added for superchannel config.
+ */
+int PatternGenModule::ChannelsContiguousTest()
+{
+	int ch = 1;
+
+	while (ch < g_Total_Channels)
+	{
+		// last channel doesn't need to compare with anyone because 1st channel compare with 95 channels, 2nd with 94.. 3rd with 93... so on
+		if (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].active)
+		{
+			//Channel we are compare to others, we take that channel's f1,f2,fc first
+			double ch_f1 = (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].FC - (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].BW / 2));
+			double ch_f2 = (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].FC + (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].BW / 2));
+
+			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
+
+			while (ch_compared_with <= g_Total_Channels)
+			{
+				if (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].active)
+				{
+					double f1 = (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].FC - (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].BW / 2));
+					double f2 = (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].FC + (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].BW / 2));
+
+					int status = Contiguous_Logic(&ch_f1, &ch_f2, &f1, &f2);
+
+					if(status == -1)
+					{
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].F1ContiguousOrNot = 1;
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].F2ContiguousOrNot = 1;
+
+						std::cout << "Contiguous at f1: "<< ch << "The channel is contiguous at f2 to channel:" << ch_compared_with << std::endl;
+					}
+					else if(status == -2)
+					{
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].F2ContiguousOrNot = 1;
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].F1ContiguousOrNot = 1;
+
+						std::cout << "Contiguous at f1: "<< ch << "The channel is contiguous at f2 to channel:" << ch_compared_with << std::endl;
+					}
+				}
+				ch_compared_with++;
+			}
+		}
+
+		//Fixed Grid test
+		if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].active)
+		{
+			//Channel we are compare to others, we take that channel's f1,f2,fc first
+			double ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F1;
+			double ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F2;
+
+			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
+
+			while (ch_compared_with <= 96)
+			{
+				if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].active)
+				{
+					double f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].F1;
+					double f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].F2;
+
+					int status = Contiguous_Logic(&ch_f1, &ch_f2, &f1, &f2);
+
+					if(status == -1)
+					{
+						g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F1ContiguousOrNot = 1;
+						g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].F2ContiguousOrNot = 1;
+						std::cout << "Contiguous at f1: "<< ch << "The channel is contiguous at f2 to channel:" << ch_compared_with << std::endl;
+
+					}
+					else if(status == -2)
+					{
+						g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F1ContiguousOrNot = 1;
+						g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with].F2ContiguousOrNot = 1;
+
+						std::cout << "Contiguous at f1: "<< ch << "The channel is contiguous at f2 to channel:" << ch_compared_with << std::endl;
+
+					}
+				}
+				ch_compared_with++;
+			}
+		}
+		ch++;
+	}
+
+	return (0);
+}
+
+
+int PatternGenModule::Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2)
+{
+		//if (*ch_f1 == *other_ch_f2 && *ch_f2 != *other_ch_f2)	// contiguous channel added to the right
+		if((std::abs(*ch_f1 - *other_ch_f2) < 1e-6)	&& (std::abs(*ch_f2 - *other_ch_f2) > 1e-6))
+		{
+			return (-1);
+		}
+		else if ((std::abs(*ch_f2 - *other_ch_f1) < 1e-6) && (std::abs(*ch_f1 - *other_ch_f1) > 1e-6))	// left
+		{
+			return (-2);
+		}
+
+		return 0;
+}
+
+
 int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 {
 	inputParameters inputs;
@@ -501,8 +607,10 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 				inputs.ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
 				inputs.ch_adp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
 				float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
-				inputs.ch_f1 = inputs.ch_fc - (ch_bw/2) + 2.0;
-				inputs.ch_f2 = inputs.ch_fc + (ch_bw/2) - 2.0;
+				//inputs.ch_f1 = inputs.ch_fc - (ch_bw/2) + 2.0; //drc
+				inputs.ch_f1 = inputs.ch_fc - (ch_bw-10)/2;
+				//inputs.ch_f2 = inputs.ch_fc + (ch_bw/2) - 2.0; //drc
+				inputs.ch_f2 = inputs.ch_fc + (ch_bw-10)/2;
 
 				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
 
@@ -512,19 +620,104 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 				Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
 
 				//to calculate for edge attenuated value
-				edgeK_Att = outputs.Katt + abs(1- (outputs.F1_PixelPos - round(outputs.F1_PixelPos)));
-//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
+				edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+
 				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
 				Fill_Channel_ColumnData(ch);
 
-				edgeK_Att = outputs.Katt + abs(outputs.F2_PixelPos- round(outputs.F2_PixelPos));
-//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
+				edgeK_Att = outputs.Katt + 1- (outputs.F2_PixelPos - floor(outputs.F2_PixelPos));
+
 				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
 				Fill_Channel_ColumnData(ch);
-//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 
 				RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 
+			}
+		}
+		/*Adjust attenuation of edge columns and omit BW-10 for inner edge columns of slots within a channel*/
+		status = ChannelsContiguousTest();
+		for (int ch = 0; ch < g_Total_Channels; ch++)
+		{
+			if (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].active == true)
+			{
+				if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1ContiguousOrNot == 0 &&
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2ContiguousOrNot == 0)
+				{
+					continue;
+				}
+				else if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1ContiguousOrNot == 1 &&
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2ContiguousOrNot == 1)
+				{//inner slot, no need edge attenuation and edge bw-10
+					inputs.ch_att = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ATT;
+					inputs.ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
+					inputs.ch_adp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
+					float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
+					//inputs.ch_f1 = inputs.ch_fc - (ch_bw/2) + 2.0; //drc
+					inputs.ch_f1 = inputs.ch_fc - ch_bw/2;
+					//inputs.ch_f2 = inputs.ch_fc + (ch_bw/2) - 2.0; //drc
+					inputs.ch_f2 = inputs.ch_fc + ch_bw/2;
+
+					status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+					if(status != 0)
+						return (-1);
+
+					Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+					RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+				}
+				else if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1ContiguousOrNot == 1 &&
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2ContiguousOrNot == 0)
+				{//only right edge needs to be attenuated
+					inputs.ch_att = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ATT;
+					inputs.ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
+					inputs.ch_adp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
+					float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
+					//inputs.ch_f1 = inputs.ch_fc - (ch_bw/2) + 2.0; //drc
+					inputs.ch_f1 = inputs.ch_fc - ch_bw/2;
+					//inputs.ch_f2 = inputs.ch_fc + (ch_bw/2) - 2.0; //drc
+					inputs.ch_f2 = inputs.ch_fc + (ch_bw-10)/2;
+
+					status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+					if(status != 0)
+						return (-1);
+
+					Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+					edgeK_Att = outputs.Katt + 1- (outputs.F2_PixelPos - floor(outputs.F2_PixelPos));
+
+					Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+					Fill_Channel_ColumnData(ch);
+					RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+				}
+				else if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1ContiguousOrNot == 0 &&
+						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2ContiguousOrNot == 1)
+				{//only left edge needs to be attenuated
+
+					inputs.ch_att = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ATT;
+					inputs.ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
+					inputs.ch_adp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
+					float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
+					//inputs.ch_f1 = inputs.ch_fc - (ch_bw/2) + 2.0; //drc
+					inputs.ch_f1 = inputs.ch_fc - (ch_bw-10)/2;
+					//inputs.ch_f2 = inputs.ch_fc + (ch_bw/2) - 2.0; //drc
+					inputs.ch_f2 = inputs.ch_fc + ch_bw/2;
+
+					status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+					if(status != 0)
+						return (-1);
+
+					Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+					edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+
+					Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+					Fill_Channel_ColumnData(ch);
+
+					RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+				}
 			}
 		}
 
@@ -532,7 +725,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 //		std::cout << "Interpolation timine T2  = " << tstart << std::endl;
 //		std::cout << "TOTAL  = " << static_cast<double>(tstart2 - tstart)/CLOCKS_PER_SEC << std::endl;
 	}
-	else						// Calculate for FixedGrid Module
+	else // Calculate for FixedGrid Module
 	{
 		for (int ch = 0; ch < g_Total_Channels; ch++)
 		{
@@ -542,8 +735,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 				inputs.ch_att = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ATT;
 				inputs.ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
 				inputs.ch_adp = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].ADP-1;
-				inputs.ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1 + 2.0;
-				inputs.ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2 - 2.0;
+				inputs.ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1;
+				inputs.ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2;
 
 				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
 
@@ -551,7 +744,20 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 					return (-1);
 
 				Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
-                           // std::cout << "RelocateChannel  g_wavelength == 'T'" << std::endl;
+
+				//to calculate for edge attenuated value
+				edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(ch);
+
+				edgeK_Att = outputs.Katt + 1 - (outputs.F2_PixelPos- floor(outputs.F2_PixelPos));
+//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(ch);
+//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+
+				// std::cout << "RelocateChannel  g_wavelength == 'T'" << std::endl;
 				RelocateChannel(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 
 				int total_Slots = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].slotNum;
@@ -575,6 +781,19 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 						//std::cout << "\nSlot atten parameters: " <<" k_op= " << outputs.Kopt << " a_op= " << outputs.Aopt << " k_att= " << outputs.Aatt << " a_att= " << outputs.Katt << std::endl;
 						Calculate_Pattern_Formulas(ch, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
 
+						if(slot == 1) //left edge slot
+						{
+							//to calculate for edge attenuated value
+							edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+							Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+							Fill_Channel_ColumnData(ch);
+						}
+						if(slot == total_Slots) //right edge slot
+						{
+							edgeK_Att = outputs.Katt + 1 - (outputs.F2_PixelPos- floor(outputs.F2_PixelPos));
+							Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+							Fill_Channel_ColumnData(ch);
+						}
 						RelocateSlot(ch, slot, total_Slots, outputs.F1_PixelPos, outputs.F2_PixelPos);
 					}
 				}
@@ -623,6 +842,7 @@ void PatternGenModule::rotateArray(float angle, int width, int height)
 int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 {
 #ifdef _DEVELOPMENT_MODE_
+	float edgeK_Att;
 
 	if (slotSize == 'T')		// Calculate for TrueFlex Module
 	{
@@ -638,11 +858,10 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				float wavelength = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].LAMDA;
 				float ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
 				float ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
-				float ch_f1 = ch_fc - (ch_bw/2);
-				float ch_f2 = ch_fc + (ch_bw/2);
+				float ch_f1 = ch_fc - (ch_bw-10)/2;
+				float ch_f2 = ch_fc + (ch_bw-10)/2; //   here -10 is according to Dr.Du's doc
 
 				float F1_PixelPos, F2_PixelPos, FC_PixelPos;
-				float edgeK_Att = 0.0;
 
 				if(Aatt == 0)
 				{
@@ -672,9 +891,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 
                 //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
 				//drc added for background pattern calculation command from test station where no relocate is needed
-//				if(ch_bw != 5150.0) {
-					RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
-//
+				RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
 			}
 		}
@@ -694,8 +911,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 				float Katt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_ATT;
 				float wavelength = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].LAMDA;
 				float ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
-				float ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1;
-				float ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2;
+				float ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1 + 5;
+				float ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2 - 5;
 
 				float F1_PixelPos, F2_PixelPos, FC_PixelPos;
 
@@ -704,13 +921,24 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
 					Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
 				}
 
-				Calculate_Pattern_Formulas(ch, wavelength, g_pixelSize,sigma, Aopt, Kopt, Aatt, Katt);
+				Calculate_Pattern_Formulas(ch, wavelength, g_pixelSize,sigma, Aopt, Kopt, Aatt, Katt); //1: channel btw edges
 
 				Find_LinearPixelPos_DevelopMode(ch_f1, F1_PixelPos);
 				Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
 				Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
 
-                            //std::cout << "Calculate_Every_ChannelPattern_DevelopMode g_Total_Channels'" << std::endl;
+				edgeK_Att = Katt + F1_PixelPos - floor(F1_PixelPos);
+//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(ch);
+
+				edgeK_Att = Katt + 1 - (F2_PixelPos - floor(F2_PixelPos));
+//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
+				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(ch);
+//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+
+				//std::cout << "Calculate_Every_ChannelPattern_DevelopMode g_Total_Channels'" << std::endl;
 				RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 
 				int total_Slots = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].slotNum;
@@ -812,7 +1040,7 @@ void PatternGenModule::Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[
 		}
 		else
 		{
-			if(rebuildPeriod[i] > rebuildPeriod[i-1])					// Increment Period Count if current rebuild period is > previous rebuild period
+			if(rebuildPeriod[i] > rebuildPeriod[i-1])	// Increment Period Count if current rebuild period is > previous rebuild period
 			{
 				periodCount[i] = periodCount[i-1] + 1;
 				factorsForDiv[i] = factorForDiv_increament;
@@ -826,7 +1054,7 @@ void PatternGenModule::Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[
 			}
 		}
 
-		//printf("%d \t phaseLine_MOD = %f \t rebuildPeriod = %f \t periodCount = %d \t factorsForDiv = %d\n",i,phaseLine_MOD[i], rebuildPeriod[i], periodCount[i], factorsForDiv[i]);
+//		printf("%d \t phaseLine_MOD = %f \t rebuildPeriod = %f \t periodCount = %d \t factorsForDiv = %d \t\n",i,phaseLine_MOD[i], rebuildPeriod[i], periodCount[i], factorsForDiv[i]);
 	}
 
 	// The last period will have nothing to compare itself to, so in loop periods,=.push_back will never happen
@@ -883,14 +1111,12 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const float Aopt, 
 	/*REMEMBER: Due to algorithm in excel sometimes is A_att is not unique it will cause no change in output data*/
 	for (int Y = 0; Y < m_customLCOS_Height; Y++)
 	{
-		optFactor = Kopt*abs(sin((Aopt*(Y+1)*2*PI)/(calculatedPeriod)));		// (Y+1) because pixel number must starts from 1 to 1080
+		//2*PI not 2.2*PI because
+		optFactor = Kopt*abs(sin((Aopt*(Y+1)*2*PI)/(calculatedPeriod)));		// drc modified, always 2*PI, not 2.2*PI
 
 		optimizedPattern[Y] = (phaseLine[Y] + optFactor) - (factorsForDiv[Y]*g_phaseDepth);
 
-		// Must do this to Optimize Algorithm !! Don't perform SINE calculation if SINE parameter is 2PI or PI, which results in ZERO anyway
-		float theta = g_phaseDepth/Aatt;
-
-		attFactor = Katt*sin(Aatt*(Y+1)*2*PI/calculatedPeriod);		// (Y+1) because pixel number must starts from 1 to 1080
+		attFactor = Katt*sin(Aatt*(Y+1)*2*PI/calculatedPeriod);		// always 2*PI, not 2.2*PI because diffraction efficiency is most optimal by it according to Dr. Du
 
 		attenuatedPattern[col][Y] = optimizedPattern[Y] + attFactor;
 
@@ -1040,9 +1266,29 @@ void PatternGenModule::RelocateChannel(unsigned int chNum, float f1_PixelPos, fl
 				}
 
 #ifndef _FLIP_DISPLAY_
-				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
-				memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+				if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
+				{
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+				}
+				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0))
+				{
+					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, sizeof(char));
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+				}
+				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
+				{
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
+					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), value, sizeof(char));
+
+				}
+				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
+				{
+					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels)* sizeof(char));
+				}
 #else
 				memset((fullPatternData + ((m_customLCOS_Height -i) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));
 #endif
@@ -1155,7 +1401,7 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 	int ch_start_pixelLocation = round(f1_PixelPos);
 	int ch_end_pixelLocation = round(f2_PixelPos);
 
-	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation;
+	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; // drc modified: start pixel no. start from 0, so need to +1
 
 	if ((ch_start_pixelLocation + ch_width_inPixels) > g_LCOS_Width)
 	{
@@ -1567,7 +1813,7 @@ int PatternGenModule::Load_Background_LUT(void)
 }
 
 
-void PatternGenModule::Save_Pattern_In_FileSysten(void)
+void PatternGenModule::Save_Pattern_In_FileSystem(void)
 {
 	/* Save file as a binary data, only pure data is saved and no whitespace or newlines
 	*  Save as binary file to reduce file size and speed up transmission via SSH
@@ -1642,17 +1888,18 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(float &freq, float &pixel
 	float fc_range_low = VENDOR_FREQ_RANGE_LOW;
 	float fc_range_high = VENDOR_FREQ_RANGE_HIGH;
 
-	float slope = (fc_range_high-fc_range_low)/(g_LCOS_Width-1);		// Linear relationship between frequency distribution vs pixel number
+	//float slope = (fc_range_high-fc_range_low)/(g_LCOS_Width-1);		// Linear relationship between frequency distribution vs pixel number
+	float slope = (fc_range_high-fc_range_low)/g_LCOS_Width;    //drc modified
 
 	  // y = fc_range_low + m(x)
 	  // freq- fc_range_low/m
 
-	   pixelPos = (freq-fc_range_low)/slope; //drc modified to no round for edge attenuation
+	pixelPos = (freq-fc_range_low)/slope; //drc modified to no round for edge attenuation
 
-	   if(pixelPos < 0)
-		   pixelPos = 0;
-	   else if (pixelPos > g_LCOS_Width-1)
-		   pixelPos = g_LCOS_Width-1;
+	if(pixelPos < 0)
+		pixelPos = 0;
+	else if (pixelPos > g_LCOS_Width-1)
+		pixelPos = g_LCOS_Width-1;
 }
 
 //drc added for calculate pattern for background when startup for two modules
@@ -1707,7 +1954,7 @@ void PatternGenModule::loadBackgroundPattern()
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)
 	std::cerr << "Background Pattern Transfer Success!!\n";
 #endif
-	Save_Pattern_In_FileSysten();
+	Save_Pattern_In_FileSystem();
 
 }
 

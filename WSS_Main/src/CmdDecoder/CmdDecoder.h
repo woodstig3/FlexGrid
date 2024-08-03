@@ -143,8 +143,6 @@ private:
 	int 			g_totalAttributes = 0;
 	bool 			g_bPrevAttrDisplayed = false;
 
-
-
 private:
 
 	void 			CopyDataStructures(void);									//Function to copy structures data from Command Decoder to Pattern Generator
@@ -170,6 +168,7 @@ private:
 	int 			is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const float *newF1, const float *newF2, float *slotSize);
 	int 			ModifySlotCountInChannel(const int *calculatedSlotsNumber, const float *newF1, const float *newF2, const float *slotSize);
 	int 			ChannelsOverlapTest(void);
+
 	int 			Overlap_Logic(const float *ch_f1, const float *ch_f2, const float *other_ch_f1, const float *other_ch_f2);
 
 	int 			is_SetTFDone();												// When CH.M.N only given TF
@@ -197,8 +196,6 @@ private:
 
 
 };
-
-
 
 
 #endif /* SRC_CMDDECODER_CMDDECODER_H_ */
