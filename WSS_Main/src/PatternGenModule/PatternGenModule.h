@@ -24,7 +24,7 @@
 
 struct inputParameters{
 	float 			ch_att;
-	double 			ch_fc; //drc modified from double to float
+	double 			ch_fc; 
 	double 			ch_f1;
 	double 			ch_f2;
 	int 			ch_adp;
@@ -119,12 +119,12 @@ private:
 #else
 	int 			g_moduleNum{1};
 #endif
-	float 			g_LCOS_Temp{63};								// Default minimum
+	double 			g_LCOS_Temp{63};								// Default minimum
 	bool 			g_bSigmaNegative{false};						// Flip pattern per period for -ve sigma
 
-	const float 	g_wavelength{1.55};
+	const double 	g_wavelength{1.55};
 	const int 		g_pixelSize{8};
-	float 			g_phaseDepth{2.2};
+	double 			g_phaseDepth{2.2};
 	int				m_backColor{0};
 	int				m_customLCOS_Height{g_LCOS_Height};
 
@@ -150,7 +150,7 @@ private:
 	void 			GetErrorMessage(std::string &);
 
 	int 			PatternGen_Initialize(void);
-	void 			Create_Linear_LUT(float phaseDepth);
+	void 			Create_Linear_LUT(double phaseDepth);
 	void 			PatternGen_Closure(void);
 	static void 	*ThreadHandle(void *);
 	void 			ProcessPatternGeneration(void);					// Thread looping while in the function
@@ -164,20 +164,21 @@ private:
 	int 			Check_Need_For_GlobalParameterUpdate();
 	int 			Calculate_Every_ChannelPattern(char);
 	int 			Calculate_Every_ChannelPattern_DevelopMode(char);
-	void 			Find_LinearPixelPos_DevelopMode(float &freq, float &pixelPos);
+	void 			Find_LinearPixelPos_DevelopMode(double &freq, double &pixelPos);
 
-	int 			Calculate_Pattern_Formulas(const int ch, const float lamda, const int pixelSize, float sigmaRad, const float Aopt, const float Kopt, const float Aatt,const float Katt);
-	int 			Calculate_PhaseLine(const float pixelSize, float sigmaRad, const float lamda);
-	void 			Calculate_Period(const float pixelSize, float sigmaRad, const float lamda);
+	int 			Calculate_Pattern_Formulas(const int ch, const double lamda, const int pixelSize, double sigmaRad, const double Aopt, const double Kopt, const double Aatt,const double Katt);
+	int 			Calculate_PhaseLine(const int pixelSize, double sigmaRad, const double lamda);
+	void 			Calculate_Period(const int pixelSize, double sigmaRad, const double lamda);
 	void 			Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[], int factorsForDiv[]);
-	void 			Calculate_Optimization_And_Attenuation(const float Aopt, const float Kopt, const float Aatt,const float Katt, const int col);
+	void 			Calculate_Optimization_And_Attenuation(const double Aopt, const double Kopt, const double Aatt,const double Katt, const int col);
 	void 			Fill_Channel_ColumnData(unsigned int ch);
-	void 			RelocateChannel(unsigned int chNum, float f1_PixelPos, float f2_PixelPos, float fc_PixelPos);
-	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, float f1_PixelPos, float f2_PixelPos);
+	void 			RelocateChannelTF(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos);
+	void 			RelocateChannelFG(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos);
+	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, double f1_PixelPos, double f2_PixelPos);
 
-	void 			RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, float angleRad, int centerX, int centerY);
-	bool 			isInsideRectangle(float x, float y, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4);
-	void 			rotateArray(float angle, int width, int height);
+	void 			RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, double angleRad, int centerX, int centerY);
+	bool 			isInsideRectangle(double x, double y, double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4);
+	void 			rotateArray(double angle, int width, int height);
 
 	void 			getStartEndOffset(int startGrayVal, int endGrayVal);
 	void			loadPatternFile_Bin(std::string path);				// send pattern file .bin to ocm
@@ -185,7 +186,7 @@ private:
 	void			loadBackgroundPattern();    //drc added for background pattern generation
 	int 			Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum);
 	int 			Load_Background_LUT(void);
-	void            AjustEdgePixelAttenuation(unsigned int ch, float F1_PixelPos, float F2_PixelPos, float FC_PixelPos);
+	void            AjustEdgePixelAttenuation(unsigned int ch, double F1_PixelPos, double F2_PixelPos, double FC_PixelPos);
 
 	int             ChannelsContiguousTest(void);
 	int             Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);

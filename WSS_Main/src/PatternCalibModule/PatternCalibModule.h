@@ -31,31 +31,31 @@ extern bool b_LoopOn;												// Loop running on threads
 
 struct Opt{
 	// Optimized Aopt/Kopt vs Freq vs Port
-	float 			Freq[LUT_OPT_FREQ_NUM];								// Independent variables
-	float 			Aopt[PORT_NUM][LUT_OPT_FREQ_NUM];
-	float 			Kopt[PORT_NUM][LUT_OPT_FREQ_NUM];
+	double 			Freq[LUT_OPT_FREQ_NUM];								// Independent variables
+	double 			Aopt[PORT_NUM][LUT_OPT_FREQ_NUM];
+	double 			Kopt[PORT_NUM][LUT_OPT_FREQ_NUM];
 };
 
 struct Att{
 	// Attenuated Aatt/Katt vs Freq vs ATT vs Port
-	float 			Freq[LUT_ATT_FREQ_NUM];								// Independent variables
-	float 			ATT[LUT_ATT_ATT_NUM];								// Independent variables
-	float 			Aatt[PORT_NUM];
-	float 			Katt[PORT_NUM][LUT_ATT_FREQ_NUM][LUT_ATT_ATT_NUM];
+	double 			Freq[LUT_ATT_FREQ_NUM];								// Independent variables
+	double 			ATT[LUT_ATT_ATT_NUM];								// Independent variables
+	double 			Aatt[PORT_NUM];
+	double 			Katt[PORT_NUM][LUT_ATT_FREQ_NUM][LUT_ATT_ATT_NUM];
 };
 
 struct Sigma{
 	// Sigma vs Freq vs Temperature vs Port
-	float 			Temp[LUT_SIGMA_TEMP_NUM];							// Independent variables
-	float 			Freq[LUT_SIGMA_FREQ_NUM];							// Independent variables
-	float 			Sigma[PORT_NUM][LUT_SIGMA_FREQ_NUM][LUT_SIGMA_TEMP_NUM];
+	double 			Temp[LUT_SIGMA_TEMP_NUM];							// Independent variables
+	double 			Freq[LUT_SIGMA_FREQ_NUM];							// Independent variables
+	double 			Sigma[PORT_NUM][LUT_SIGMA_FREQ_NUM][LUT_SIGMA_TEMP_NUM];
 };
 
 struct PixelPos{
 	// Pixel Positio vs Freq vs Temperature
-	float 			Temp[LUT_PIXELPOS_TEMP_NUM];						// Independent variables
-	float 			Freq[LUT_PIXELPOS_FREQ_NUM];						// Independent variables
-	float 			Pos[LUT_PIXELPOS_FREQ_NUM][LUT_PIXELPOS_TEMP_NUM];
+	double 			Temp[LUT_PIXELPOS_TEMP_NUM];						// Independent variables
+	double 			Freq[LUT_PIXELPOS_FREQ_NUM];						// Independent variables
+	double 			Pos[LUT_PIXELPOS_FREQ_NUM][LUT_PIXELPOS_TEMP_NUM];
 };
 
 class PatternCalibModule{
@@ -99,10 +99,10 @@ public:
 	InterpolationStatus g_Status_Opt, g_Status_Att, g_Status_Sigma, g_Status_PixelPos = SUCCESS;	// If any interpolation has an error it will turn -1
 
 	// Thread arguments set by Pattern Generation Module
-	int 			Set_Aopt_Kopt_Args(int port, float freq);
-	int 			Set_Aatt_Katt_Args(int port, float freq, float ATT);
-	int 			Set_Sigma_Args(int port, float freq, float temperature);
-	int 			Set_Pixel_Pos_Args(float f1, float f2, float fc, float temperature);
+	int 			Set_Aopt_Kopt_Args(int port, double freq);
+	int 			Set_Aatt_Katt_Args(int port, double freq, double ATT);
+	int 			Set_Sigma_Args(int port, double freq, double temperature);
+	int 			Set_Pixel_Pos_Args(double f1, double f2, double fc, double temperature);
 	void			Set_Current_Module(int moduleNo);
 	int 			Get_Interpolation_Status();		// Return -1 for error otherwise 0
 	int 			Get_LUT_Load_Status();
@@ -147,18 +147,18 @@ private:
 	int 			BreakThreadLoops();				// Control when to end all thread loops, usually when class dies
 
 	void 			Calculation_Aopt_Kopt();		// For a given Frequency and Port find Optimized A and K values
-	int 			Interpolate_Aopt_Kopt_Linear(float frequency, int port, float &result_Aopt, float &result_Kopt);
+	int 			Interpolate_Aopt_Kopt_Linear(double frequency, int port, double &result_Aopt, double &result_Kopt);
 
 	void 			Calculation_Aatt_Katt();		// For a given Frequency, Port and ATT value, find Attenuate A and K values
-	int 			Interpolate_Aatt_Katt_Bilinear(float frequency, int port, float Attenuation, float &result_Aatt, float &result_Katt);
+	int 			Interpolate_Aatt_Katt_Bilinear(double frequency, int port, double Attenuation, double &result_Aatt, double &result_Katt);
 
 	void 			Calculation_Sigma();			// For a given Freq, Port, Temperature, find SIGMA value
-	int 			Interpolate_Sigma_Bilinear(float temperature, float frequency, unsigned int portNum, float &result_sigma);
+	int 			Interpolate_Sigma_Bilinear(double temperature, double frequency, unsigned int portNum, double &result_sigma);
 
 	void 			Calculation_Pixel_Shift();	// For a given Freq and Temperature, find Pixel value for the channel position (Related to GRISM freq shift)
-	int 			Interpolate_PixelPos_Bilinear(float temperature, float frequency, float& result_pixelPos);
+	int 			Interpolate_PixelPos_Bilinear(double temperature, double frequency, double& result_pixelPos);
 
-	int 			BinarySearch_LowIndex(const float *array, int size, float target, int &index);
+	int 			BinarySearch_LowIndex(const double *array, int size, double target, int &index);
 
 	int 			PatternCalib_Initialize(void);
 	void 			PatternCalib_Closure(void);

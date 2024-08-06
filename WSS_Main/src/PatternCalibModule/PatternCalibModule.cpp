@@ -170,14 +170,14 @@ void PatternCalibModule::Set_Current_Module(int moduleNo)
 	}
 }
 
-int PatternCalibModule::Set_Aopt_Kopt_Args(int port, float freq)
+int PatternCalibModule::Set_Aopt_Kopt_Args(int port, double freq)
 {
 	Aopt_Kopt_params.port = port;
 	Aopt_Kopt_params.freq = freq;
 
 	return (0);
 }
-int PatternCalibModule::Set_Aatt_Katt_Args(int port, float freq, float ATT)
+int PatternCalibModule::Set_Aatt_Katt_Args(int port, double freq, double ATT)
 {
 	Aatt_Katt_params.port = port;
 	Aatt_Katt_params.freq = freq;
@@ -185,7 +185,7 @@ int PatternCalibModule::Set_Aatt_Katt_Args(int port, float freq, float ATT)
 
 	return (0);
 }
-int PatternCalibModule::Set_Sigma_Args(int port, float freq, float temperature)
+int PatternCalibModule::Set_Sigma_Args(int port, double freq, double temperature)
 {
 	Sigma_params.port = port;
 	Sigma_params.freq = freq;
@@ -193,7 +193,7 @@ int PatternCalibModule::Set_Sigma_Args(int port, float freq, float temperature)
 
 	return (0);
 }
-int PatternCalibModule::Set_Pixel_Pos_Args(float f1, float f2, float fc, float temperature)
+int PatternCalibModule::Set_Pixel_Pos_Args(double f1, double f2, double fc, double temperature)
 {
 	// mutex lock
 
@@ -424,7 +424,7 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 	pthread_exit(NULL);
 }
 
-int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(float frequency, int port, float Attenuation, float &result_Aatt, float &result_Katt)
+int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int port, double Attenuation, double &result_Aatt, double &result_Katt)
 {
 	// For Aatt
 	result_Aatt = lut_Att->Aatt[port];
@@ -447,26 +447,26 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(float frequency, int port
 	freqHigh = freqLow + 1;
 	attHigh = attLow + 1;
 
-	float a1 = lut_Att->ATT[attLow];
-	float a2 = lut_Att->ATT[attHigh];
-	float f1 = lut_Att->Freq[freqLow];
-	float f2 = lut_Att->Freq[freqHigh];
+	double a1 = lut_Att->ATT[attLow];
+	double a2 = lut_Att->ATT[attHigh];
+	double f1 = lut_Att->Freq[freqLow];
+	double f2 = lut_Att->Freq[freqHigh];
 
 	//std::cout << "a1 " << a1 << " a2 " << a2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
 
-	float wT1 = (a2 - Attenuation) / (a2 - a1);
-	float wT2 = (Attenuation - a1) / (a2 - a1);
-	float wF1 = (f2 - frequency) / (f2 - f1);
-	float wF2 = (frequency - f1) / (f2 - f1);
+	double wT1 = (a2 - Attenuation) / (a2 - a1);
+	double wT2 = (Attenuation - a1) / (a2 - a1);
+	double wF1 = (f2 - frequency) / (f2 - f1);
+	double wF2 = (frequency - f1) / (f2 - f1);
 
-	float v11 = lut_Att->Katt[port][freqLow][attLow];
-	float v12 = lut_Att->Katt[port][freqHigh][attLow];
-	float v21 = lut_Att->Katt[port][freqLow][attHigh];
-	float v22 = lut_Att->Katt[port][freqHigh][attHigh];
+	double v11 = lut_Att->Katt[port][freqLow][attLow];
+	double v12 = lut_Att->Katt[port][freqHigh][attLow];
+	double v21 = lut_Att->Katt[port][freqLow][attHigh];
+	double v22 = lut_Att->Katt[port][freqHigh][attHigh];
 
 	// Two interpolation along x-axis (temperature)
-	float R1 = wT1*v11 + wT2*v21;
-	float R2 = wT1*v12 + wT2*v22;
+	double R1 = wT1*v11 + wT2*v21;
+	double R2 = wT1*v12 + wT2*v22;
 
 	// One interpolation along y-axis (Frequency)
 
@@ -475,7 +475,7 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(float frequency, int port
 	return (0);
 }
 
-int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(float frequency, int port, float &result_Aopt, float &result_Kopt)
+int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(double frequency, int port, double &result_Aopt, double &result_Kopt)
 {	//std::cout << "freq " << frequency << "port " << port << std::endl;
     int freqLow;		// low freq index
 	int freqHigh;		// high freq index
@@ -491,12 +491,12 @@ int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(float frequency, int port, 
 	freqHigh = freqLow + 1;
 
 	// Perform Linear interpolation for Aopt first
-	float x1 = lut_Opt->Freq[freqLow];				// x-axis is independent variable which is frequency
-	float x2 = lut_Opt->Freq[freqHigh];			// x-axis is independent variable which is frequency
-	float y1 = lut_Opt->Aopt[port][freqLow];
-	float y2 = lut_Opt->Aopt[port][freqHigh];
+	double x1 = lut_Opt->Freq[freqLow];				// x-axis is independent variable which is frequency
+	double x2 = lut_Opt->Freq[freqHigh];			// x-axis is independent variable which is frequency
+	double y1 = lut_Opt->Aopt[port][freqLow];
+	double y2 = lut_Opt->Aopt[port][freqHigh];
 
-	float slope = (y2-y1)/(x2-x1);
+	double slope = (y2-y1)/(x2-x1);
 
 	result_Aopt =  y1 + (frequency-x1)*slope;
 
@@ -515,7 +515,7 @@ int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(float frequency, int port, 
 
 }
 
-int PatternCalibModule::Interpolate_Sigma_Bilinear(float temperature, float frequency, unsigned int portNum, float &result_sigma)
+int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double frequency, unsigned int portNum, double &result_sigma)
 {	//std::cout << "freq " << frequency << "port " << portNum << "temperature  "<< temperature << std::endl;
     int freqLow;		// low freq index
 	int freqHigh;		// high freq index
@@ -534,22 +534,22 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(float temperature, float freq
 	    freqHigh = freqLow + 1;
 	    tempHigh = tempLow + 1;
 
-	    float t1 = lut_Sigma->Temp[tempLow];
-	    float t2 = lut_Sigma->Temp[tempHigh];
-	    float f1 = lut_Sigma->Freq[freqLow];
-	    float f2 = lut_Sigma->Freq[freqHigh];
+	    double t1 = lut_Sigma->Temp[tempLow];
+	    double t2 = lut_Sigma->Temp[tempHigh];
+	    double f1 = lut_Sigma->Freq[freqLow];
+	    double f2 = lut_Sigma->Freq[freqHigh];
 
 	    //std::cout << "t1 " << t1 << " t2 " << t2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
 
-	    float wT1 = (t2 - temperature) / (t2 - t1);
-	    float wT2 = (temperature - t1) / (t2 - t1);
-	    float wF1 = (f2 - frequency) / (f2 - f1);
-	    float wF2 = (frequency - f1) / (f2 - f1);
+	    double wT1 = (t2 - temperature) / (t2 - t1);
+	    double wT2 = (temperature - t1) / (t2 - t1);
+	    double wF1 = (f2 - frequency) / (f2 - f1);
+	    double wF2 = (frequency - f1) / (f2 - f1);
 
-	    float v11 = lut_Sigma->Sigma[portNum][freqLow][tempLow];
-	    float v12 = lut_Sigma->Sigma[portNum][freqHigh][tempLow];
-	    float v21 = lut_Sigma->Sigma[portNum][freqLow][tempHigh];
-	    float v22 = lut_Sigma->Sigma[portNum][freqHigh][tempHigh];
+	    double v11 = lut_Sigma->Sigma[portNum][freqLow][tempLow];
+	    double v12 = lut_Sigma->Sigma[portNum][freqHigh][tempLow];
+	    double v21 = lut_Sigma->Sigma[portNum][freqLow][tempHigh];
+	    double v22 = lut_Sigma->Sigma[portNum][freqHigh][tempHigh];
 
 	    //std::cout << "wT1 " << wT1 << " wT2 " << wT2 << " wF1 " << wF1 << " wF2 " << wF2 << std::endl;
 
@@ -557,8 +557,8 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(float temperature, float freq
 	    //std::cout << "v11 " << v11 << " v12 " << v12 << " v21 " << v21 << " v22 " << v22 << std::endl;
 
 	    // Two interpolation along x-axis (temperature)
-	    float R1 = wT1*v11 + wT2*v21;
-	    float R2 = wT1*v12 + wT2*v22;
+	    double R1 = wT1*v11 + wT2*v21;
+	    double R2 = wT1*v12 + wT2*v22;
 
 	    // One interpolation along y-axis (Frequency)
 
@@ -569,7 +569,7 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(float temperature, float freq
 	    return(0);
 }
 
-int PatternCalibModule::Interpolate_PixelPos_Bilinear(float temperature, float frequency, float& result_pixelPos)
+int PatternCalibModule::Interpolate_PixelPos_Bilinear(double temperature, double frequency, double& result_pixelPos)
 {	//std::cout << "freq " << frequency  << "temperature  "<< temperature << std::endl;
 	int freqLow;		// low freq index
 	int freqHigh;		// high freq index
@@ -589,24 +589,24 @@ int PatternCalibModule::Interpolate_PixelPos_Bilinear(float temperature, float f
 		freqHigh = freqLow + 1;
 		tempHigh = tempLow + 1;
 
-		float t1 = lut_PixelPos->Temp[tempLow];
-		float t2 = lut_PixelPos->Temp[tempHigh];
-		float f1 = lut_PixelPos->Freq[freqLow];
-		float f2 = lut_PixelPos->Freq[freqHigh];
+		double t1 = lut_PixelPos->Temp[tempLow];
+		double t2 = lut_PixelPos->Temp[tempHigh];
+		double f1 = lut_PixelPos->Freq[freqLow];
+		double f2 = lut_PixelPos->Freq[freqHigh];
 
-		float wT1 = (t2 - temperature) / (t2 - t1);
-		float wT2 = (temperature - t1) / (t2 - t1);
-		float wF1 = (f2 - frequency) / (f2 - f1);
-		float wF2 = (frequency - f1) / (f2 - f1);
+		double wT1 = (t2 - temperature) / (t2 - t1);
+		double wT2 = (temperature - t1) / (t2 - t1);
+		double wF1 = (f2 - frequency) / (f2 - f1);
+		double wF2 = (frequency - f1) / (f2 - f1);
 
-		float v11 = lut_PixelPos->Pos[freqLow][tempLow];
-		float v12 = lut_PixelPos->Pos[freqHigh][tempLow];
-		float v21 = lut_PixelPos->Pos[freqLow][tempHigh];
-		float v22 = lut_PixelPos->Pos[freqHigh][tempHigh];
+		double v11 = lut_PixelPos->Pos[freqLow][tempLow];
+		double v12 = lut_PixelPos->Pos[freqHigh][tempLow];
+		double v21 = lut_PixelPos->Pos[freqLow][tempHigh];
+		double v22 = lut_PixelPos->Pos[freqHigh][tempHigh];
 
 		// Two interpolation along x-axis (temperature)
-		float R1 = wT1*v11 + wT2*v21;
-		float R2 = wT1*v12 + wT2*v22;
+		double R1 = wT1*v11 + wT2*v21;
+		double R2 = wT1*v12 + wT2*v22;
 
 		// One interpolation along y-axis (Frequency)
 
@@ -617,7 +617,7 @@ int PatternCalibModule::Interpolate_PixelPos_Bilinear(float temperature, float f
 		return(0);
 }
 
-int PatternCalibModule::BinarySearch_LowIndex(const float *array, int size, float target, int &index)
+int PatternCalibModule::BinarySearch_LowIndex(const double *array, int size, double target, int &index)
 {
     int low = 0;
     int high = size -1;
