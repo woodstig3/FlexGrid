@@ -154,7 +154,7 @@ void SerialModule::ProcessReadWrite(void)
 			}
 
 			//std::cout << "FINAL COMMAND = " << finalCommand << "Size = " << finalCommand.size() << std::endl;
-
+#if 0
 			//Done
 			mmapGPIO->WriteRegister_GPIO(0x000c/0x4, 0x0);usleep(1000);//Done PIN
             mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x0);usleep(1000);//Done PIN
@@ -170,7 +170,7 @@ void SerialModule::ProcessReadWrite(void)
 	        mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
 	        mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);
 	        std::cout << "ErrorPin 1 = " << readData <<std::endl;
-
+#endif
 			if (finalCommand.size() > 0)
 			{
 				Serial_RefineCommand(finalCommand);		// Remove spaces and other extract characters \r\n \t etc.

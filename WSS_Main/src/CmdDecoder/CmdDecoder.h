@@ -21,6 +21,39 @@
 #include "InterfaceModule/LCOSDisplayTest.h"
 #include "InterfaceModule/EEPROMUpdate.h"
 
+
+class ActionVrb {
+public:
+						ActionVrb(){
+
+		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels+1] = new TrueFlex[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+
+		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels+1] = new FixedGrid[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+
+		ModulesInfo 	arrModules[2];
+		};
+		virtual 	  	~ActionVrb(){
+
+			delete[]		TF_Channel_DS_For_Save;
+			delete[]		FG_Channel_DS_For_Save;
+		};
+
+
+		bool            StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+		bool			StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+
+		bool 			RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+		bool 			RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+
+private:
+
+		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels+1];
+		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels+1];
+
+		bool			bModuleConfigStored[2]{0,0};           //  to see if two modules config info stored or not when restart,stored = 1, not stored = 0
+
+};
+
 class CmdDecoder {
 public:
 					CmdDecoder();
@@ -59,9 +92,11 @@ public:
 	FixedGrid 		(*FG_Channel_DS)[g_Total_Channels+1]= new FixedGrid[3][g_Total_Channels+1]();			//() brackets are very important. inialize them to default values
 	FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels+1] = new FixedGrid[3][g_Total_Channels+1]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
-	ModulesInfo 	arrModules[2];										//Two modules info
+	ModulesInfo 	arrModules[3];										// Two modules info, 0 not used
 
 	Panel 			panelInfo;												// Keep Panel Records
+
+	ActionVrb       actionSR;  //drc added for store and restore action process
 
 #ifdef _DEVELOPMENT_MODE_
 
@@ -83,6 +118,7 @@ public:
 	Panel 			GetPanelInfo();
 	void 			SetPanelInfo(bool);
 	void 			SetPanelInfo(Panel&);
+	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
 
 private:
 
@@ -106,8 +142,6 @@ private:
 	int 			g_currentAttributeCount = 0;
 	int 			g_totalAttributes = 0;
 	bool 			g_bPrevAttrDisplayed = false;
-
-	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
 
 private:
 

@@ -35,6 +35,9 @@
 
 		bool 			b_ColorSet= false;		//full screen on colour
 		int 			COLOR=0;
+		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
+		int				F2ContiguousOrNot = 0;
+
 	};
 
 	struct FixedGrid
@@ -63,6 +66,8 @@
 
 		bool 			b_ColorSet= false;		//full screen on colour
 		int 			COLOR=0;
+		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
+		int				F2ContiguousOrNot = 0;
 
 		int 			n_ch_1 = 0;		// Each gap pattern carries information of 2 channel numbers which give its position
 		int 			n_ch_2 = 0;		// Each gap pattern carries information of 2 channel numbers which give its position
@@ -118,6 +123,16 @@
 		int 			TEC1_PERIOD=0, TEC2_PERIOD=0;
 	};
 
+
+	struct BackgroundCalibPara{
+		//drc added for background pattern parameters
+		float			Sigma = 0.025;
+		float			PD = 2.2;
+		float			A_Opt = 0.5;
+		float			K_Opt = 0.03;
+
+	};
+
 	struct DevelopModeVar{
 
 		int 			developMode = 0;
@@ -152,7 +167,12 @@
 		int				backColorValue =0;
 		bool			b_backColor = false;
 
-		//Switch Temperaure on TestRig Display LCOS vs Grating
+		BackgroundCalibPara structBackgroundPara[3]; //drc added, 0 notused, 1-2module
+		bool			b_backSigma = false;
+		bool			b_backPD = false;
+		bool			b_backK_Opt= false;
+
+		//Switch Temperature on TestRig Display LCOS vs Grating
 		bool			m_switch = 0;
 	};
 

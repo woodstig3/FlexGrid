@@ -21,12 +21,16 @@
 #define VENDOR_FREQ_RANGE_HIGH	196275
 #define VENDOR_BW_RANGE_LOW 37.5
 #define VENDOR_BW_RANGE_HIGH 500
-#define VENDIR_MAX_PORT 23
+#define VENDOR_MAX_PORT 23
 #define VENDOR_MIN_BW 6.25
 
 constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI resolution too)
 constexpr int g_LCOS_Width{1920};	// compile-time constant 1952   should be modified to 1952 when tested on customer line card
 constexpr int g_Total_Channels{96};	// compile-time constant 1920
+
+
+constexpr int g_Max_Normal_Temperature{55}; //grating temperature
+constexpr int g_Min_Normal_Temperature{51}; //grating temperature
 
 // CmdDecoder Special
 #define _TEST_OVERLAP_

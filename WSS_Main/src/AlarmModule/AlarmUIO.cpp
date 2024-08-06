@@ -2,10 +2,10 @@
 #include "InterfaceModule/Dlog.h"
 
 
-char *uiod0 = "/dev/uio0";
-char *uiod1 = "/dev/uio1";
-char *uiod2 = "/dev/uio2";
-char *uiod3 = "/dev/uio3";
+const char *uiod0 = "/dev/uio0";
+const char *uiod1 = "/dev/uio1";
+const char *uiod2 = "/dev/uio2";
+const char *uiod3 = "/dev/uio3";
 
 AlarmModule *AlarmModule::pinstance_{nullptr};
 
