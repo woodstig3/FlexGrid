@@ -4097,7 +4097,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes) //drc to modify 
 				}
 				else if (attributes == "ID")
 				{
-					FillBuffer_ConcatAttributes("MODULE.%d:  ID=%d", ":  ID=%d", true, g_moduleNum);
+					FillBuffer_ConcatAttributes("\nmod=%d  \nID=%d\n", "ID=%d\n", true, g_moduleNum);
 				}
 #ifdef _DEVELOPMENT_MODE_
 				else if (attributes == "LCOSCONNECTION")
