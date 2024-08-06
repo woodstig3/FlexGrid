@@ -506,7 +506,6 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 		else if (m_slotSize == 125)
 		{
 			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
-			cout << "125 f2 f1 BW : " << *newF2 <<"  "<< *newF1 <<" "<< Bandwidth << endl;
 
 			if ((!(Bandwidth % m_slotSize))&&(((Bandwidth/m_slotSize) % 100) == 0))
 			{
@@ -707,18 +706,13 @@ bool CmdDecoder::PrintAllChannelsTF(int count)
 			{
 				c_channelActive++;
 
-				if(i == count) //last one should not end with ":"
+				if(c_channelActive != 1)
 				{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nFC=%0.3f\nBW=%0.3f\n\n", i, g_moduleNum,TF_Channel_DS[g_moduleNum][i].ADP,
-												TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+					buffLenTemp += sprintf(&buff[buffLenTemp], ":\n");
 
 				}
-				else{
-				//buffLenTemp += sprintf(&buff[buffLenTemp], "%2d\t|\t%d\t%0.3f\t%d\t%0.3f\t%0.3f\n", i, TF_Channel_DS[g_moduleNum][i].ADP,
-					//TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
-				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nFC=%0.3f\nBW=%0.3f\n:\n", i, g_moduleNum,TF_Channel_DS[g_moduleNum][i].ADP,
+				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nFC=%0.3f\nBW=%0.3f\n", i, g_moduleNum,TF_Channel_DS[g_moduleNum][i].ADP,
 							TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
-				}
 			}
 		}
 
@@ -750,16 +744,11 @@ bool CmdDecoder::PrintAllChannelsFG(int count)
 		if (FG_Channel_DS[g_moduleNum][i].active)
 		{
 			c_channelActive++;
-			if(i == count){
-			buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nF1=%0.3f\nF2=%0.3f\nSLOTNUM=%0.3f\n\n", i, g_moduleNum,FG_Channel_DS[g_moduleNum][i].ADP,
-				FG_Channel_DS[g_moduleNum][i].ATT, FG_Channel_DS[g_moduleNum][i].CMP, FG_Channel_DS[g_moduleNum][i].F1, FG_Channel_DS[g_moduleNum][i].F2, FG_Channel_DS[g_moduleNum][i].slotNum);
+			if(c_channelActive != 1){
+				buffLenTemp += sprintf(&buff[buffLenTemp], ":\n");
 			}
-			else{
-
-				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nF1=%0.3f\nF2=%0.3f\nSLOTNUM=%0.3f\n:\n", i, g_moduleNum,FG_Channel_DS[g_moduleNum][i].ADP,
+			buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nF1=%0.3f\nF2=%0.3f\nSLOTNUM=%d\n", i, g_moduleNum,FG_Channel_DS[g_moduleNum][i].ADP,
 								FG_Channel_DS[g_moduleNum][i].ATT, FG_Channel_DS[g_moduleNum][i].CMP, FG_Channel_DS[g_moduleNum][i].F1, FG_Channel_DS[g_moduleNum][i].F2, FG_Channel_DS[g_moduleNum][i].slotNum);
-			}
-
 		}
 	}
 
@@ -2449,7 +2438,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							// If F1 is numerical
 							if (f1 >= VENDOR_FREQ_RANGE_LOW && f1 <= VENDOR_FREQ_RANGE_HIGH)
 							{
-							    //   f1 = f1 + 5;
 								if(g_edgeFreqDefined == 1 && f1 > FG_Channel_DS[g_moduleNum][g_channelNum].F2)
 								{
 									cout << "ERROR: The Edge Freqs F1 & F2 are crossed" << endl;
@@ -2497,7 +2485,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							// If F2 is numerical
 							if (f2 >= VENDOR_FREQ_RANGE_LOW && f2 <= VENDOR_FREQ_RANGE_HIGH)
 							{
-							    //   f2 = f2 - 5;
 								if(g_edgeFreqDefined == 1 && f2 < FG_Channel_DS[g_moduleNum][g_channelNum].F1)
 								{
 									cout << "ERROR: The Edge Freqs F1 & F2 are crossed" << endl;
@@ -4048,7 +4035,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					// GET:CH.2.1.2
 					// \01 delimiter added
 					std::cout << FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1];
-					buffLenTemp += sprintf(&buff[buffLenTemp], "\nid=%d \nmod=%d \nslot=%d  \nATT=%.f\n", g_channelNum, g_moduleNum, g_channelNum, g_slotNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);	//Fill this string and get the length filled.
+					buffLenTemp += sprintf(&buff[buffLenTemp], "\nid=%d \nmod=%d \nslot=%d  \nATT=%.f\n", g_channelNum, g_moduleNum, g_slotNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);	//Fill this string and get the length filled.
 				}
 			}
 			else if (eGet == ALL_SLOTS_OF_CH)
@@ -4165,7 +4152,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				}
 				else if (attributes == "ID")
 				{
-					FillBuffer_ConcatAttributes("\nmod=%d:  \nID=%d\n", "ID=%d\n", true, g_moduleNum);
+					FillBuffer_ConcatAttributes("\nmod=%d  \nID=%d\n", "ID=%d\n", true, g_moduleNum);
 				}
 #ifdef _DEVELOPMENT_MODE_
 				else if (attributes == "LCOSCONNECTION")
