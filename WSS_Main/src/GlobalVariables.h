@@ -25,8 +25,8 @@
 #define VENDOR_MIN_BW 6.25
 
 constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI resolution too)
-constexpr int g_LCOS_Width{1920};	// compile-time constant 1952
-constexpr int g_Total_Channels{96};	// compile-time constant 96
+constexpr int g_LCOS_Width{1952};	// compile-time constant 1952
+constexpr int g_Total_Channels{1024};	// compile-time constant 96
 
 
 constexpr int g_Max_Normal_Temperature{55}; //grating temperature

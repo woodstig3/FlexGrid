@@ -491,7 +491,7 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 		{
 			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
 
-			if ((!(Bandwidth % m_slotSize))&&(((Bandwidth/m_slotSize) % 10) == 0))
+			if (((Bandwidth % m_slotSize) == 0))
 			{
 				// BW is integral number of slotsize
 				*slotSize = 6.25;
@@ -507,7 +507,7 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 		{
 			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
 
-			if ((!(Bandwidth % m_slotSize))&&(((Bandwidth/m_slotSize) % 100) == 0))
+			if (((Bandwidth % m_slotSize) == 0))
 			{
 				*slotSize = 12.5;
 				*calculatedSlotsNumber = Bandwidth/ ((*slotSize)*1000);	// divided 1000 to compensate for Bandwidth we multiplied by 1000
@@ -762,6 +762,31 @@ bool CmdDecoder::PrintAllChannelsFG(int count)
 	return (0);
 }
 
+void CmdDecoder::PrintAllSlotsFG(int SlotNum)
+{
+	for (int k = 0; k < SlotNum; k++)
+	{
+
+		buffLenTemp += sprintf(&buff[buffLenTemp],
+								"id=%d "
+								"\nmod=%d "
+								"\nslot=%d "
+								"\nadp=%d "
+								"\ncmp=%d "
+								"\nf1=%0.3f"
+								"\nf2=%0.3f"
+								"\nATT=%0.3f\n",  g_channelNum, g_moduleNum, k+1, FG_Channel_DS[g_moduleNum][g_channelNum].ADP, FG_Channel_DS[g_moduleNum][g_channelNum].CMP,
+								FG_Channel_DS[g_moduleNum][g_channelNum].F1 + k*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum,
+								FG_Channel_DS[g_moduleNum][g_channelNum].F1 + (k+1)*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum,
+								FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[k]);
+		if(k >= 0 && k < SlotNum-1)
+		{
+			buffLenTemp += sprintf(&buff[buffLenTemp], ":\n");
+		}
+	}
+
+}
+
 int CmdDecoder::ChannelsOverlapTest(void)
 {
 	int ch = 1;
@@ -805,7 +830,7 @@ int CmdDecoder::ChannelsOverlapTest(void)
 
 			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
 
-			while (ch_compared_with <= 96)
+			while (ch_compared_with <= g_Total_Channels)
 			{
 				if (FG_Channel_DS[g_moduleNum][ch_compared_with].active)
 				{
@@ -859,8 +884,8 @@ void CmdDecoder::CopyDataStructures(void)
 	{
 		g_bNewCommandData = true;
 
-		std::copy(&TF_Channel_DS[0][0], &TF_Channel_DS[0][0] + 3 * 97, &TF_Channel_DS_For_Pattern[0][0]);	//3 * 97 is the size of array we defined
-		std::copy(&FG_Channel_DS[0][0], &FG_Channel_DS[0][0] + 3 * 97, &FG_Channel_DS_For_Pattern[0][0]);
+		std::copy(&TF_Channel_DS[0][0], &TF_Channel_DS[0][0] + 3 * (g_Total_Channels+1), &TF_Channel_DS_For_Pattern[0][0]);	//3 * 97 is the size of array we defined
+		std::copy(&FG_Channel_DS[0][0], &FG_Channel_DS[0][0] + 3 * (g_Total_Channels+1), &FG_Channel_DS_For_Pattern[0][0]);
 
 		if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
 			std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
@@ -872,8 +897,8 @@ void CmdDecoder::ResetDataStructures(void)
 {
 	// Mutex is not needed because we are performing read operation from Pattern Data Structure & Pattern can't change DS
 	// IMPORTANT: Revert back to last known correct data structure
-	std::copy(&TF_Channel_DS_For_Pattern[0][0], &TF_Channel_DS_For_Pattern[0][0] + 3 * 97, &TF_Channel_DS[0][0]);	//3 * 97 is the size of array we defined
-	std::copy(&FG_Channel_DS_For_Pattern[0][0], &FG_Channel_DS_For_Pattern[0][0] + 3 * 97, &FG_Channel_DS[0][0]);
+	std::copy(&TF_Channel_DS_For_Pattern[0][0], &TF_Channel_DS_For_Pattern[0][0] + 3 * (g_Total_Channels+1), &TF_Channel_DS[0][0]);	//3 * 97 is the size of array we defined
+	std::copy(&FG_Channel_DS_For_Pattern[0][0], &FG_Channel_DS_For_Pattern[0][0] + 3 * (g_Total_Channels+1), &FG_Channel_DS[0][0]);
 }
 
 void CmdDecoder::PrintResponse(const std::string &strSend, const enum PrintType &currentErrorType)
@@ -1006,9 +1031,9 @@ int CmdDecoder::SearchObject(std::string &object)
 		{
 			// Move to the verb user set
 			case ACTION:
+			{
+				switch(objVecLen)	// if object vector length is 2,6,7,...
 				{
-					switch(objVecLen)	// if object vector length is 2,6,7,...
-					{
 					case 7:
 					{
 						if (objVec[0] == "RESTART")
@@ -1314,15 +1339,87 @@ int CmdDecoder::SearchObject(std::string &object)
 						{
 							if(objVec.size() == 2)
 							{
-								if ((objVec[1] == "*" && eModule1 == TF))	// Read Module Number &Module Type/Slotsize
+								if ((objVec[1] == "1" && eModule1 == TF) || (objVec[1] == "2" && eModule2 == TF))	// Read Module Number &Module Type/Slotsize
 								{
-									if (is_GetTFDone() == -1)	// Check if all channels need to send to user or just one channel all attributes
+									if (Sscanf(objVec[1], g_moduleNum,'i')){
+
+										eObject = CH_TF;
+										eGet =  ALL_CH_ALL_ATTR;	//include all channel info
+										std::string chr_ask = "*";
+										Print_SearchAttributes(chr_ask);
+									}
+									else
+									{
+										cout << "ERROR: Module Number is wrong" << endl;
 										return (-1);
+									}
+
 								}
-								else if ((objVec[1] == "*" && eModule1 == FIXEDGRID))
+								else if ((objVec[1] == "1" && eModule1 == FIXEDGRID) || (objVec[1] == "2" && eModule2 == FIXEDGRID))
 								{
-									if (is_GetNoSlotFGDone() == -1)	// Check if Channels are active,  channel numbers are under 96. If not then error
+									if (Sscanf(objVec[1], g_moduleNum,'i')){
+
+										eObject = CH_FG;
+										eGet =  ALL_CH_ALL_ATTR;	//include all channel info
+										std::string chr_ask = "*";
+										Print_SearchAttributes(chr_ask);
+									}
+									else
+									{
+										cout << "ERROR: Module Number is wrong" << endl;
 										return (-1);
+									}
+								}
+								else if (objVec[1] == "*" && eModule1 == TF)	// Read Module Number
+								{
+									eObject = CH_TF;
+									eGet = ALL_CH_ALL_ATTR;	//include all channel info
+									std::string chr_null = " ";
+									g_moduleNum = 1;
+									Print_SearchAttributes(chr_null);
+									if(eModule2 == TF)
+									{
+										eObject = CH_TF;
+										eGet = ALL_CH_ALL_ATTR;	//include all channel info
+										std::string chr_null = " ";
+										g_moduleNum = 2;
+										Print_SearchAttributes(chr_null);
+									}
+									else
+									{
+										eObject = CH_FG;
+										eGet = ALL_CH_ALL_ATTR;	//include all channel info
+										std::string chr_null = " ";
+										g_moduleNum = 2;
+										Print_SearchAttributes(chr_null);
+
+									}
+								}
+
+								else if (objVec[1] == "*" && eModule1 == FIXEDGRID)
+								{
+									eObject = CH_FG;
+									eGet = ALL_CH_ALL_ATTR;	//include all channel info
+									std::string chr_null = " ";
+									g_moduleNum = 1;
+									Print_SearchAttributes(chr_null);
+									if (objVec[1] == "*" &&  eModule2 == FIXEDGRID)
+									{
+										eObject = CH_FG;
+										eGet = ALL_CH_ALL_ATTR;	//include all channel info
+										std::string chr_null = " ";
+
+										g_moduleNum = 2;
+										Print_SearchAttributes(chr_null);
+									}
+									else
+									{
+										eObject = CH_TF;
+										eGet = ALL_CH_ALL_ATTR;	//include all channel info
+										std::string chr_null = " ";
+										g_moduleNum = 2;
+										Print_SearchAttributes(chr_null);
+									}
 								}
 								else
 								{
@@ -1330,7 +1427,7 @@ int CmdDecoder::SearchObject(std::string &object)
 									return (-1);
 								}
 							}
-							if ((objVec.size() == 3))						// CH.M.N only 3 available in TF mode and Fixed Grid mode
+							else if ((objVec.size() == 3))						// CH.M.N only 3 available in TF mode and Fixed Grid mode
 							{
 								if ((objVec[1] == "1" && eModule1 == TF) || (objVec[1] == "2" && eModule2 == TF))	// Read Module Number &Module Type/Slotsize
 								{
@@ -1399,6 +1496,19 @@ int CmdDecoder::SearchObject(std::string &object)
 									{
 										cout << "ERROR: Module Number is wrong" << endl;
 										return (-1);
+									}
+								}
+								else if(objVec[1] == "*" )
+								{
+									eObject = MODULE;
+									eGet = SOME_ATTR;		// default
+
+									if (g_bNoAttribute == true)
+									{
+										// if no attribute is given
+										eGet = ALL_CH_ALL_ATTR;
+										std::string chr_ask = "*";
+										Print_SearchAttributes(chr_ask);	//send signal that all channel values are needed
 									}
 								}
 								else
@@ -1890,7 +2000,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	//cout << "attributes  " << attributes << endl;
 	//Passing one attribute at a time
 	// Search the eObject by using switch cases and then put if else statement on attribute, if attribute doesn't link to eObject used then we cause an error
-	int attrLen;
+	//int attrLen;
 	int iValue;	// Integer converted value from user
 	double fValue;	// Float converted value from user
 
@@ -2292,7 +2402,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								/************below part i added, remove and uncomment if anything go wrong***********/
 								if (Sscanf(attr[1], fValue,'f'))
 								{
-									if((FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) >=0 && (FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) <=20)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
+									if((FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) >=0 && (FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) <= 35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
 									{
 										// Get the float value of ATT
 										FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum - 1] = fValue;
@@ -2327,12 +2437,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							// The Object doesn't have slot defined. The attenuation value belongs to channel
 							if (Sscanf(attr[1], fValue,'f'))
 							{
-								if(fValue >=0 && fValue <= 20)		// Can't be negative
+								if(fValue >=0 && fValue <= 35.0)		// Can't be negative //drc confirmed with L and zte, should be 35.0
 								{
 									// Test all slots to make sure it doesnt violate relationship with channel attenuation
 									for(int s=0; s< FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; s++)
 									{
-										if((FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) <0 || (FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) >20)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
+										if((FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) <0 || (FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) >35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
 										{
 											cout << "ERROR: The channel attenuation is violating slot relative attenuation rule" << endl;
 											return (-1);
@@ -2341,7 +2451,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								}
 								else
 								{
-									cout << "ERROR: The Channel Attenuation range is (0-20dbm +ve)" << endl;
+									cout << "ERROR: The Channel Attenuation range is (0-35.0dbm +ve)" << endl;
 									return (-1);
 								}
 
@@ -2452,7 +2562,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 								if(changeF2 == true)	// Fill FC and BW of Fixed Grid channel
 								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].BW = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1);
+									FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
 									FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
 									//std::cout << std::setprecision(10) << " FC = " << FG_Channel_DS[g_moduleNum][g_channelNum].FC <<std::endl;
 
@@ -2498,7 +2608,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 								if(changeF1 == true)	// Fill FC and BW of Fixed Grid channel
 								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].BW = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1);
+									FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
 									FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
 
 									if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW)
@@ -2537,8 +2647,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 								if(FG_Channel_DS[g_moduleNum][g_channelNum].BW != 0)
 								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - (FG_Channel_DS[g_moduleNum][g_channelNum].BW-10)/2;
-									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + (FG_Channel_DS[g_moduleNum][g_channelNum].BW-10)/2;
+									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 									//cout << "F1" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
 									//cout << "F2" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
 								}
@@ -2565,7 +2675,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 					break;
 				}
-#ifdef _DEVELOPMENT_MODE_
+
 				case 'B':
 				{
 					if (attr[0] == "BW")
@@ -2588,6 +2698,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								{
 									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+
 									//cout << "F1 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
 									//cout << "F2 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
 								}
@@ -2614,6 +2725,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 					break;
 				}
+#ifdef _DEVELOPMENT_MODE_
+
 				case 'L':
 				{
 					if (attr[0] == "LAMDA")
@@ -3974,29 +4087,37 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				PrintAllChannelsTF(1);
 				g_bNoAttribute = false;
 			}
-			else if ((eGet == SOME_ATTR) && (attributes != " "))    //drc modified according to L
+			else if ((eGet == SOME_ATTR) && (attributes != " "))    //drc modified below according to L
 			{
 				if (attributes == "ADP")
 				{
-					FillBuffer_ConcatAttributes("id=%d \r mod=%d \r adp=%d", "\r adp=%d", false, TF_Channel_DS[g_moduleNum][g_channelNum].ADP);
+					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n adp=%d\n", "adp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ADP);
 				}
 				else if (attributes == "ATT")
 				{
-					FillBuffer_ConcatAttributes("id=%d \r mod=%d \r att=%d", "\r att=%.4f", false, TF_Channel_DS[g_moduleNum][g_channelNum].ATT);
+					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n att=%.4f\n", "att=%.4f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ATT);
 				}
 				else if (attributes == "CMP")
 				{
-					FillBuffer_ConcatAttributes("id=%d \r mod=%d \r cmp=%d", "\r cmp=%d", false, TF_Channel_DS[g_moduleNum][g_channelNum].CMP);
+					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n cmp=%d\n", "cmp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].CMP);
 
 				}
 				else if (attributes == "FC")
 				{
-					FillBuffer_ConcatAttributes("id=%d \r mod=%d \r fc=%d", "\r fc=%.3f", false, TF_Channel_DS[g_moduleNum][g_channelNum].FC);
+					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n fc=%.3f\n", "fc=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].FC);
 
 				}
 				else if (attributes == "BW")
 				{
-					FillBuffer_ConcatAttributes("id=%d \r mod=%d \r bw=%d", "\r bw=%.3f", false, TF_Channel_DS[g_moduleNum][g_channelNum].BW);
+					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n bw=%.3f\n", "bw=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].BW);
+				}
+				else if(attributes == "CHANID")
+				{
+					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n chanid=%d\n", "chanid=%d \n", false, g_channelNum);
+				}
+				else if (attributes == "ID")
+				{
+					FillBuffer_ConcatAttributes("\nmod=%d  \nID=%d\n", "ID=%d\n", true, activeChannels);   //drc to check
 				}
 				else
 				{
@@ -4035,17 +4156,42 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					// GET:CH.2.1.2
 					// \01 delimiter added
 					std::cout << FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1];
-					buffLenTemp += sprintf(&buff[buffLenTemp], "\nid=%d \nmod=%d \nslot=%d  \nATT=%.f\n", g_channelNum, g_moduleNum, g_slotNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);	//Fill this string and get the length filled.
+
+					buffLenTemp += sprintf(&buff[buffLenTemp],
+							"\nid=%d "
+							"\nmod=%d "
+							"\nslot=%d "
+							"\nadp=%d "
+							"\ncmp=%d "
+							"\nf1=%0.3f"
+							"\nf2=%0.3f"
+							"\nATT=%0.3f\n", g_channelNum, g_moduleNum, g_slotNum,
+							FG_Channel_DS[g_moduleNum][g_channelNum].ADP,  FG_Channel_DS[g_moduleNum][g_channelNum].CMP,
+							FG_Channel_DS[g_moduleNum][g_channelNum].F1 +  (g_slotNum-1)*((FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum),
+							FG_Channel_DS[g_moduleNum][g_channelNum].F1 + g_slotNum*((FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum),
+							FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);	//Fill this string and get the length filled.
 				}
 			}
 			else if (eGet == ALL_SLOTS_OF_CH)
 			{
 				// ALL SLOTS INFO	GET:CH.2.1.*
-				for (int k = 0; k < FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; k++)
+				PrintAllSlotsFG(FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+				/*for (int k = 0; k < FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; k++)
 				{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "CH.%d.%d.%d:  ATT=%.f\n",  g_moduleNum, g_channelNum, k+1, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[k]);
+					buffLenTemp += sprintf(&buff[buffLenTemp],
+							"\nid=%d "
+							"\nmod=%d "
+							"\nslot=%d "
+							"\nadp=%d "
+							"\ncmp=%d "
+							"\nf1=%0.3f"
+							"\nf2=%0.3f"
+							"\nATT=%0.3f\n",  g_channelNum, g_moduleNum, k+1, FG_Channel_DS[g_moduleNum][g_channelNum].ADP, FG_Channel_DS[g_moduleNum][g_channelNum].CMP,
+							FG_Channel_DS[g_moduleNum][g_channelNum].F1 + k*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum,
+							FG_Channel_DS[g_moduleNum][g_channelNum].F1 + (k+1)*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum,
+							FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[k]);
 					//buffLenTemp += sprintf(&buff[buffLenTemp], "%f--", FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[k]);
-				}
+				}*/
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " ") && objVec.size() == 3)	// No slot defined get:ch.1.3:att
 			{
@@ -4055,24 +4201,36 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				}
 				else if (attributes == "ATT")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%d", "ATT=%.4f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ATT);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%d\n", "ATT=%.4f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ATT);
 				}
 				else if (attributes == "CMP")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \ncmp=%d", "CMP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].CMP);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \ncmp=%d\n", "CMP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].CMP);
 				}
 				else if (attributes == "F1")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf1=%d", "F1=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf1=%.3f\n", "F1=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1);
 				}
 				else if (attributes == "F2")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf2=%d", "F2=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F2);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf2=%.3f\n", "F2=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F2);
+				}
+				else if (attributes == "FC")
+				{
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nfc=%.3f\n", "fc=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].FC);
+				}
+				else if (attributes == "BW")
+				{
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf1=%.3f\n", "bw=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].BW);
 				}
 				else if (attributes == "CHANID")
 				{
 // drc to check how to add chanid
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nchanid=%d", "chanid=%d\n", false, g_channelNum);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nchanid=%d\n", "chanid=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+				}
+				else if(attributes == "ID")
+				{
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nid=%d\n", "id=%d\n", false, g_channelNum);
 				}
 				else
 				{
@@ -4089,7 +4247,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				{
 					// GET:CH.2.1.2:att
 					//buffLenTemp += sprintf(&buff[buffLenTemp], "CH.%d.%d.%d:  ATT=%.f\n", g_moduleNum, g_channelNum, g_slotNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
-					buffLenTemp += sprintf(&buff[buffLenTemp], "id=%d \r mod=%d \r ch=%d \r ATT=%.f\n", g_slotNum, g_moduleNum, g_channelNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
+					buffLenTemp += sprintf(&buff[buffLenTemp], "id=%d \n mod=%d \n ch=%d \n ATT=%.3f\n", g_slotNum, g_moduleNum, g_channelNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
 				}
 				else
 				{
@@ -4114,7 +4272,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod:\n", g_moduleNum);	//Fill this string and get the length filled.
+				buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod:%d\n", g_moduleNum);	//Fill this string and get the length filled.
 				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%s\n", "DUMMY 45C"); //drc to check temperature readings
 
 				g_bNoAttribute = false;
@@ -4140,9 +4298,16 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				// \01 delimiter added															// string to char *
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "MODULE\t|\tSLOTSIZE\tID\n");	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d\n slotsize=%s\n channels=%d\n", g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str(),g_channelNum);
+				buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d \nslotsize=%s\n ", g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str());
 
 				g_bNoAttribute = false;
+			}
+			else if(eGet == ALL_CH_ALL_ATTR)
+			{
+					buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d \nslotsize=%s\n: ", 1, arrModules[0].slotSize.c_str());
+					buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d \nslotsize=%s\n ", 2, arrModules[1].slotSize.c_str());
+
+					g_bNoAttribute = false;
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
 			{
@@ -4150,10 +4315,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				{
 					FillBuffer_ConcatAttributes("\nmod=%d \nSLOTSIZE=%s\n", "SLOTSIZE=%s\n", true, arrModules[g_moduleNum - 1].slotSize.c_str());
 				}
-				else if (attributes == "ID")
-				{
-					FillBuffer_ConcatAttributes("\nmod=%d  \nID=%d\n", "ID=%d\n", true, g_moduleNum);
-				}
+
 #ifdef _DEVELOPMENT_MODE_
 				else if (attributes == "LCOSCONNECTION")
 				{
@@ -4848,6 +5010,7 @@ int CmdDecoder::is_GetTFDone(void)
 		else
 		{
 			cout << "ERROR: The Channel number or *not defined" << endl;
+
 			return (-1);
 		}
 	}
@@ -4863,10 +5026,10 @@ int CmdDecoder::is_GetNoSlotFGDone(void)
 		// when N are digits
 		if (g_channelNum <= g_Total_Channels)
 		{
-			if (arrModules[g_moduleNum - 1].slotSize == "0")
+			if (arrModules[g_moduleNum - 1].slotSize == "0")  //drc to check
 			{
 				// if fixed grid module size is not defined then we give error
-				cout << "ERROR: The Module Size is not defined" << endl;
+				cout << "ERROR: The Slot Size is not defined" << endl;
 				return (-1);
 			}
 
@@ -5025,12 +5188,14 @@ int CmdDecoder::is_AddTFDone(void)
 			cout << "ERROR: The Channel number is out-of-range" << endl;
 			return (-1);
 		}
+		activeChannels.push_back({g_moduleNum, g_channelNum});
 	}
 	else
 	{
 		cout << "ERROR: The Channel numbers is not numeric" << endl;
 		return (-1);
 	}
+
 
 	return (0);
 }
@@ -5055,6 +5220,7 @@ int CmdDecoder::is_AddFGDone(void)
 				cout << "ERROR: The Channel Already Exists; Use 'SET' " << endl;
 				return (-1);
 			}
+			activeChannels.push_back({g_moduleNum, g_channelNum});
 		}
 		else
 		{
@@ -5068,9 +5234,9 @@ int CmdDecoder::is_AddFGDone(void)
 		return (-1);
 	}
 
+
 	return (0);
 }
-
 
 int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 {
@@ -5104,6 +5270,11 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][g_channelNum].b_ColorSet = false;
 				TF_Channel_DS[g_moduleNum][g_channelNum].COLOR = 0;
 	#endif
+				int targetChan = g_channelNum;
+				int targetMod = g_moduleNum;
+				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {
+			        return point.moduleNo == targetMod && point.channelNo == targetChan;
+			    });
 			}
 			else
 			{
@@ -5123,30 +5294,44 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 		// when N = *	// delete all channels
 		eObject = CH_TF;
 		for (int i = 1; i <= g_Total_Channels; i++)
+//		for(const auto& i: activeChannels)
 		{
-			TF_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
+			if(TF_Channel_DS[g_moduleNum][i].active == true)
+//			if(g_moduleNum == i.moduleNo)
+			{
+				TF_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
+	// Reset elements
+				TF_Channel_DS[g_moduleNum][i].ADP = 0;
+				TF_Channel_DS[g_moduleNum][i].ATT = 0;
+				TF_Channel_DS[g_moduleNum][i].CMP = 0;
+				TF_Channel_DS[g_moduleNum][i].FC = 0;
+				TF_Channel_DS[g_moduleNum][i].BW = 0;
+				TF_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
+				TF_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
 
-			// Reset elements
-			TF_Channel_DS[g_moduleNum][i].ADP = 0;
-			TF_Channel_DS[g_moduleNum][i].ATT = 0;
-			TF_Channel_DS[g_moduleNum][i].CMP = 0;
-			TF_Channel_DS[g_moduleNum][i].FC = 0;
-			TF_Channel_DS[g_moduleNum][i].BW = 0;
-			TF_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
-			TF_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
+	#ifdef _DEVELOPMENT_MODE_
+				TF_Channel_DS[g_moduleNum][i].LAMDA =0;
+				TF_Channel_DS[g_moduleNum][i].SIGMA =0;
+				TF_Channel_DS[g_moduleNum][i].K_OPP =0;
+				TF_Channel_DS[g_moduleNum][i].A_OPP =0;
+				TF_Channel_DS[g_moduleNum][i].K_ATT =0;
+				TF_Channel_DS[g_moduleNum][i].A_ATT =0;
+				TF_Channel_DS[g_moduleNum][i].b_ColorSet = false;
+				TF_Channel_DS[g_moduleNum][i].COLOR = 0;
 
-#ifdef _DEVELOPMENT_MODE_
-			TF_Channel_DS[g_moduleNum][i].LAMDA =0;
-			TF_Channel_DS[g_moduleNum][i].SIGMA =0;
-			TF_Channel_DS[g_moduleNum][i].K_OPP =0;
-			TF_Channel_DS[g_moduleNum][i].A_OPP =0;
-			TF_Channel_DS[g_moduleNum][i].K_ATT =0;
-			TF_Channel_DS[g_moduleNum][i].A_ATT =0;
-			TF_Channel_DS[g_moduleNum][i].b_ColorSet = false;
-			TF_Channel_DS[g_moduleNum][i].COLOR = 0;
-#endif
+	#endif
+
+				int targetChan = i;
+				int targetMod = g_moduleNum;
+				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {
+					return point.moduleNo == targetMod && point.channelNo == targetChan;
+				});
+			}
+
+
 		}
 	}
+
 	else
 	{
 		cout << "ERROR: The Channel numbers is not numeric" << endl;
@@ -5195,12 +5380,19 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				FG_Channel_DS[g_moduleNum][g_channelNum].n_ch_2 = 0;
 
 	#endif
+
+				int targetChan = g_channelNum;
+				int targetMod = g_moduleNum;
+				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {
+					return point.moduleNo == targetMod && point.channelNo == targetChan;
+				});
 			}
 			else
 			{
 				cout << "ERROR: The Channel numbers is not active" << endl;
 				return (-1);
 			}
+
 
 		}
 		else
@@ -5214,33 +5406,44 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 		// when N = *	// delete all channels
 		eObject = CH_FG;
 		for (int i = 1; i <= g_Total_Channels; i++)
+//		for(const auto& i : activeChannels)
 		{
-			FG_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
+//			if(i.moduleNo == g_moduleNum)
+			if(FG_Channel_DS[g_moduleNum][i].active == true)
+			{
+				FG_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
 
-			// Reset elements
-			FG_Channel_DS[g_moduleNum][i].ADP = 0;
-			FG_Channel_DS[g_moduleNum][i].ATT = 0;
-			FG_Channel_DS[g_moduleNum][i].CMP = 0;
-			FG_Channel_DS[g_moduleNum][i].F1 = 0;
-			FG_Channel_DS[g_moduleNum][i].F2 = 0;
-			FG_Channel_DS[g_moduleNum][i].slotNum = 0;
-			FG_Channel_DS[g_moduleNum][i].slotsATTEN.clear();
+				// Reset elements
+				FG_Channel_DS[g_moduleNum][i].ADP = 0;
+				FG_Channel_DS[g_moduleNum][i].ATT = 0;
+				FG_Channel_DS[g_moduleNum][i].CMP = 0;
+				FG_Channel_DS[g_moduleNum][i].F1 = 0;
+				FG_Channel_DS[g_moduleNum][i].F2 = 0;
+				FG_Channel_DS[g_moduleNum][i].slotNum = 0;
+				FG_Channel_DS[g_moduleNum][i].slotsATTEN.clear();
 
-			FG_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
-			FG_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
-#ifdef _DEVELOPMENT_MODE_
-			FG_Channel_DS[g_moduleNum][i].LAMDA =0;
-			FG_Channel_DS[g_moduleNum][i].SIGMA =0;
-			FG_Channel_DS[g_moduleNum][i].K_OPP =0;
-			FG_Channel_DS[g_moduleNum][i].A_OPP =0;
-			FG_Channel_DS[g_moduleNum][i].K_ATT =0;
-			FG_Channel_DS[g_moduleNum][i].A_ATT =0;
-			FG_Channel_DS[g_moduleNum][i].b_ColorSet = false;
-			FG_Channel_DS[g_moduleNum][i].COLOR = 0;
-			FG_Channel_DS[g_moduleNum][i].n_ch_1 = 0;
-			FG_Channel_DS[g_moduleNum][i].n_ch_2 = 0;
+				FG_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
+				FG_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
+	#ifdef _DEVELOPMENT_MODE_
+				FG_Channel_DS[g_moduleNum][i].LAMDA =0;
+				FG_Channel_DS[g_moduleNum][i].SIGMA =0;
+				FG_Channel_DS[g_moduleNum][i].K_OPP =0;
+				FG_Channel_DS[g_moduleNum][i].A_OPP =0;
+				FG_Channel_DS[g_moduleNum][i].K_ATT =0;
+				FG_Channel_DS[g_moduleNum][i].A_ATT =0;
+				FG_Channel_DS[g_moduleNum][i].b_ColorSet = false;
+				FG_Channel_DS[g_moduleNum][i].COLOR = 0;
+				FG_Channel_DS[g_moduleNum][i].n_ch_1 = 0;
+				FG_Channel_DS[g_moduleNum][i].n_ch_2 = 0;
 
-#endif
+	#endif
+				int targetChan = i;
+				int targetMod = g_moduleNum;
+				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {
+					return point.moduleNo == targetMod && point.channelNo == targetChan;
+				});
+			}
+
 		}
 	}
 	else
@@ -5295,20 +5498,20 @@ Panel CmdDecoder::GetPanelInfo()
 }
 
 //drc added for store and restore
-bool ActionVrb::StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+bool ActionVrb::StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
 {
 	return true;
 }
-bool ActionVrb::StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+bool ActionVrb::StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
 {
 	return true;
 }
 
-bool ActionVrb::RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+bool ActionVrb::RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
 {
 	return true;
 }
-bool ActionVrb::RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules)
+bool ActionVrb::RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
 {
 	return true;
 }

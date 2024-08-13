@@ -93,7 +93,7 @@ public:
 	enum 			PatternOutcome {SUCCESS = 0, FAILED, NO_OPERATION};
 	ErrorMessage 	g_errorMsg = NO_ERROR;
 
-	unsigned char 	channelColumnData [3][g_Total_Channels*g_LCOS_Height]{};       // channelColumnData hold only 1 pixel width data value for each channel
+	unsigned char 	channelColumnData[3][g_Total_Channels*g_LCOS_Height]{};       // channelColumnData hold only 1 pixel width data value for each channel
 	unsigned char 	*fullPatternData = new unsigned char[g_LCOS_Width*g_LCOS_Height]();		       // fullPatternData hold complete picture of all channels with their widths. This is used by OCM!
 	unsigned char 	rotated[g_LCOS_Width*g_LCOS_Height];
 	float 			rotationAngle{};
@@ -190,6 +190,7 @@ private:
 
 	int             ChannelsContiguousTest(void);
 	int             Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
+	void            refreshBackgroundPattern(void);
 };
 
 #endif /* SRC_PATTERNGENMODULE_PATTERNGENMODULE_H_ */

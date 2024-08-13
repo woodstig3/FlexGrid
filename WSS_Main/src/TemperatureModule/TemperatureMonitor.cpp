@@ -453,8 +453,8 @@ int TemperatureMonitor::EWMA_Filter()
 {	// 0.02
 	double alpha = 0.03;  			// Smoothing factor- 0 to 1. Higher number means more weight/importance on new data.
 	double currentTempEst = 0;     // Initialize EWMA
-	double targetTemp = LCOS_TEMP_TARGET;
-	double tempSteadyStateError = 1.0;
+//	double targetTemp = LCOS_TEMP_TARGET;
+//	double tempSteadyStateError = 1.0;
 	double tolerance = 0.45;  		   // Allowable tolerance around target temperature. In stable state of PID algorithm the +- swing range of temperature decide this tolerance
 
 
@@ -475,7 +475,7 @@ int TemperatureMonitor::EWMA_Filter()
 	//double windowVerify[10]{0};		// 20 sample points based verification
 	std::vector<double> windowVerify;
 
-	int index{0};
+//	int index{0};
 
 	double prevRateOfChange = 0;
 	//double rateOfChangeTolerance = 0.0005; 		// GOOD SETTING - Set the tolerance for the rate of change
@@ -538,10 +538,10 @@ int TemperatureMonitor::EWMA_Filter()
 	    	}
 	    	else
 	    	{
-	    		double max = *std::max_element(std::begin(windowVerify), std::end(windowVerify));
-	    		double min = *std::min_element(std::begin(windowVerify), std::end(windowVerify));
+	    		std::vector<double>::iterator max = std::max_element(windowVerify.begin(), windowVerify.end());
+	    		std::vector<double>::iterator min = std::min_element(windowVerify.begin(), windowVerify.end());
 
-	    		double diff = max - min;
+	    		double diff = *max - *min;
 
 	            // Calculate the average rate of change of the temperature readings over the windowVerify array
 	            double sum = 0;

@@ -99,7 +99,7 @@ void *SerialModule::ThreadHandle(void *arg)
 void SerialModule::ProcessReadWrite(void)
 {
 	int num_bytes{0};
-	unsigned int readData{0};
+//	unsigned int readData{0};
 	std::string temp_search_Str{""};									// Take data from temp_read_buf and perform delimiter searching. It also separate commands if they come all back to back \01 \04\01 \04
 	std::string finalCommand{""};										// One complete command without delimiters
 

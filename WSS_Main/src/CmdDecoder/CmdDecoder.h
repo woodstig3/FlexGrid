@@ -11,6 +11,7 @@
 #include "GlobalVariables.h"
 #include "DataStructures.h"		//All structures defined here
 #include <vector>
+#include <list>
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -22,13 +23,19 @@
 #include "InterfaceModule/EEPROMUpdate.h"
 
 
+struct ChannelModules
+{
+	int moduleNo;
+	int channelNo;
+};
+
 class ActionVrb {
 public:
 						ActionVrb(){
 
-		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels+1] = new TrueFlex[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels] = new TrueFlex[3][g_Total_Channels]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
-		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels+1] = new FixedGrid[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
 		ModulesInfo 	arrModules[2];
 		};
@@ -39,20 +46,22 @@ public:
 		};
 
 
-		bool            StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
-		bool			StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+		bool            StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
+		bool			StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
 
-		bool 			RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
-		bool 			RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels+1], FixedGrid (*arrFGChannel_DS)[g_Total_Channels+1], ModulesInfo* arrModules);
+		bool 			RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
+		bool 			RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
 
 private:
 
-		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels+1];
-		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels+1];
+		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels];
+		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels];
 
 		bool			bModuleConfigStored[2]{0,0};           //  to see if two modules config info stored or not when restart,stored = 1, not stored = 0
 
 };
+
+
 
 class CmdDecoder {
 public:
@@ -86,11 +95,11 @@ public:
 	Modules 		eModule1, eModule2;												//Two modules defines,... user will decide if they are TF or Fixed grid
 
 
-	TrueFlex 		(*TF_Channel_DS)[g_Total_Channels+1] = new TrueFlex[3][g_Total_Channels+1]();			//() brackets are very important. initialize them to default values	//array of structure for 96 channeles			[3] -- TWo Modules- both can have either TF or Fixed or both [0] 0th index for module is ignored
-	TrueFlex 		(*TF_Channel_DS_For_Pattern)[g_Total_Channels+1] = new TrueFlex[3][g_Total_Channels+1]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+	TrueFlex 		(*TF_Channel_DS)[g_Total_Channels] = new TrueFlex[3][g_Total_Channels]();			//() brackets are very important. initialize them to default values	//array of structure for 96 channeles			[3] -- TWo Modules- both can have either TF or Fixed or both [0] 0th index for module is ignored
+	TrueFlex 		(*TF_Channel_DS_For_Pattern)[g_Total_Channels] = new TrueFlex[3][g_Total_Channels]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
-	FixedGrid 		(*FG_Channel_DS)[g_Total_Channels+1]= new FixedGrid[3][g_Total_Channels+1]();			//() brackets are very important. inialize them to default values
-	FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels+1] = new FixedGrid[3][g_Total_Channels+1]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+	FixedGrid 		(*FG_Channel_DS)[g_Total_Channels]= new FixedGrid[3][g_Total_Channels]();			//() brackets are very important. inialize them to default values
+	FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
 	ModulesInfo 	arrModules[3];										// Two modules info, 0 not used
 
@@ -119,6 +128,7 @@ public:
 	void 			SetPanelInfo(bool);
 	void 			SetPanelInfo(Panel&);
 	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
+	std::list<ChannelModules> activeChannels;
 
 private:
 
@@ -193,6 +203,7 @@ private:
 	bool 			PrintAllChannelsTF(int);									// receive count how many channels need print. channel number is globally retrieve
 	bool 			PrintAllChannelsFG(int);
 
+	void            PrintAllSlotsFG(int SlotNum);
 
 };
 
