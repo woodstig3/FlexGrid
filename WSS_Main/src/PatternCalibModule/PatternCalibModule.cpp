@@ -161,11 +161,13 @@ void PatternCalibModule::Set_Current_Module(int moduleNo)
 		lut_Opt = &M1_lut_Opt;
 		lut_Att = &M1_lut_Att;
 		lut_Sigma = &M1_lut_Sigma;
+		lut_SigmaL = &M1_lut_SigmaL;
 		lut_PixelPos = &M1_lut_PixelPos;
 	}else{
 		lut_Opt = &M2_lut_Opt;
 		lut_Att = &M2_lut_Att;
 		lut_Sigma = &M2_lut_Sigma;
+		lut_SigmaL = &M2_lut_SigmaL;
 		lut_PixelPos = &M2_lut_PixelPos;
 	}
 }
@@ -185,11 +187,12 @@ int PatternCalibModule::Set_Aatt_Katt_Args(int port, double freq, double ATT)
 
 	return (0);
 }
-int PatternCalibModule::Set_Sigma_Args(int port, double freq, double temperature)
+int PatternCalibModule::Set_Sigma_Args(int port, double freq, double temperature, int cmp)
 {
 	Sigma_params.port = port;
 	Sigma_params.freq = freq;
 	Sigma_params.temperature = temperature;
+	Sigma_params.cmp = cmp;
 
 	return (0);
 }
@@ -324,7 +327,7 @@ void PatternCalibModule::Calculation_Sigma()
 	        {
 		        // Perform calculations
 		        //std::cout << "Sigma Thread Performing Interpolations..." << std::endl;
-		        int status = Interpolate_Sigma_Bilinear(Sigma_params.temperature, Sigma_params.freq, Sigma_params.port, Sigma_params.result_Sigma);
+		        int status = Interpolate_Sigma_Bilinear(Sigma_params.temperature, Sigma_params.freq, Sigma_params.port, Sigma_params.cmp, Sigma_params.result_Sigma);
 
 
 		        if(status != 0)
@@ -515,15 +518,30 @@ int PatternCalibModule::Interpolate_Aopt_Kopt_Linear(double frequency, int port,
 
 }
 
-int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double frequency, unsigned int portNum, double &result_sigma)
+int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double frequency, unsigned int portNum, int cmp, double &result_sigma)
 {	//std::cout << "freq " << frequency << "port " << portNum << "temperature  "<< temperature << std::endl;
     int freqLow;		// low freq index
 	int freqHigh;		// high freq index
 	int tempLow;		// low temperature index
 	int tempHigh;		// high temperature index
+	int error1 = 0, error2 = 0;
 
-	int error1 = BinarySearch_LowIndex(lut_Sigma->Freq, LUT_SIGMA_FREQ_NUM, frequency, freqLow);
-	int error2 = BinarySearch_LowIndex(lut_Sigma->Temp, LUT_SIGMA_TEMP_NUM, temperature, tempLow);
+	double t1,t2,f1,f2,v11,v12,v21,v22;
+
+	if(cmp == 1) // C port
+	{
+		error1 = BinarySearch_LowIndex(lut_Sigma->Freq, LUT_SIGMA_FREQ_NUM, frequency, freqLow);
+		error2 = BinarySearch_LowIndex(lut_Sigma->Temp, LUT_SIGMA_TEMP_NUM, temperature, tempLow);
+	}
+	else if(cmp == 2) // L port
+	{
+		error1 = BinarySearch_LowIndex(lut_SigmaL->Freq, LUT_SIGMA_FREQ_NUM, frequency, freqLow);
+		error2 = BinarySearch_LowIndex(lut_SigmaL->Temp, LUT_SIGMA_TEMP_NUM, temperature, tempLow);
+	}
+	else
+	{
+		return(-1);
+	}
 
 	if(error1 == -1 || error2 == -1)
 	{
@@ -531,42 +549,55 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double fr
 		return (-1);
 	}
 
-	    freqHigh = freqLow + 1;
-	    tempHigh = tempLow + 1;
+    freqHigh = freqLow + 1;
+    tempHigh = tempLow + 1;
 
-	    double t1 = lut_Sigma->Temp[tempLow];
-	    double t2 = lut_Sigma->Temp[tempHigh];
-	    double f1 = lut_Sigma->Freq[freqLow];
-	    double f2 = lut_Sigma->Freq[freqHigh];
+	if(cmp == 1)
+	{
+		t1 = lut_Sigma->Temp[tempLow];
+	    t2 = lut_Sigma->Temp[tempHigh];
+	    f1 = lut_Sigma->Freq[freqLow];
+	    f2 = lut_Sigma->Freq[freqHigh];
 
-	    //std::cout << "t1 " << t1 << " t2 " << t2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
+	    v11 = lut_Sigma->Sigma[portNum][freqLow][tempLow];
+		v12 = lut_Sigma->Sigma[portNum][freqHigh][tempLow];
+		v21 = lut_Sigma->Sigma[portNum][freqLow][tempHigh];
+		v22 = lut_Sigma->Sigma[portNum][freqHigh][tempHigh];
+	}
+	else if(cmp == 2)
+	{
+		t1 = lut_SigmaL->Temp[tempLow];
+		t2 = lut_SigmaL->Temp[tempHigh];
+		f1 = lut_SigmaL->Freq[freqLow];
+		f2 = lut_SigmaL->Freq[freqHigh];
 
-	    double wT1 = (t2 - temperature) / (t2 - t1);
-	    double wT2 = (temperature - t1) / (t2 - t1);
-	    double wF1 = (f2 - frequency) / (f2 - f1);
-	    double wF2 = (frequency - f1) / (f2 - f1);
+		v11 = lut_SigmaL->Sigma[portNum][freqLow][tempLow];
+		v12 = lut_SigmaL->Sigma[portNum][freqHigh][tempLow];
+		v21 = lut_SigmaL->Sigma[portNum][freqLow][tempHigh];
+		v22 = lut_SigmaL->Sigma[portNum][freqHigh][tempHigh];
 
-	    double v11 = lut_Sigma->Sigma[portNum][freqLow][tempLow];
-	    double v12 = lut_Sigma->Sigma[portNum][freqHigh][tempLow];
-	    double v21 = lut_Sigma->Sigma[portNum][freqLow][tempHigh];
-	    double v22 = lut_Sigma->Sigma[portNum][freqHigh][tempHigh];
+	}
+	else
+	{
+		return(-1);
+	}//std::cout << "t1 " << t1 << " t2 " << t2 << " f1 " << f1 <<  "f2 " << f2 << std::endl;
 
-	    //std::cout << "wT1 " << wT1 << " wT2 " << wT2 << " wF1 " << wF1 << " wF2 " << wF2 << std::endl;
+	double wT1 = (t2 - temperature) / (t2 - t1);
+	double wT2 = (temperature - t1) / (t2 - t1);
+	double wF1 = (f2 - frequency) / (f2 - f1);
+	double wF2 = (frequency - f1) / (f2 - f1);
 
+	// Two interpolation along x-axis (temperature)
+	double R1 = wT1*v11 + wT2*v21;
+	double R2 = wT1*v12 + wT2*v22;
 
-	    //std::cout << "v11 " << v11 << " v12 " << v12 << " v21 " << v21 << " v22 " << v22 << std::endl;
+	// One interpolation along y-axis (Frequency)
 
-	    // Two interpolation along x-axis (temperature)
-	    double R1 = wT1*v11 + wT2*v21;
-	    double R2 = wT1*v12 + wT2*v22;
+	result_sigma = R1*wF1 + R2*wF2;
 
-	    // One interpolation along y-axis (Frequency)
+	//std::cout << "sigma = " << result_sigma << std::endl;
 
-	    result_sigma = R1*wF1 + R2*wF2;
-
-	    //std::cout << "sigma = " << result_sigma << std::endl;
-
-	    return(0);
+	return(0);
 }
 
 int PatternCalibModule::Interpolate_PixelPos_Bilinear(double temperature, double frequency, double& result_pixelPos)
@@ -702,12 +733,14 @@ int PatternCalibModule::PatternCalib_LoadLUTs(void)
 	status |= Load_Opt_LUT(M1_lut_Opt, "/mnt/Opt_LUT_M1.csv");
 	status |= Load_Att_LUT(M1_lut_Att, "/mnt/Att_LUT_M1.csv");
 	status |= Load_Sigma_LUT(M1_lut_Sigma, "/mnt/Sigma_LUT_M1.csv");
+	status |= Load_Sigma_LUT(M1_lut_SigmaL, "/mnt/Sigma_LUT_M1.csv");  //drc added for L port calibration
 	status |= Load_PixelPos_LUT(M1_lut_PixelPos, "/mnt/PixelPos_LUT_M1.csv");
 
 #ifdef _TWIN_WSS_
 	status |= Load_Opt_LUT(M2_lut_Opt, "/mnt/Opt_LUT_M2.csv");
 	status |= Load_Att_LUT(M2_lut_Att, "/mnt/Att_LUT_M2.csv");
 	status |= Load_Sigma_LUT(M2_lut_Sigma, "/mnt/Sigma_LUT_M2.csv");
+	status |= Load_Sigma_LUT(M2_lut_SigmaL, "/mnt/Sigma_LUT_M2.csv");  //drc added for L port calibration
 	status |= Load_PixelPos_LUT(M2_lut_PixelPos, "/mnt/PixelPos_LUT_M2.csv");
 #endif
 

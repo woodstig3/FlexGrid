@@ -33,6 +33,7 @@ struct Sigma_ThreadArgs
 	int 			port;
 	double 			freq;
 	double 			temperature;
+	int             cmp;
 
 	double 			result_Sigma;
 };

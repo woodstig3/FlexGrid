@@ -25,6 +25,8 @@
 
 		double 			FC =0;				// for position
 		double 			BW =0;				// for channel width
+		double          F1 = 0;
+		double          F2 = 0;
 
 		float 			LAMDA=0;
 		float 			SIGMA=0;
@@ -198,6 +200,12 @@
 		int 			CMP =0;
 		double 			FC =0;
 		double 			BW =0;
+
+		double          F1 = 0;
+		double          F2 = 0;
+
+		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
+		int				F2ContiguousOrNot = 0;
 	};
 
 	struct ModulesInfo
@@ -224,6 +232,9 @@
 
 		int 			slotNum = 0;
 
+		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
+		int				F2ContiguousOrNot = 0;
+
 		std::vector<float> slotsATTEN; 	//holds every slot attentuation within a channel	//dynamic vector allocation
 	};
 
@@ -231,6 +242,12 @@
 	{
 		uint64_t 		current{};		// 64 byte value ZTE
 		bool 			readyFlag{0};		// When desired temperature is reached this flag will go high 1.
+		//For Panel Gaps
+		bool			b_gapSet = false;
+		int				topGap = 0;
+		int				bottomGap = 0;
+		int 			middleGap = 0;
+		int				middleGapPosition = 0;
 	};
 #endif
 

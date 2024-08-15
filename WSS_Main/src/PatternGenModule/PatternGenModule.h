@@ -28,6 +28,7 @@ struct inputParameters{
 	double 			ch_f1;
 	double 			ch_f2;
 	int 			ch_adp;
+	int				ch_cmp;
 };
 
 struct outputParameters{
@@ -162,8 +163,8 @@ private:
 	int 			Find_Parameters_By_Interpolation(inputParameters &, outputParameters &, bool interpolateSigma, bool interpolateOpt, bool interpolateAtt, bool interpolatePixelPos);
 
 	int 			Check_Need_For_GlobalParameterUpdate();
-	int 			Calculate_Every_ChannelPattern(char);
-	int 			Calculate_Every_ChannelPattern_DevelopMode(char);
+	int 			Calculate_Every_ChannelPattern();
+	int 			Calculate_Every_ChannelPattern_DevelopMode();
 	void 			Find_LinearPixelPos_DevelopMode(double &freq, double &pixelPos);
 
 	int 			Calculate_Pattern_Formulas(const int ch, const double lamda, const int pixelSize, double sigmaRad, const double Aopt, const double Kopt, const double Aatt,const double Katt);

@@ -12,6 +12,7 @@
 #include <stdc++.h>																		// uppercase or lowercase using STL.  std::transform()
 #include <cstring>
 #include <pthread.h>
+#include <cmath>
 
 #include "InterfaceModule/OCMTransfer.h"
 #include "InterfaceModule/Dlog.h"
@@ -489,13 +490,15 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 	{
 		if (m_slotSize == 625)
 		{
-			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
+//			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
+			double Bandwidth = *newF2 - *newF1;
 
-			if (((Bandwidth % m_slotSize) == 0))
+//			if (((Bandwidth % m_slotSize) == 0))
+			if(fmod(Bandwidth, 6.25) == 0)
 			{
 				// BW is integral number of slotsize
 				*slotSize = 6.25;
-				*calculatedSlotsNumber = Bandwidth/((*slotSize)*1000);	// divided 1000 to compensate for Bandwidth we multiplied by 1000
+				*calculatedSlotsNumber = abs(Bandwidth)/((*slotSize));	// divided 1000 to compensate for Bandwidth we multiplied by 1000
 			}
 			else
 			{
@@ -505,12 +508,14 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 		}
 		else if (m_slotSize == 125)
 		{
-			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
+//			int Bandwidth = abs(*newF2 - *newF1)*1000;		// x1000 to avoid floating point error and do calculation in as integer
+			double Bandwidth = *newF2 - *newF1;
 
-			if (((Bandwidth % m_slotSize) == 0))
+//			if (((Bandwidth % m_slotSize) == 0))
+			if(fmod(Bandwidth, 12.5) == 0)
 			{
 				*slotSize = 12.5;
-				*calculatedSlotsNumber = Bandwidth/ ((*slotSize)*1000);	// divided 1000 to compensate for Bandwidth we multiplied by 1000
+				*calculatedSlotsNumber = abs(Bandwidth)/ ((*slotSize));	// divided 1000 to compensate for Bandwidth we multiplied by 1000
 			}
 			else
 			{
@@ -789,68 +794,117 @@ void CmdDecoder::PrintAllSlotsFG(int SlotNum)
 
 int CmdDecoder::ChannelsOverlapTest(void)
 {
-	int ch = 1;
-	while (ch < g_Total_Channels)
+//	int ch = 1;
+
+//	while (ch < g_Total_Channels)
+	for(const auto& ch : activeChannels)
 	{
 		// last channel doesn't need to compare with anyone because 1st channel compare with 95 channels, 2nd with 94.. 3rd with 93... so on
-		if (TF_Channel_DS[g_moduleNum][ch].active)
+		if (ch.moduleNo == g_moduleNum && TF_Channel_DS[g_moduleNum][ch.channelNo].active)
 		{
 			//Channel we are compare to others, we take that channel's f1,f2,fc first
-			double ch_f1 = (TF_Channel_DS[g_moduleNum][ch].FC - (TF_Channel_DS[g_moduleNum][ch].BW / 2));
-			double ch_f2 = (TF_Channel_DS[g_moduleNum][ch].FC + (TF_Channel_DS[g_moduleNum][ch].BW / 2));
+			double ch_f1 = (TF_Channel_DS[g_moduleNum][ch.channelNo].FC - (TF_Channel_DS[g_moduleNum][ch.channelNo].BW / 2));
+			double ch_f2 = (TF_Channel_DS[g_moduleNum][ch.channelNo].FC + (TF_Channel_DS[g_moduleNum][ch.channelNo].BW / 2));
 
-			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
-
-			while (ch_compared_with <= g_Total_Channels)
+//			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
+/*
+			unsigned int couldbeSlotOf = 0;
+			if(TF_Channel_DS[g_moduleNum][ch.channelNo].BW > 0 && TF_Channel_DS[g_moduleNum][ch.channelNo].BW < VENDOR_BW_RANGE_LOW)
 			{
-				if (TF_Channel_DS[g_moduleNum][ch_compared_with].active)
+				couldbeSlotOf++;
+			}
+*/
+
+//			while (ch_compared_with <= g_Total_Channels)
+			for(const auto& ch_compared_with : activeChannels)
+			{
+				if (ch_compared_with.moduleNo == g_moduleNum && ch_compared_with.channelNo != ch.channelNo)
 				{
-					double f1 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC - (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
-					double f2 = (TF_Channel_DS[g_moduleNum][ch_compared_with].FC + (TF_Channel_DS[g_moduleNum][ch_compared_with].BW / 2));
+					double f1 = (TF_Channel_DS[g_moduleNum][ch_compared_with.channelNo].FC - (TF_Channel_DS[g_moduleNum][ch_compared_with.channelNo].BW / 2));
+					double f2 = (TF_Channel_DS[g_moduleNum][ch_compared_with.channelNo].FC + (TF_Channel_DS[g_moduleNum][ch_compared_with.channelNo].BW / 2));
 
 					int status = Overlap_Logic(&ch_f1, &ch_f2, &f1, &f2);
 
 					if(status == -1)
 					{
-						cout << "ERROR: The channel BW is overlapping with channel:" << ch_compared_with << endl;
+						cout << "ERROR: The channel BW is overlapping with channel:" << ch_compared_with.channelNo << endl;
 						return (-1);
 					}
+/*
+					if(TF_Channel_DS[g_moduleNum][ch_compared_with.channelNo].BW > 0 && TF_Channel_DS[g_moduleNum][ch_compared_with.channelNo].BW < VENDOR_BW_RANGE_LOW)
+					{
+						couldbeSlotOf++;
+					}
+
+					if(couldbeSlotOf > 0 )
+					{
+						int status = CouldbeSlotOf_Logic(&ch_f1, &ch_f2, &f1, &f2);
+						if(status != -1 && status != -2)
+						{
+							cout << "ERROR: The channel is not allowed to combine with other channel"<<endl;
+							return (-1);
+						}
+					}
+*/
+
 				}
 
-				ch_compared_with++;
+//				ch_compared_with++;
 			}
 		}
 
 		//Fixed Grid test
-		if (FG_Channel_DS[g_moduleNum][ch].active)
+		if (ch.moduleNo == g_moduleNum && FG_Channel_DS[g_moduleNum][ch.channelNo].active)
 		{
 			//Channel we are compare to others, we take that channel's f1,f2,fc first
-			double ch_f1 = FG_Channel_DS[g_moduleNum][ch].F1;
-			double ch_f2 = FG_Channel_DS[g_moduleNum][ch].F2;
+			double ch_f1 = FG_Channel_DS[g_moduleNum][ch.channelNo].F1;
+			double ch_f2 = FG_Channel_DS[g_moduleNum][ch.channelNo].F2;
 
-			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
-
-			while (ch_compared_with <= g_Total_Channels)
+//			int ch_compared_with = ch + 1;	// No need to compared channel to itself, always compare to other numbers
+/*
+			unsigned int couldbeSlotOf = 0;
+			if(FG_Channel_DS[g_moduleNum][ch.channelNo].BW > 0 && FG_Channel_DS[g_moduleNum][ch.channelNo].BW < VENDOR_BW_RANGE_LOW)
 			{
-				if (FG_Channel_DS[g_moduleNum][ch_compared_with].active)
+				couldbeSlotOf++;
+			}
+*/
+//			while (ch_compared_with <= g_Total_Channels)
+			for(const auto& ch_compared_with : activeChannels)
+			{
+				if (ch_compared_with.moduleNo == g_moduleNum && ch_compared_with.channelNo != ch.channelNo)
 				{
-					double f1 = FG_Channel_DS[g_moduleNum][ch_compared_with].F1;
-					double f2 = FG_Channel_DS[g_moduleNum][ch_compared_with].F2;
+					double f1 = FG_Channel_DS[g_moduleNum][ch_compared_with.channelNo].F1;
+					double f2 = FG_Channel_DS[g_moduleNum][ch_compared_with.channelNo].F2;
 
 					int status = Overlap_Logic(&ch_f1, &ch_f2, &f1, &f2);
 
 					if(status == -1)
 					{
-						cout << "ERROR: The channel BW is overlapping with channel:" << ch_compared_with << endl;
+						cout << "ERROR: The channel BW is overlapping with channel:" << ch_compared_with.channelNo << endl;
 						return (-1);
 					}
+/*
+					if(FG_Channel_DS[g_moduleNum][ch_compared_with.channelNo].BW > 0 && FG_Channel_DS[g_moduleNum][ch_compared_with.channelNo].BW < VENDOR_BW_RANGE_LOW)
+					{
+						couldbeSlotOf++;
+					}
 
+					if(couldbeSlotOf > 0 )
+					{
+						int status = CouldbeSlotOf_Logic(&ch_f1, &ch_f2, &f1, &f2);
+						if(status != -1 && status != -2)
+						{
+							cout << "ERROR: The channel is not allowed to combine with other channel"<<endl;
+							return (-1);
+						}
+					}
+*/
 				}
 
-				ch_compared_with++;
+//				ch_compared_with++;
 			}
 		}
-		ch++;
+//		ch++;
 	}
 
 	return (0);
@@ -874,7 +928,20 @@ int CmdDecoder::Overlap_Logic(const double *ch_f1, const double *ch_f2, const do
 	return 0;
 }
 
+int CmdDecoder::CouldbeSlotOf_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2)
+{
+	//if (*ch_f1 == *other_ch_f2 && *ch_f2 != *other_ch_f2)	// contiguous channel added to the right
+	if((std::abs(*ch_f1 - *other_ch_f2) < 1e-6)	&& (std::abs(*ch_f2 - *other_ch_f2) > 1e-6))
+	{
+		return (-1);
+	}
+	else if ((std::abs(*ch_f2 - *other_ch_f1) < 1e-6) && (std::abs(*ch_f1 - *other_ch_f1) > 1e-6))	// left
+	{
+		return (-2);
+	}
 
+	return 0;
+}
 
 void CmdDecoder::CopyDataStructures(void)
 {
@@ -882,11 +949,10 @@ void CmdDecoder::CopyDataStructures(void)
 		std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 	else
 	{
-		g_bNewCommandData = true;
-
 		std::copy(&TF_Channel_DS[0][0], &TF_Channel_DS[0][0] + 3 * (g_Total_Channels+1), &TF_Channel_DS_For_Pattern[0][0]);	//3 * 97 is the size of array we defined
 		std::copy(&FG_Channel_DS[0][0], &FG_Channel_DS[0][0] + 3 * (g_Total_Channels+1), &FG_Channel_DS_For_Pattern[0][0]);
 
+		g_bNewCommandData = true;
 		if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
 			std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
 	}
@@ -962,6 +1028,7 @@ void CmdDecoder::ResetGlobalVariables(void)
 	ePrevErrorType = NO_ERROR;
 
 	SetPatternTransferFlag(false);
+
 
 }
 
@@ -1995,6 +2062,7 @@ int CmdDecoder::SearchAttribute(std::string &attribute)
 	return (0);		// Success
 }
 
+
 int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 {
 	//cout << "attributes  " << attributes << endl;
@@ -2002,7 +2070,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	// Search the eObject by using switch cases and then put if else statement on attribute, if attribute doesn't link to eObject used then we cause an error
 	//int attrLen;
 	int iValue;	// Integer converted value from user
-	double fValue;	// Float converted value from user
+	double fValue = 0.0;	// Float converted value from user
 
 	std::transform(attributes.begin(), attributes.end(), attributes.begin(), ::toupper);
 
@@ -2070,7 +2138,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					{
 						if (Sscanf(attr[1], fValue, 'f'))
 						{
-							if(fValue >=0 && fValue <=20)		// Can't be negative
+							if(fValue >= 0 && fValue < 35.01)		// Can't be negative  //drc modified to 35
 							{
 								// Get the float value of ATT
 								TF_Channel_DS[g_moduleNum][g_channelNum].ATT = fValue;
@@ -2196,10 +2264,34 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						{
 							// Get the float value of FC
 
-							if (fValue >= VENDOR_FREQ_RANGE_LOW && fValue <= VENDOR_FREQ_RANGE_HIGH)
+							if (fValue > VENDOR_FREQ_RANGE_LOW && fValue < VENDOR_FREQ_RANGE_HIGH)
 							{
-								// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
-								TF_Channel_DS[g_moduleNum][g_channelNum].FC = fValue;
+								if(static_cast<int>(fValue * 2) % 2 != 0)
+								{
+									cout << "ERROR: The FC is not multiples of 0.5 GHz" << endl;
+									return (-1);
+								}
+								if(TF_Channel_DS[g_moduleNum][g_channelNum].BW != 0)
+								{
+
+									if((TF_Channel_DS[g_moduleNum][g_channelNum].BW/2 + fValue) > VENDOR_FREQ_RANGE_HIGH ||
+											(fValue - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2) < VENDOR_FREQ_RANGE_LOW)
+									{
+										cout << "ERROR: The channel is out of range" << endl;
+										return (-1);
+									}
+
+									TF_Channel_DS[g_moduleNum][g_channelNum].FC = fValue;
+									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = TF_Channel_DS[g_moduleNum][g_channelNum].FC - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = TF_Channel_DS[g_moduleNum][g_channelNum].FC + TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+
+								}
+								else
+								{
+									// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
+									TF_Channel_DS[g_moduleNum][g_channelNum].FC = fValue;
+								}
+
 							}
 							else
 							{
@@ -2213,6 +2305,104 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
+					}
+					else if(attr[0] == "F1")
+					{
+						if (Sscanf(attr[1], fValue,'f'))
+						{
+							// Get the float value of F1
+
+							if (fValue > VENDOR_FREQ_RANGE_LOW && fValue < VENDOR_FREQ_RANGE_HIGH)
+							{
+								if(TF_Channel_DS[g_moduleNum][g_channelNum].F2 != 0)
+								{
+									if(fValue > TF_Channel_DS[g_moduleNum][g_channelNum].F2)
+									{
+										cout << "ERROR: The f1 is crossing of f2" << endl;
+										return (-1);
+									}
+									if(TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue > VENDOR_BW_RANGE_HIGH)
+									{
+										cout << "ERROR: The channel bandwidth is out of range" << endl;
+										return (-1);
+									}
+									if(static_cast<int>((TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue) * 2) % 2 != 0)
+									{
+										cout << "ERROR: The bandwidth is not multiples of 0.5 GHz" << endl;
+										return (-1);
+									}
+									// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
+									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = fValue;
+									TF_Channel_DS[g_moduleNum][g_channelNum].BW = TF_Channel_DS[g_moduleNum][g_channelNum].F2 - TF_Channel_DS[g_moduleNum][g_channelNum].F1;
+									TF_Channel_DS[g_moduleNum][g_channelNum].FC = (TF_Channel_DS[g_moduleNum][g_channelNum].F2 + TF_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
+								}
+								else
+								{
+									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = fValue;
+								}
+							}
+							else
+							{
+								cout << "ERROR: The F1 is out of range" << endl;
+								return (-1);
+							}
+						}
+						else
+						{
+							cout << "ERROR: The command attribute F1 is not numerical" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
+
+					}
+					else if(attr[0] == "F2")
+					{
+						if (Sscanf(attr[1], fValue,'f'))
+						{
+							// Get the float value of F2
+
+							if (fValue > VENDOR_FREQ_RANGE_LOW && fValue < VENDOR_FREQ_RANGE_HIGH)
+							{
+								if(TF_Channel_DS[g_moduleNum][g_channelNum].F1 != 0)
+								{
+									if(fValue < TF_Channel_DS[g_moduleNum][g_channelNum].F1)
+									{
+										cout << "ERROR: The f2 is crossing of f1" << endl;
+										return (-1);
+									}
+									if(fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1 > VENDOR_BW_RANGE_HIGH)
+									{
+										cout << "ERROR: The channel bandwidth is out of range" << endl;
+										return (-1);
+									}
+									if(static_cast<int>((fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1) * 2) % 2 != 0)
+									{
+										cout << "ERROR: The Bandwidth is not multiples of 0.5 GHz" << endl;
+										return (-1);
+									}
+									// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
+									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = fValue;
+									TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1;
+									TF_Channel_DS[g_moduleNum][g_channelNum].FC = (TF_Channel_DS[g_moduleNum][g_channelNum].F2 + TF_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
+								}
+								else
+								{
+									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = fValue;
+								}
+							}
+							else
+							{
+								cout << "ERROR: The F2 is out of range" << endl;
+								return (-1);
+							}
+						}
+						else
+						{
+							cout << "ERROR: The command attribute F2 is not numerical" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
+
 					}
 					else
 					{
@@ -2233,11 +2423,31 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 #ifdef _DEVELOPMENT_MODE_
 							if(fValue > 0)		// BW +ve
 #else
-							if(fValue >= VENDOR_BW_RANGE_LOW && fValue <= VENDOR_BW_RANGE_HIGH)
+							if(fValue > VENDOR_MIN_BW && fValue < VENDOR_BW_RANGE_HIGH) //drc modified to VENDOR_MIN_BW
 #endif
 							{
+								if(static_cast<int>(fValue * 2) % 2 != 0)
+								{
+									cout << "ERROR: The BW is not multiples of 0.5 GHz" << endl;
+									return (-1);
+								}
+								if(TF_Channel_DS[g_moduleNum][g_channelNum].FC != 0)
+								{
+									if((TF_Channel_DS[g_moduleNum][g_channelNum].FC + fValue/2) > VENDOR_FREQ_RANGE_HIGH ||
+											(TF_Channel_DS[g_moduleNum][g_channelNum].FC - fValue/2) < VENDOR_FREQ_RANGE_LOW)
+									{
+										cout << "ERROR: The BW Range is unacceptable" << endl;
+										return (-1);
+									}
+									TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue;
+									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = TF_Channel_DS[g_moduleNum][g_channelNum].FC - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = TF_Channel_DS[g_moduleNum][g_channelNum].FC + TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+								}
+								else
+								{
 								// Get the float value of BW
 								TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue;
+								}
 							}
 							else
 							{
@@ -2402,7 +2612,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								/************below part i added, remove and uncomment if anything go wrong***********/
 								if (Sscanf(attr[1], fValue,'f'))
 								{
-									if((FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) >=0 && (FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) <= 35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
+									if((FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) >= 0 && (FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) < 35.01)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
 									{
 										// Get the float value of ATT
 										FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum - 1] = fValue;
@@ -2437,12 +2647,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							// The Object doesn't have slot defined. The attenuation value belongs to channel
 							if (Sscanf(attr[1], fValue,'f'))
 							{
-								if(fValue >=0 && fValue <= 35.0)		// Can't be negative //drc confirmed with L and zte, should be 35.0
+								if(fValue >=0 && fValue < 35.01)		// Can't be negative //drc confirmed with L and zte, should be 35.0
 								{
 									// Test all slots to make sure it doesnt violate relationship with channel attenuation
 									for(int s=0; s< FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; s++)
 									{
-										if((FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) <0 || (FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) >35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
+										if((FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) < 0 || (FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) > 35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
 										{
 											cout << "ERROR: The channel attenuation is violating slot relative attenuation rule" << endl;
 											return (-1);
@@ -2546,7 +2756,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						if (Sscanf(attr[1], f1,'f'))
 						{
 							// If F1 is numerical
-							if (f1 >= VENDOR_FREQ_RANGE_LOW && f1 <= VENDOR_FREQ_RANGE_HIGH)
+							if (f1 > VENDOR_FREQ_RANGE_LOW && f1 < VENDOR_FREQ_RANGE_HIGH)
 							{
 								if(g_edgeFreqDefined == 1 && f1 > FG_Channel_DS[g_moduleNum][g_channelNum].F2)
 								{
@@ -2560,17 +2770,24 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								//std::cout << std::setprecision(10) << " F1 = " << FG_Channel_DS[g_moduleNum][g_channelNum].F1 <<std::endl;
 								g_edgeFreqDefined++;	// whether user provided only F1 or F2, or both. for both == 2, for F1/F2 == 1
 
-								if(changeF2 == true)	// Fill FC and BW of Fixed Grid channel
+								if(FG_Channel_DS[g_moduleNum][g_channelNum].F2 != 0) //(changeF2 == true)	// Fill FC and BW of Fixed Grid channel
 								{
 									FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
 									FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
 									//std::cout << std::setprecision(10) << " FC = " << FG_Channel_DS[g_moduleNum][g_channelNum].FC <<std::endl;
 
-									if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW)
+									if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW) //drc to check minimal BW
 									{
-										cout << "ERROR: BW range is not acceptable less than 6.25GHz" << endl;
+										cout << "ERROR: BW range is not acceptable being less than 6.25GHz" << endl;
 										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 										return (-1);
+									}
+									else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
+									{
+										cout << "ERROR: BW range is not acceptable beding greater than full waveband" << endl;
+										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+										return (-1);
+
 									}
 								}
 							}
@@ -2593,7 +2810,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						if (Sscanf(attr[1], f2,'f'))
 						{
 							// If F2 is numerical
-							if (f2 >= VENDOR_FREQ_RANGE_LOW && f2 <= VENDOR_FREQ_RANGE_HIGH)
+							if (f2 > VENDOR_FREQ_RANGE_LOW && f2 < VENDOR_FREQ_RANGE_HIGH)
 							{
 								if(g_edgeFreqDefined == 1 && f2 < FG_Channel_DS[g_moduleNum][g_channelNum].F1)
 								{
@@ -2606,7 +2823,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								FG_Channel_DS[g_moduleNum][g_channelNum].F2 = f2;
 								g_edgeFreqDefined++;	// whether user provided only F1 or F2, or both. for both == 2, for F1/F2 == 1
 
-								if(changeF1 == true)	// Fill FC and BW of Fixed Grid channel
+								if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 != 0) //(changeF1 == true)	// Fill FC and BW of Fixed Grid channel
 								{
 									FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
 									FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
@@ -2615,6 +2832,13 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									{
 										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 										return (-1);
+									}
+									else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
+									{
+										cout << "ERROR: BW range is not acceptable beding greater than full waveband" << endl;
+										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+										return (-1);
+
 									}
 
 								}
@@ -2639,7 +2863,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						{
 							// Get the float value of FC
 
-							if (fc >= VENDOR_FREQ_RANGE_LOW && fc <= VENDOR_FREQ_RANGE_HIGH)
+							if (fc > VENDOR_FREQ_RANGE_LOW && fc < VENDOR_FREQ_RANGE_HIGH)
 							{
 								// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
 								FG_Channel_DS[g_moduleNum][g_channelNum].FC  = fc;
@@ -2651,6 +2875,16 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 									//cout << "F1" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
 									//cout << "F2" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
+									if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 < VENDOR_FREQ_RANGE_LOW)
+									{
+										cout << "ERROR: The F1 is out of range" << endl;
+										return (-1);
+									}
+									else if( FG_Channel_DS[g_moduleNum][g_channelNum].F2 > VENDOR_FREQ_RANGE_HIGH)
+									{
+										cout << "ERROR: The F2 is out of range" << endl;
+										return (-1);
+									}
 								}
 							}
 							else
@@ -2687,7 +2921,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 #ifdef _DEVELOPMENT_MODE_
 							if(bw > 0)		// BW +ve
 #else
-							if(bw >= VENDOR_BW_RANGE_LOW && bw <= VENDOR_BW_RANGE_HIGH && fValue >= VENDOR_MIN_BW)
+							if(bw < WHOLE_BANDWIDTH && bw > VENDOR_MIN_BW) //drc modified to VENDOR_MIN_BW to WHOLE_BANDWIDTH
 #endif
 							{
 								// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
@@ -2701,11 +2935,21 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 									//cout << "F1 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
 									//cout << "F2 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
+									if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 < VENDOR_FREQ_RANGE_LOW)
+									{
+										cout << "ERROR: The F1 is out of range" << endl;
+										return (-1);
+									}
+									else if( FG_Channel_DS[g_moduleNum][g_channelNum].F2 > VENDOR_FREQ_RANGE_HIGH)
+									{
+										cout << "ERROR: The F2 is out of range" << endl;
+										return (-1);
+									}
 								}
 							}
 							else
 							{
-								cout << "ERROR: The BW can't be negative" << endl;
+								cout << "ERROR: The BW is out of range" << endl;
 								return (-1);
 							}
 						}
@@ -3828,6 +4072,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;		// switch MODULE main one
 			}
+#ifdef _DEVELOPMENT_MODE_
+
 		case IDN:
 		{
 			if (attr[0] == "CUSTOMERINFO"	&& eVerb == SET)
@@ -3843,6 +4089,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
+
 		case PANEL:
 		{
 			if (attr[0] == "BGAP"	&& eVerb == SET)
@@ -3966,6 +4213,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
+#endif
 		case RESTART:		//ACTION Restart dont have attribute at all, if you come here it means user gave attribute so issue ERROR
 		{
 			if(eVerb == ACTION)
@@ -4064,6 +4312,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	return (0);
 }
 
+
 int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 {
 	// Some places we used \t\t two tabs to align the texxt. double tab is used mostly in text length smaller
@@ -4091,29 +4340,29 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "ADP")
 				{
-					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n adp=%d\n", "adp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ADP);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nadp=%d\n", "adp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ADP);
 				}
 				else if (attributes == "ATT")
 				{
-					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n att=%.4f\n", "att=%.4f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ATT);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%.4f\n", "att=%.4f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ATT);
 				}
 				else if (attributes == "CMP")
 				{
-					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n cmp=%d\n", "cmp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].CMP);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \ncmp=%d\n", "cmp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].CMP);
 
 				}
 				else if (attributes == "FC")
 				{
-					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n fc=%.3f\n", "fc=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].FC);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nfc=%.3f\n", "fc=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].FC);
 
 				}
 				else if (attributes == "BW")
 				{
-					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n bw=%.3f\n", "bw=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].BW);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nbw=%.3f\n", "bw=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].BW);
 				}
 				else if(attributes == "CHANID")
 				{
-					FillBuffer_ConcatAttributes("id=%d \n mod=%d \n chanid=%d\n", "chanid=%d \n", false, g_channelNum);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nchanid=%d\n", "chanid=%d \n", false, g_channelNum);
 				}
 				else if (attributes == "ID")
 				{
@@ -4171,27 +4420,16 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 							FG_Channel_DS[g_moduleNum][g_channelNum].F1 + g_slotNum*((FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum),
 							FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);	//Fill this string and get the length filled.
 				}
+				else
+				{
+					cout << "ERROR: Invalid Get Format" << endl;
+					return (-1);
+				}
 			}
 			else if (eGet == ALL_SLOTS_OF_CH)
 			{
 				// ALL SLOTS INFO	GET:CH.2.1.*
 				PrintAllSlotsFG(FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
-				/*for (int k = 0; k < FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; k++)
-				{
-					buffLenTemp += sprintf(&buff[buffLenTemp],
-							"\nid=%d "
-							"\nmod=%d "
-							"\nslot=%d "
-							"\nadp=%d "
-							"\ncmp=%d "
-							"\nf1=%0.3f"
-							"\nf2=%0.3f"
-							"\nATT=%0.3f\n",  g_channelNum, g_moduleNum, k+1, FG_Channel_DS[g_moduleNum][g_channelNum].ADP, FG_Channel_DS[g_moduleNum][g_channelNum].CMP,
-							FG_Channel_DS[g_moduleNum][g_channelNum].F1 + k*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum,
-							FG_Channel_DS[g_moduleNum][g_channelNum].F1 + (k+1)*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum,
-							FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[k]);
-					//buffLenTemp += sprintf(&buff[buffLenTemp], "%f--", FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[k]);
-				}*/
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " ") && objVec.size() == 3)	// No slot defined get:ch.1.3:att
 			{
@@ -4201,7 +4439,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				}
 				else if (attributes == "ATT")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%d\n", "ATT=%.4f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ATT);
+					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%.3f\n", "ATT=%.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ATT);
 				}
 				else if (attributes == "CMP")
 				{
@@ -4247,7 +4485,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				{
 					// GET:CH.2.1.2:att
 					//buffLenTemp += sprintf(&buff[buffLenTemp], "CH.%d.%d.%d:  ATT=%.f\n", g_moduleNum, g_channelNum, g_slotNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
-					buffLenTemp += sprintf(&buff[buffLenTemp], "id=%d \n mod=%d \n ch=%d \n ATT=%.3f\n", g_slotNum, g_moduleNum, g_channelNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
+					buffLenTemp += sprintf(&buff[buffLenTemp], "\nid=%d \nmod=%d \nch=%d \nATT=%.3f\n", g_slotNum, g_moduleNum, g_channelNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
 				}
 				else
 				{
@@ -4281,7 +4519,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "TEMPACTUAL")
 				{
-					FillBuffer_ConcatAttributes("\nmod:%d:  TEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, "DUMMY 45C"); //drc to check
+					FillBuffer_ConcatAttributes("\nmod:%d:  \nTEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, "DUMMY 45C"); //drc to check
 				}
 				else
 				{
@@ -4324,7 +4562,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					LCOSDisplayTest dispTest;
 					dispTest.RunTest();
 					dispTest.GetResult(tempStr);
-					FillBuffer_ConcatAttributes("MODULE.%d:  LCOS Pin Connection\n\n%s", ":  LCOS Pin Connection\n\n%s", true, tempStr.c_str());
+					FillBuffer_ConcatAttributes("\nMODULE.%d:  LCOS Pin Connection=%s\n", "LCOS Pin Connection=%s\n", true, tempStr.c_str());
 				}
 #endif
 				else
@@ -4342,8 +4580,8 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "TECMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL\t=\t%s\n", "DUMMY 35C");
+				buffLenTemp += sprintf(&buff[buffLenTemp], "\nTECMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
+				buffLenTemp += sprintf(&buff[buffLenTemp], "\nTEMPACTUAL\t=\t%s\n", "DUMMY 35C");
 
 				g_bNoAttribute = false;
 			}
@@ -5253,14 +5491,14 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 
 				// Reset elements
 				TF_Channel_DS[g_moduleNum][g_channelNum].ADP = 0;
-				TF_Channel_DS[g_moduleNum][g_channelNum].ATT = 0;
+				TF_Channel_DS[g_moduleNum][g_channelNum].ATT = 0;  //drc set default 35 according to L
 				TF_Channel_DS[g_moduleNum][g_channelNum].CMP = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].FC = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].BW = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].F1ContiguousOrNot = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].F2ContiguousOrNot = 0;
 
-	#ifdef _DEVELOPMENT_MODE_
+#ifdef _DEVELOPMENT_MODE_
 				TF_Channel_DS[g_moduleNum][g_channelNum].LAMDA =0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].SIGMA =0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].K_OPP =0;
@@ -5269,7 +5507,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][g_channelNum].A_ATT =0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].b_ColorSet = false;
 				TF_Channel_DS[g_moduleNum][g_channelNum].COLOR = 0;
-	#endif
+#endif
 				int targetChan = g_channelNum;
 				int targetMod = g_moduleNum;
 				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {
@@ -5294,22 +5532,21 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 		// when N = *	// delete all channels
 		eObject = CH_TF;
 		for (int i = 1; i <= g_Total_Channels; i++)
-//		for(const auto& i: activeChannels)
 		{
 			if(TF_Channel_DS[g_moduleNum][i].active == true)
-//			if(g_moduleNum == i.moduleNo)
 			{
+
 				TF_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
 	// Reset elements
 				TF_Channel_DS[g_moduleNum][i].ADP = 0;
-				TF_Channel_DS[g_moduleNum][i].ATT = 0;
+				TF_Channel_DS[g_moduleNum][i].ATT = 0;   //drc set to default according to L
 				TF_Channel_DS[g_moduleNum][i].CMP = 0;
 				TF_Channel_DS[g_moduleNum][i].FC = 0;
 				TF_Channel_DS[g_moduleNum][i].BW = 0;
 				TF_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
 				TF_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
 
-	#ifdef _DEVELOPMENT_MODE_
+#ifdef _DEVELOPMENT_MODE_
 				TF_Channel_DS[g_moduleNum][i].LAMDA =0;
 				TF_Channel_DS[g_moduleNum][i].SIGMA =0;
 				TF_Channel_DS[g_moduleNum][i].K_OPP =0;
@@ -5319,7 +5556,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][i].b_ColorSet = false;
 				TF_Channel_DS[g_moduleNum][i].COLOR = 0;
 
-	#endif
+#endif
 
 				int targetChan = i;
 				int targetMod = g_moduleNum;
@@ -5367,7 +5604,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				FG_Channel_DS[g_moduleNum][g_channelNum].F1ContiguousOrNot = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].F2ContiguousOrNot = 0;
 
-	#ifdef _DEVELOPMENT_MODE_
+#ifdef _DEVELOPMENT_MODE_
 				FG_Channel_DS[g_moduleNum][g_channelNum].LAMDA =0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].SIGMA =0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].K_OPP =0;
@@ -5379,7 +5616,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				FG_Channel_DS[g_moduleNum][g_channelNum].n_ch_1 = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].n_ch_2 = 0;
 
-	#endif
+#endif
 
 				int targetChan = g_channelNum;
 				int targetMod = g_moduleNum;
@@ -5406,11 +5643,11 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 		// when N = *	// delete all channels
 		eObject = CH_FG;
 		for (int i = 1; i <= g_Total_Channels; i++)
-//		for(const auto& i : activeChannels)
 		{
-//			if(i.moduleNo == g_moduleNum)
+
 			if(FG_Channel_DS[g_moduleNum][i].active == true)
 			{
+
 				FG_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
 
 				// Reset elements
@@ -5424,7 +5661,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 
 				FG_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
 				FG_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
-	#ifdef _DEVELOPMENT_MODE_
+#ifdef _DEVELOPMENT_MODE_
 				FG_Channel_DS[g_moduleNum][i].LAMDA =0;
 				FG_Channel_DS[g_moduleNum][i].SIGMA =0;
 				FG_Channel_DS[g_moduleNum][i].K_OPP =0;
@@ -5436,7 +5673,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				FG_Channel_DS[g_moduleNum][i].n_ch_1 = 0;
 				FG_Channel_DS[g_moduleNum][i].n_ch_2 = 0;
 
-	#endif
+#endif
 				int targetChan = i;
 				int targetMod = g_moduleNum;
 				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {
@@ -5497,6 +5734,7 @@ Panel CmdDecoder::GetPanelInfo()
 	return p;
 }
 
+
 //drc added for store and restore
 bool ActionVrb::StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
 {
@@ -5515,3 +5753,5 @@ bool ActionVrb::RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Tota
 {
 	return true;
 }
+
+

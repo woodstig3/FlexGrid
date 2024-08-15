@@ -179,6 +179,7 @@ private:
 	int 			ModifySlotCountInChannel(const int *calculatedSlotsNumber, const double *newF1, const double *newF2, const double *slotSize);
 	int 			ChannelsOverlapTest(void);
 	int 			Overlap_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
+	int				CouldbeSlotOf_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
 
 	int 			is_SetTFDone();												// When CH.M.N only given TF
 	int 			is_SetNoSlotFGDone();										// When CH.M.N only given FG

@@ -237,9 +237,10 @@ int PatternGenModule::Get_LCOS_Temperature()
 	return (0);
 }
 
+/*
 int PatternGenModule::Init_PatternGen_All_Modules(int *mode)
 {
-	/* Reset Full Pattern 2D Array */
+	/* Reset Full Pattern 2D Array
 //	memset(fullPatternData, 0, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
 //	loadBackgroundPattern();
 	//memset(rotated, m_backColor, sizeof(unsigned char)*g_LCOS_Width*g_LCOS_Height);
@@ -325,6 +326,38 @@ int PatternGenModule::Init_PatternGen_All_Modules(int *mode)
 
 	return (0);
 }
+*/
+
+int PatternGenModule::Init_PatternGen_All_Modules(int *mode)
+{
+	refreshBackgroundPattern();
+
+	int status = 0;
+
+	if(*mode == OperationMode::DEVELOPMENT)
+	{
+		status = Check_Need_For_GlobalParameterUpdate();
+
+		if(status == -2)
+			return 0;							// No further calculation of channels.
+	}
+	status = ChannelsContiguousTest();
+	if(*mode == OperationMode::PRODUCTION)
+	{
+		status = Calculate_Every_ChannelPattern();
+	}
+	else
+	{
+		status = Calculate_Every_ChannelPattern_DevelopMode();
+	}
+	if(status != 0)
+		return (-1);
+
+	return(0);
+
+}
+
+
 
 int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 {
@@ -492,7 +525,7 @@ void PatternGenModule::getStartEndOffset(int startGrayVal, int endGrayVal)
  */
 int PatternGenModule::ChannelsContiguousTest()
 {
-	int ch = 1;
+//	int ch = 1;
 
 //	while (ch <= g_Total_Channels)
 	for(const auto& ch: g_serialMod->cmd_decoder.activeChannels)
@@ -521,7 +554,7 @@ int PatternGenModule::ChannelsContiguousTest()
 						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch.channelNo].F1ContiguousOrNot = 1;
 						g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch_compared_with.channelNo].F2ContiguousOrNot = 1;
 
-						std::cout << "Contiguous at f1: "<< ch.channelNo << "The channel is contiguous at f2 to channel:" << ch_compared_with.channelNo << std::endl;
+						std::cout << "Contiguous at f1 to channel: "<< ch.channelNo << "The channel is contiguous at f2 to channel:" << ch_compared_with.channelNo << std::endl;
 					}
 					else if(status == -2)
 					{
@@ -583,20 +616,20 @@ int PatternGenModule::ChannelsContiguousTest()
 
 int PatternGenModule::Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2)
 {
-		//if (*ch_f1 == *other_ch_f2 && *ch_f2 != *other_ch_f2)	// contiguous channel added to the right
-		if((std::abs(*ch_f1 - *other_ch_f2) < 1e-6)	&& (std::abs(*ch_f2 - *other_ch_f2) > 1e-6))
-		{
-			return (-1);
-		}
-		else if ((std::abs(*ch_f2 - *other_ch_f1) < 1e-6) && (std::abs(*ch_f1 - *other_ch_f1) > 1e-6))	// left
-		{
-			return (-2);
-		}
+	//if (*ch_f1 == *other_ch_f2 && *ch_f2 != *other_ch_f2)	// contiguous channel added to the right
+	if((std::abs(*ch_f1 - *other_ch_f2) < 1e-6)	&& (std::abs(*ch_f2 - *other_ch_f2) > 1e-6))
+	{
+		return (-1);
+	}
+	else if ((std::abs(*ch_f2 - *other_ch_f1) < 1e-6) && (std::abs(*ch_f1 - *other_ch_f1) > 1e-6))	// left
+	{
+		return (-2);
+	}
 
-		return 0;
+	return 0;
 }
 
-
+/*
 int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 {
 	inputParameters inputs;
@@ -645,7 +678,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 
 			}
 		}
-		/*Adjust attenuation of edge columns and omit BW-10 for inner edge columns of slots within a superchannel*/
+		/*Adjust attenuation of edge columns and omit BW-10 for inner edge columns of slots within a superchannel
 		status = ChannelsContiguousTest();
 //		for (int ch = 0; ch < g_Total_Channels; ch++)
 		for(const auto& ch: g_serialMod->cmd_decoder.activeChannels)
@@ -901,6 +934,256 @@ int PatternGenModule::Calculate_Every_ChannelPattern(char slotSize)
 
 	return (0);
 }
+*/
+
+int PatternGenModule::Calculate_Every_ChannelPattern()
+{
+	inputParameters inputs;
+	outputParameters outputs;
+	int status = 0;
+	double edgeK_Att = 0.0;
+
+	unsigned int channelNo = 0;
+
+	for(const auto& ch: g_serialMod->cmd_decoder.activeChannels)
+	{
+
+		channelNo = ch.channelNo;
+		g_moduleNum = ch.moduleNo;
+
+		if (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].active == true) //determine which data structure to use
+		{
+			inputs.ch_att = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ATT;       //+1 because start from 1
+			inputs.ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].FC;
+			inputs.ch_adp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
+			double ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
+			inputs.ch_cmp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].CMP;
+
+			if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
+				g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
+			{
+				inputs.ch_f1 = inputs.ch_fc - (ch_bw-10)/2;
+				inputs.ch_f2 = inputs.ch_fc + (ch_bw-10)/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				//to calculate for edge attenuated value
+				edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(channelNo-1);
+
+				edgeK_Att = outputs.Katt + 1- (outputs.F2_PixelPos - floor(outputs.F2_PixelPos));
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(channelNo-1);
+
+				RelocateChannelTF(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+			}
+			else if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 1 &&
+					g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 1)
+			{
+				inputs.ch_f1 = inputs.ch_fc - ch_bw/2;
+				inputs.ch_f2 = inputs.ch_fc + ch_bw/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				RelocateChannelTF(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+
+			}
+			else if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 1 &&
+					g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
+			{
+				inputs.ch_f1 = inputs.ch_fc - ch_bw/2;
+				inputs.ch_f2 = inputs.ch_fc + (ch_bw-10)/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				edgeK_Att = outputs.Katt + 1- (outputs.F2_PixelPos - floor(outputs.F2_PixelPos));
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(channelNo-1);
+				RelocateChannelTF(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+
+			}
+			else if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
+					g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 1)
+			{
+				inputs.ch_f1 = inputs.ch_fc - (ch_bw-10)/2;
+				inputs.ch_f2 = inputs.ch_fc + ch_bw/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(channelNo-1);
+
+				RelocateChannelTF(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+			}
+			else
+			{
+				return (-1);
+			}
+
+		}
+		else if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].active == true)
+		{
+			inputs.ch_att = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].ATT;
+			inputs.ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].FC;
+			inputs.ch_adp = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].ADP-1;
+			inputs.ch_cmp = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].CMP;
+			inputs.ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1;
+			inputs.ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2;
+			double ch_bw = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
+
+
+			if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
+				g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
+			{
+				inputs.ch_f1 = inputs.ch_fc - (ch_bw-10)/2;
+				inputs.ch_f2 = inputs.ch_fc + (ch_bw-10)/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				//to calculate for edge attenuated value
+				edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(channelNo-1);
+
+				edgeK_Att = outputs.Katt + 1 - (outputs.F2_PixelPos- floor(outputs.F2_PixelPos));
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(channelNo-1);
+
+				RelocateChannelFG(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+			}
+			else if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 1 &&
+					g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 1)
+			{//inner slot, no need of edge attenuation and edge bw-10
+
+				inputs.ch_f1 = inputs.ch_fc - ch_bw/2;
+				inputs.ch_f2 = inputs.ch_fc + ch_bw/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				RelocateChannelFG(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+			}
+			else if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 1 &&
+					g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
+			{//only right edge needs to be attenuated
+
+				inputs.ch_f1 = inputs.ch_fc - ch_bw/2;
+				inputs.ch_f2 = inputs.ch_fc + (ch_bw-10)/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				edgeK_Att = outputs.Katt + 1- (outputs.F2_PixelPos - floor(outputs.F2_PixelPos));
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+				Fill_Channel_ColumnData(channelNo-1);
+				RelocateChannelFG(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+			}
+			else if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
+					g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 1)
+			{//only left edge needs to be attenuated
+
+				inputs.ch_f1 = inputs.ch_fc - (ch_bw-10)/2;
+				inputs.ch_f2 = inputs.ch_fc + ch_bw/2;
+
+				status = Find_Parameters_By_Interpolation(inputs, outputs, true, true, true, true);		// Interpolate all parameters
+
+				if(status != 0)
+					return (-1);
+
+				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+				edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+
+				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+				Fill_Channel_ColumnData(channelNo-1);
+
+				RelocateChannelFG(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+			}
+
+			int total_Slots = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].slotNum;
+			for (int slot = 1; slot <= total_Slots; slot++)
+			{
+				// Go through all slot attenuation and if its not zero then calculate that slot attenuation and relocate that slot within the channel
+				if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].slotsATTEN[slot-1] != 0)
+				{
+					double slot_ATT = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].slotsATTEN[slot-1];
+					double actual_slot_att = inputs.ch_att + slot_ATT;	// slot attenuation is relative to channel attenuation.(slot_ATT can be -ve)
+
+					if(actual_slot_att < 0)
+						actual_slot_att = 0;
+
+					inputs.ch_att = actual_slot_att;
+
+					status = Find_Parameters_By_Interpolation(inputs, outputs, false, false, true, false);		// Interpolate Attenuation only
+
+					if(status != 0)
+						return (-1);
+
+					Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
+
+					if(slot == 1) //left edge slot attenuation
+					{
+						//to calculate for edge attenuated value
+						edgeK_Att = outputs.Katt + outputs.F1_PixelPos - floor(outputs.F1_PixelPos);
+						Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge
+						Fill_Channel_ColumnData(channelNo-1);
+					}
+					if(slot == total_Slots) //right edge slot attenuation
+					{
+						edgeK_Att = outputs.Katt + 1 - (outputs.F2_PixelPos- floor(outputs.F2_PixelPos));
+						Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
+						Fill_Channel_ColumnData(channelNo-1);
+					}
+					RelocateSlot(channelNo-1, slot, total_Slots, outputs.F1_PixelPos, outputs.F2_PixelPos);
+				}
+			}
+		}
+	}
+
+	return (0);
+}
 
 void PatternGenModule::rotateArray(double angle, int width, int height)
 {
@@ -937,130 +1220,117 @@ void PatternGenModule::rotateArray(double angle, int width, int height)
 
 }
 
-int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode(char slotSize)
+int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode()
 {
 #ifdef _DEVELOPMENT_MODE_
+
 	double edgeK_Att;
 
-	if (slotSize == 'T')		// Calculate for TrueFlex Module
+	int ch = 0;
+//		for (int ch = 0; ch < g_Total_Channels; ch++)
+	for(const auto& channel : g_serialMod->cmd_decoder.activeChannels)
 	{
-		for (int ch = 0; ch < g_Total_Channels; ch++)
+		g_moduleNum = channel.moduleNo;
+		ch = channel.channelNo;
+		if (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].active == true)
 		{
-			if (g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].active == true)
+			double sigma =g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].SIGMA;
+			double Aopt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].A_OPP;
+			double Kopt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].K_OPP;
+			double Aatt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].A_ATT;
+			double Katt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].K_ATT;
+			double wavelength = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].LAMDA;
+			double ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].FC;
+			double ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].BW;
+			double ch_f1 = ch_fc - (ch_bw-10)/2;
+			double ch_f2 = ch_fc + (ch_bw-10)/2; //   here -10 is according to Dr.Du's doc
+
+			double F1_PixelPos, F2_PixelPos, FC_PixelPos;
+
+			if(Aatt == 0)
 			{
-				double sigma =g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].SIGMA;
-				double Aopt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].A_OPP;
-				double Kopt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_OPP;
-				double Aatt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].A_ATT;
-				double Katt = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_ATT;
-				double wavelength = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].LAMDA;
-				double ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
-				double ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
-				double ch_f1 = ch_fc - (ch_bw-10)/2;
-				double ch_f2 = ch_fc + (ch_bw-10)/2; //   here -10 is according to Dr.Du's doc
-
-				double F1_PixelPos, F2_PixelPos, FC_PixelPos;
-
-				if(Aatt == 0)
-				{
-					Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
-				}
-
-				Calculate_Pattern_Formulas(ch, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
-
-				Find_LinearPixelPos_DevelopMode(ch_f1, F1_PixelPos);
-				Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
-				Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
-
-				//to calculate for edge attenuated value
-
-				edgeK_Att = Katt + F1_PixelPos - floor(F1_PixelPos);
-//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
-				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
-				Fill_Channel_ColumnData(ch);
-
-				edgeK_Att = Katt + 1 - (F2_PixelPos - floor(F2_PixelPos));
-//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
-				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
-				Fill_Channel_ColumnData(ch);
-//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
-
-//				RelocateChannel(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
-
-                //std::cout << "Calculate_Every_ChannelPattern_DevelopMode  slotSize == 'T'" << std::endl;
-				//drc added for background pattern calculation command from test station where no relocation is needed
-				RelocateChannelTF(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+				Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
 			}
+
+			Calculate_Pattern_Formulas(ch-1, wavelength, g_pixelSize, sigma, Aopt, Kopt, Aatt, Katt);
+
+			Find_LinearPixelPos_DevelopMode(ch_f1, F1_PixelPos);
+			Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
+			Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
+
+			//to calculate for edge attenuated value
+
+			edgeK_Att = Katt + F1_PixelPos - floor(F1_PixelPos);
+
+			Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
+			Fill_Channel_ColumnData(ch-1);
+
+			edgeK_Att = Katt + 1 - (F2_PixelPos - floor(F2_PixelPos));
+
+			Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
+			Fill_Channel_ColumnData(ch-1);
+
+			RelocateChannelTF(ch-1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
 		}
-	}
-	else	// Calculate for FixedGrid Module
-	{
-		for (int ch = 0; ch < g_Total_Channels; ch++)
+		else if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].active == true)
 		{
-			// Go through each channel and set the colour user want to set.
+			double sigma = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].SIGMA;
+			double Aopt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].A_OPP;
+			double Kopt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].K_OPP;
+			double Aatt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].A_ATT;
+			double Katt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].K_ATT;
+			double wavelength = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].LAMDA;
+			double ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].FC;
+			double ch_bw = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].BW;
+			double ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F1;
+			double ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F2;
 
-			if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].active == true)
+			ch_f1 = ch_fc - (ch_bw-10)/2;
+			ch_f2 = ch_fc + (ch_bw-10)/2;
+
+			double F1_PixelPos, F2_PixelPos, FC_PixelPos;
+
+			if(Aatt == 0)
 			{
-				double sigma = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].SIGMA;
-				double Aopt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].A_OPP;
-				double Kopt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_OPP;
-				double Aatt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].A_ATT;
-				double Katt = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].K_ATT;
-				double wavelength = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].LAMDA;
-				double ch_fc = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].FC;
-				double ch_bw = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].BW;
-				double ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F1;
-				double ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].F2;
+				Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
+			}
 
-				ch_f1 = ch_fc - (ch_bw-10)/2;
-				ch_f2 = ch_fc + (ch_bw-10)/2;
+			Calculate_Pattern_Formulas(ch-1, wavelength, g_pixelSize,sigma, Aopt, Kopt, Aatt, Katt); //1: channel btw edges
 
-				double F1_PixelPos, F2_PixelPos, FC_PixelPos;
+			Find_LinearPixelPos_DevelopMode(ch_f1, F1_PixelPos);
+			Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
+			Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
 
-				if(Aatt == 0)
+			edgeK_Att = Katt + F1_PixelPos - floor(F1_PixelPos);
+
+			Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
+			Fill_Channel_ColumnData(ch-1);
+
+			edgeK_Att = Katt + 1 - (F2_PixelPos - floor(F2_PixelPos));
+
+			Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
+			Fill_Channel_ColumnData(ch-1);
+
+			RelocateChannelFG(ch-1, F1_PixelPos, F2_PixelPos, FC_PixelPos);
+
+			int total_Slots = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].slotNum;
+			for (int slot = 1; slot <= total_Slots; slot++)
+			{
+				// Go through all slot attenuation and if its not zero then calculate that slot attenuation and relocate that slot within the channel
+				if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].slotsATTEN[slot-1] != 0)
 				{
-					Aatt = 0.1;		// Aatt can't be zero otherwise ATT_factor calculation will have infinity
-				}
+					double slot_ATT = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].slotsATTEN[slot-1];
+					double actual_slot_att = slot_ATT;	// slot attenuation is relative to channel attenuation.(slot_ATT can be -ve)
+					double only_for_testing = Katt + 1;
 
-				Calculate_Pattern_Formulas(ch, wavelength, g_pixelSize,sigma, Aopt, Kopt, Aatt, Katt); //1: channel btw edges
+					Calculate_Pattern_Formulas(ch-1, wavelength, g_pixelSize, sigma, Aopt, Kopt, actual_slot_att, only_for_testing);		// in develop mode, slot attenuation is currently not set by user
 
-				Find_LinearPixelPos_DevelopMode(ch_f1, F1_PixelPos);
-				Find_LinearPixelPos_DevelopMode(ch_f2, F2_PixelPos);
-				Find_LinearPixelPos_DevelopMode(ch_fc, FC_PixelPos);
-
-				edgeK_Att = Katt + F1_PixelPos - floor(F1_PixelPos);
-//				std::cout<<outputs.F1_PixelPos<<round(outputs.F1_PixelPos)<< std::endl;
-				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 0); //0:left edge
-				Fill_Channel_ColumnData(ch);
-
-				edgeK_Att = Katt + 1 - (F2_PixelPos - floor(F2_PixelPos));
-//				std::cout<<outputs.F2_PixelPos<< round(outputs.F2_PixelPos)<< std::endl;
-				Calculate_Optimization_And_Attenuation(Aopt, Kopt, 6.0, edgeK_Att, 2); //2: right edge
-				Fill_Channel_ColumnData(ch);
-//				AjustEdgePixelAttenuation(ch, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
-
-				//std::cout << "Calculate_Every_ChannelPattern_DevelopMode g_Total_Channels'" << std::endl;
-				RelocateChannelFG(ch, F1_PixelPos, F2_PixelPos, FC_PixelPos);
-
-				int total_Slots = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].slotNum;
-				for (int slot = 1; slot <= total_Slots; slot++)
-				{
-					// Go through all slot attenuation and if its not zero then calculate that slot attenuation and relocate that slot within the channel
-					if (g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].slotsATTEN[slot-1] != 0)
-					{
-						double slot_ATT = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch + 1].slotsATTEN[slot-1];
-						double actual_slot_att = slot_ATT;	// slot attenuation is relative to channel attenuation.(slot_ATT can be -ve)
-						double only_for_testing = Katt + 1;
-						//std::cout << "\nSlot atten parameters: " <<" k_op= " << k_op << " a_op= " << a_op << " k_att= " << k_att << " a_att= " << a_att << std::endl;
-
-						Calculate_Pattern_Formulas(ch, wavelength, g_pixelSize, sigma, Aopt, Kopt, actual_slot_att, only_for_testing);		// in develop mode, slot attenuation is currently not set by user
-
-						RelocateSlot(ch, slot, total_Slots, F1_PixelPos, F2_PixelPos);
-					}
+					RelocateSlot(ch-1, slot, total_Slots, F1_PixelPos, F2_PixelPos);
 				}
 			}
 		}
 	}
+
 #endif
 	return (0);
 
@@ -1795,7 +2065,7 @@ int PatternGenModule::Find_Parameters_By_Interpolation(inputParameters &ins, out
 
 		if(interpolateSigma)
 		{
-			g_patternCalib->Set_Sigma_Args(ins.ch_adp,ins.ch_fc,g_LCOS_Temp);
+			g_patternCalib->Set_Sigma_Args(ins.ch_adp,ins.ch_fc,g_LCOS_Temp, ins.ch_cmp);
 			g_ready3 = true;					// Setting it to false will cause no calculation for that thread
 		}
 

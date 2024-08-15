@@ -101,7 +101,7 @@ public:
 	// Thread arguments set by Pattern Generation Module
 	int 			Set_Aopt_Kopt_Args(int port, double freq);
 	int 			Set_Aatt_Katt_Args(int port, double freq, double ATT);
-	int 			Set_Sigma_Args(int port, double freq, double temperature);
+	int 			Set_Sigma_Args(int port, double freq, double temperature, int cmp);
 	int 			Set_Pixel_Pos_Args(double f1, double f2, double fc, double temperature);
 	void			Set_Current_Module(int moduleNo);
 	int 			Get_Interpolation_Status();		// Return -1 for error otherwise 0
@@ -118,18 +118,21 @@ private:
 	Opt				M1_lut_Opt;
 	Att				M1_lut_Att;
 	Sigma			M1_lut_Sigma;
+	Sigma			M1_lut_SigmaL;  //drc added for L port
 	PixelPos		M1_lut_PixelPos;
 
 	/* Module 2 DS */
 	Opt				M2_lut_Opt;
 	Att				M2_lut_Att;
 	Sigma			M2_lut_Sigma;
+	Sigma			M2_lut_SigmaL;  //drc added for L port
 	PixelPos		M2_lut_PixelPos;
 
 	/* Active Module */
 	Opt*			lut_Opt;
 	Att*			lut_Att;
 	Sigma*			lut_Sigma;
+	Sigma*			lut_SigmaL;	  //drc added for L port
 	PixelPos*		lut_PixelPos;
 
 	pthread_t 		thread1_id{0}, thread2_id{0}, thread3_id{0}, thread4_id{0};										// Create Thread id
@@ -153,7 +156,7 @@ private:
 	int 			Interpolate_Aatt_Katt_Bilinear(double frequency, int port, double Attenuation, double &result_Aatt, double &result_Katt);
 
 	void 			Calculation_Sigma();			// For a given Freq, Port, Temperature, find SIGMA value
-	int 			Interpolate_Sigma_Bilinear(double temperature, double frequency, unsigned int portNum, double &result_sigma);
+	int 			Interpolate_Sigma_Bilinear(double temperature, double frequency, unsigned int portNum, int cmp, double &result_sigma);
 
 	void 			Calculation_Pixel_Shift();	// For a given Freq and Temperature, find Pixel value for the channel position (Related to GRISM freq shift)
 	int 			Interpolate_PixelPos_Bilinear(double temperature, double frequency, double& result_pixelPos);
