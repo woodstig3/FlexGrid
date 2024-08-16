@@ -1603,7 +1603,7 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 	{
 		while (i < m_customLCOS_Height)
 		{
-			unsigned char value = m_backColor;
+			unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
@@ -1612,19 +1612,26 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
 						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
+					else{
+						value = BackgroundColumnData[i];
+						tgapped++;
+					}
 
 					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
 					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
 
 					if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
-						if(i>=startMidGap && i <= endMidGap){
-							//value = m_backColor;
+						if(i>=startMidGap)// && i <= endMidGap)
+						{
+							//value = background;
 							value = BackgroundColumnData[i];
+							mgapped++;
 						}
 					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i > startMidGap){
-							//value = m_backColor;
+							//value = m_background;
 							value = BackgroundColumnData[i];
+							mgapped++;
 						}
 					}
 #else
@@ -1639,20 +1646,36 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
 				{
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(tgapped != 0 || mgapped != 0){
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else{
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0))
 				{
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(tgapped != 0 || mgapped != 0){
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels*sizeof(char));
+					}
+					else
+					{
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
 				{
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
+					if(tgapped != 0 || mgapped != 0){
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels*sizeof(char));
+					}
+					else
+					{
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
+					}
 					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), value, sizeof(char));
 
 				}
@@ -1669,6 +1692,10 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){
 					if(i < (m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap)){
 						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
+					}
+					else
+					{
+						value = BackgroundColumnData[i + m_customLCOS_Height];
 					}
 
 					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
@@ -1692,21 +1719,40 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
 				{
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(bgapped != 0 || mgapped != 0)
+					{
+						memset((fullPatternData + (i+m_customLCOS_Height) *g_LCOS_Width + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else
+					{
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0))
 				{
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(bgapped != 0 || mgapped != 0)
+					{
+						memset((fullPatternData + (i+m_customLCOS_Height) *g_LCOS_Width + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else
+					{
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
 				{
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), value, sizeof(char));
+					if(bgapped != 0 || mgapped != 0)
+					{
+						memset((fullPatternData + (i+m_customLCOS_Height) *g_LCOS_Width + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else
+					{
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
+					}
 
 				}
 				else if((g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
@@ -1738,12 +1784,6 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 		//channel getting out of screeen from right side
 		ch_width_inPixels = g_LCOS_Width - ch_start_pixelLocation;	// give us the remaining pixel space available  and we set it to ch_bandwidth
 	}
-#ifdef _DEVELOPMENT_MODE_
-//	 std::cout << "wjh start pixel location: " << ch_start_pixelLocation << "channel " << chNum +1<<std::endl;
-//	 std::cout << "wjh end pixel location: " << ch_end_pixelLocation << std::endl;
-//	 std::cout << "ch width in Pixel: " << ch_width_inPixels << std::endl;
-
-#endif
 
 	bool rotate = false;
 
@@ -1755,7 +1795,7 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 	{
 		while (i < m_customLCOS_Height)
 		{
-			unsigned char value = m_backColor;
+			unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
@@ -1764,19 +1804,27 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
 						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
+					else
+					{
+						value = BackgroundColumnData[i];
+						tgapped++;
+					}
 
 					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
 					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
 
 					if(startMidGap < m_customLCOS_Height && endMidGap < m_customLCOS_Height){
 						if(i>=startMidGap && i <= endMidGap){
-							//value = m_backColor;
+							//value = background;
 							value = BackgroundColumnData[i];
+							mgapped++;
 						}
-					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
+					}
+					else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i > startMidGap){
-							//value = m_backColor;
+							//value = background;
 							value = BackgroundColumnData[i];
+							mgapped++;
 						}
 					}
 #else
@@ -1791,22 +1839,34 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
 				{
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(tgapped != 0 || mgapped != 0){
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else{
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0))
 				{
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(tgapped != 0 || mgapped != 0){
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else{
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
 				{
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), value, sizeof(char));
-
+					if(tgapped != 0 || mgapped != 0){
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else{
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
 				{
@@ -1822,6 +1882,11 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 					if(i < (m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap)){
 						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
+					else
+					{
+						value = BackgroundColumnData[i + m_customLCOS_Height];
+						bgapped++;
+					}
 
 					int startMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition - g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
 					int endMidGap = g_serialMod->cmd_decoder.GetPanelInfo().middleGapPosition + g_serialMod->cmd_decoder.GetPanelInfo().middleGap/2;
@@ -1830,11 +1895,18 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 						if(i>=(startMidGap%m_customLCOS_Height) && i <= (endMidGap%m_customLCOS_Height)){
 							//value = m_backColor;
 							value = BackgroundColumnData[i + m_customLCOS_Height];
+							mgapped++;
+						}
+						else if(i>=m_customLCOS_Height && i <= (startMidGap%m_customLCOS_Height))
+						{
+							value = BackgroundColumnData[i + m_customLCOS_Height];
+							mgapped++;
 						}
 					}else if (startMidGap < m_customLCOS_Height && endMidGap > m_customLCOS_Height){
 						if(i < (endMidGap%m_customLCOS_Height)){
 							//value = m_backColor;
 							value = BackgroundColumnData[i + m_customLCOS_Height];
+							mgapped++;
 						}
 					}
 				}else{
@@ -1844,22 +1916,38 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
 				{
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(bgapped != 0 || mgapped != 0)
+					{
+						memset((fullPatternData + (i+m_customLCOS_Height) *g_LCOS_Width + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else
+					{
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-2)* sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0))
 				{
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					if(bgapped != 0 || mgapped != 0)
+					{
+						memset((fullPatternData + (i+m_customLCOS_Height) *g_LCOS_Width + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else{
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels-1)* sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), channelColumnData[2][i + m_customLCOS_Height *chNum], sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
 				{
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
-					memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
-					//memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation+(ch_width_inPixels-1)), value, sizeof(char));
-
+					if(bgapped != 0 || mgapped != 0)
+					{
+						memset((fullPatternData + (i+m_customLCOS_Height) *g_LCOS_Width + ch_start_pixelLocation), value, ch_width_inPixels* sizeof(char));
+					}
+					else{
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation), channelColumnData[0][i + m_customLCOS_Height *chNum], sizeof(char));
+						memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) + ch_start_pixelLocation + 1), value, (ch_width_inPixels-1)* sizeof(char));
+					}
 				}
 				else if((g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 1 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 1))
 				{
@@ -1869,7 +1957,6 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 				memset((fullPatternData + ((i+m_customLCOS_Height) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));	// FLIP= F1 starts from RHS goes to LHS. 196275-191125  F2 <------ F1
 #endif
 			}
-
 			i++;
 		}
 	}
