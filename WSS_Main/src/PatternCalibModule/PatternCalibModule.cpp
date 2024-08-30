@@ -733,14 +733,14 @@ int PatternCalibModule::PatternCalib_LoadLUTs(void)
 	status |= Load_Opt_LUT(M1_lut_Opt, "/mnt/Opt_LUT_M1.csv");
 	status |= Load_Att_LUT(M1_lut_Att, "/mnt/Att_LUT_M1.csv");
 	status |= Load_Sigma_LUT(M1_lut_Sigma, "/mnt/Sigma_LUT_M1.csv");
-	status |= Load_Sigma_LUT(M1_lut_SigmaL, "/mnt/Sigma_LUT_M1.csv");  //drc added for L port calibration
+	status |= Load_Sigma_LUT(M1_lut_SigmaL, "/mnt/SigmaL_LUT_M1.csv");  //drc added for L port calibration
 	status |= Load_PixelPos_LUT(M1_lut_PixelPos, "/mnt/PixelPos_LUT_M1.csv");
 
 #ifdef _TWIN_WSS_
 	status |= Load_Opt_LUT(M2_lut_Opt, "/mnt/Opt_LUT_M2.csv");
 	status |= Load_Att_LUT(M2_lut_Att, "/mnt/Att_LUT_M2.csv");
 	status |= Load_Sigma_LUT(M2_lut_Sigma, "/mnt/Sigma_LUT_M2.csv");
-	status |= Load_Sigma_LUT(M2_lut_SigmaL, "/mnt/Sigma_LUT_M2.csv");  //drc added for L port calibration
+	status |= Load_Sigma_LUT(M2_lut_SigmaL, "/mnt/SigmaL_LUT_M2.csv");  //drc added for L port calibration
 	status |= Load_PixelPos_LUT(M2_lut_PixelPos, "/mnt/PixelPos_LUT_M2.csv");
 #endif
 
@@ -779,7 +779,7 @@ int PatternCalibModule::Load_Opt_LUT(Opt& lut, const std::string& path)
 
        int columnNumber = 1;
        int portIndex = 0;
-       float value;
+       double value;
 
        while (std::getline(iss, column, ',')) {			// Within one row get each column
 
@@ -864,7 +864,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
 
       int columnNumber = 1;
       int freqIndex = 0;
-      float value;
+      double value;
 
       while (std::getline(iss, column, ',')) {
 
@@ -901,7 +901,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
           ++attIndex;
       }
 
-      if(rowNumber > 11)
+      if(rowNumber > 9)
       {
           ++portIndex;
           rowNumber = 1;
@@ -988,11 +988,11 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 	  int columnNumber = 1;
 	  int portIndex = 0;
 	  int tempIndex =0;
-	  float value;
+	  double value;
 
 	  while (std::getline(iss, column, ',')) {
 
-		  if(rowNumber == 3 && (columnNumber > 1 && columnNumber <=4))       // Temperature readings, only 3 readings from first 3 columns, rest are same
+		  if(rowNumber == 3 && (columnNumber > 1 && columnNumber <=6))       // Temperature readings, only 3 readings from first 3 columns, rest are same
 		  {
 			  std::istringstream(column) >> value;
 			  lut.Temp[tempIndex] = value;
@@ -1012,7 +1012,7 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 		  {
 			  ++tempIndex;
 
-			  if(tempIndex >= 3)                       // Only 3 temperature values per port
+			  if(tempIndex >= 5)                       // Only 3 temperature values per port
 			  {
 				  tempIndex = 0;
 				  ++portIndex;
@@ -1025,7 +1025,7 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 	  {
 		  ++freqIndex;
 	  }
-	  // Now you have a vector of floats, each float is a column value
+	  // Now you have a vector of doubles, each double is a column value
 	  // You can access them by index, e.g. columns[0], columns[1], etc.
 	  rowNumber++;
 	}
@@ -1095,7 +1095,7 @@ int PatternCalibModule::Load_PixelPos_LUT(PixelPos& lut, const std::string& path
 
       int columnNumber = 1;
       int freqIndex = 0;
-      float value;
+      double value;
 
       while (std::getline(iss, column, ',')) {
 

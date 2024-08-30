@@ -1586,12 +1586,6 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 		//channel getting out of screeen from right side
 		ch_width_inPixels = g_LCOS_Width - ch_start_pixelLocation;	// give us the remaining pixel space available  and we set it to ch_bandwidth
 	}
-#ifdef _DEVELOPMENT_MODE_
-//	 std::cout << "wjh start pixel location: " << ch_start_pixelLocation << "channel " << chNum +1<<std::endl;
-//	 std::cout << "wjh end pixel location: " << ch_end_pixelLocation << std::endl;
-//	 std::cout << "ch width in Pixel: " << ch_width_inPixels << std::endl;
-
-#endif
 
 	bool rotate = false;
 
@@ -1607,8 +1601,9 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
-				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){ //drc to check if gap is needed
 #ifdef _TWIN_WSS_
+				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){ //drc to check if gap is needed
+
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
 						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
@@ -1634,12 +1629,18 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 							mgapped++;
 						}
 					}
-#else
+
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap && i < m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap){
-							value = channelColumnData[1][i + m_customLCOS_Height *chNum];
+						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
-#endif
+					else
+					{
+						value = BackgroundColumnData[i];
+						mgapped++;
+					}
+
 				}else{
+#endif
 					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 				}
 
@@ -1684,7 +1685,9 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 					memset((fullPatternData + (i *g_LCOS_Width) + ch_start_pixelLocation), value, (ch_width_inPixels)* sizeof(char));
 				}
 #else
+
 				memset((fullPatternData + ((m_customLCOS_Height -i) *g_LCOS_Width) - ch_start_pixelLocation - ch_width_inPixels), value, ch_width_inPixels* sizeof(char));
+
 #endif
 			}
 			else if (g_moduleNum == 2)	// Bottom side of LCOS
@@ -1799,8 +1802,9 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
-				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){ //drc to check if gap is needed
 #ifdef _TWIN_WSS_
+				if(g_serialMod->cmd_decoder.GetPanelInfo().b_gapSet){ //drc to check if gap is needed
+
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap){
 						value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
@@ -1827,14 +1831,15 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 							mgapped++;
 						}
 					}
-#else
+
 					if(i > g_serialMod->cmd_decoder.GetPanelInfo().topGap && i < m_customLCOS_Height - g_serialMod->cmd_decoder.GetPanelInfo().bottomGap){
 							value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
+
+		}else{
 #endif
-				}else{
-					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
-				}
+			value = channelColumnData[1][i + m_customLCOS_Height *chNum];
+			}
 
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
@@ -2368,7 +2373,7 @@ int PatternGenModule::Load_Background_LUT(void)
 	std::ifstream file("/mnt/Background_LUT.ini");
 
     if (file.is_open()) {
-        std::cout << "[Background_LUT] File has been opened" << std::endl;
+ //       std::cout << "[Background_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[Background_LUT] File opening Error" << std::endl;
@@ -2399,7 +2404,7 @@ int PatternGenModule::Load_Background_LUT(void)
                 // load parameters into data structure to be used by pattern generation
                 if(key == "SIGMA"){
 					Module_Background_DS_For_Pattern[mod].SIGMA = stof(value);
-					std::cout << "Module: "<< mod <<"SIGMA:" << Module_Background_DS_For_Pattern[mod].SIGMA << std::endl;
+//					std::cout << "Module: "<< mod <<"SIGMA:" << Module_Background_DS_For_Pattern[mod].SIGMA << std::endl;
                 }
                 else if(key == "PD"){
 					Module_Background_DS_For_Pattern[mod].PD = stof(value);
@@ -2430,14 +2435,14 @@ int PatternGenModule::Load_Background_LUT(void)
                 }
                 else if(key == "F1_PixelPos"){
                 	Module_Background_DS_For_Pattern[mod].F1_PixelPos = stof(value);
-                	std::cout << "Module:" << mod <<" F1_PixelPos:" << Module_Background_DS_For_Pattern[mod].F1_PixelPos << std::endl;
+//                	std::cout << "Module:" << mod <<" F1_PixelPos:" << Module_Background_DS_For_Pattern[mod].F1_PixelPos << std::endl;
                 }
                 else if(key == "F2_PixelPos"){
                 	Module_Background_DS_For_Pattern[mod].F2_PixelPos = stof(value);
                 }
                 // if more parameters are needed to be adjusted for optimal pattern, add here for more parameters loading
                 else{
-                	std::cout << "[Background_LUT] File reading" << std::endl;
+                	std::cout << "[Background_LUT] File need more readings" << std::endl;
                 }
             }
         }
@@ -2533,8 +2538,8 @@ void PatternGenModule::Find_LinearPixelPos_DevelopMode(double &freq, double &pix
 
 	if(pixelPos < 0)
 		pixelPos = 0;
-	else if (pixelPos > g_LCOS_Width-1)
-		pixelPos = g_LCOS_Width-1;
+	else if (pixelPos > g_LCOS_Width)  //drc modified to no round for edge attenuation
+		pixelPos = g_LCOS_Width;
 }
 
 //drc added for calculate pattern for background when startup for two modules

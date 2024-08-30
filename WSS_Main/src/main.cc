@@ -16,9 +16,11 @@
 
 #include "GlobalVariables.h"
 #include "SerialModule.h"
-#include "PatternGenModule.h"
+
 #include "PatternCalibModule.h"
 #include "TemperatureMonitor.h"
+#include "PatternGenModule.h"
+
 #include "AlarmModule/AlarmUIO.h"
 #include "InterfaceModule/MemoryMapping.h"
 #include "InterfaceModule/I2CProtocol.h"
@@ -51,22 +53,24 @@ int main(int argc, char* argv[])
 {
 	InitializeGlobalMutex();
 
+
 	SerialModule *serialIns = SerialModule::GetInstance();
 	if(serialIns->MoveToThread() != 0)
 		printf("SerialModule: MoveToThread Failed!\n");
 
-	/*MUST implement two different LUts for Temperature sensors. Changjiang gave me excel file*/
 	TemperatureMonitor *tempIns = TemperatureMonitor::GetInstance();
 	if(tempIns->MoveToThread() != 0)
 	printf("TemperatureModule: MoveToThread Failed!\n");
+
+	PatternGenModule *patternIns = PatternGenModule::GetInstance();			// Singleton approach has been used (passing instance to other class)
+	if(patternIns->MoveToThread() != 0)
+		printf("PatternGenModule: MoveToThread Failed!\n");
 
 	PatternCalibModule *patternCalibIns = PatternCalibModule::GetInstance();
 	if(patternCalibIns->MoveToThread() != 0)
 		printf("PatternCalibModule: MoveToThread Failed!\n");
 
-	PatternGenModule *patternIns = PatternGenModule::GetInstance();			// Singleton approach has been used (passing instance to other class)
-	if(patternIns->MoveToThread() != 0)
-		printf("PatternGenModule: MoveToThread Failed!\n");
+
 
 //	if(argc > 1)	// SEND COMMAND DIRECTLY FROM CONSOLE ARGUMENTS
 //	{

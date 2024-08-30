@@ -16,10 +16,12 @@
 #include <fstream>
 #include <cstring>	// for memset and strerror
 
+
 #include "SerialModule.h"
 #include "PatternCalibModule.h"
 #include "GlobalVariables.h"
 #include "TemperatureMonitor.h"
+
 #include "InterfaceModule/OCMTransfer.h"
 
 struct inputParameters{
@@ -52,11 +54,12 @@ struct Background_DS_For_Pattern{  //drc added for background pattern data struc
 	float K_OPP;
 	float A_ATT;
 	float K_ATT;
-	float LAMDA;  //deault = 1.55;
+	float LAMDA;  //default = 1.55;
 	float FC_PixelPos; //default = 960.5;
 	float F1_PixelPos; //default = 191125.0;
 	float F2_PixelPos; //default = 196275.0;
 };
+
 
 class PatternGenModule {
 protected:
@@ -82,7 +85,8 @@ public:
      */
     static PatternGenModule *GetInstance();
 
-	SerialModule 	   *g_serialMod{nullptr};		// create an instance of CmdDecoder so that we can access its member and data via singleton method
+
+	SerialModule 	   *g_serialMod{nullptr};  // create an instance of CmdDecoder so that we can access its member and data via singleton method
 	PatternCalibModule *g_patternCalib{nullptr};
 	TemperatureMonitor *g_tempMonitor{nullptr};
 
@@ -102,7 +106,6 @@ public:
 	unsigned char   BackgroundColumnData[g_LCOS_Height]{0}; //drc added to store background grating gray scale value
 	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3]{};  //drc added for 2 module background configuration, index start from 1 not 0
 
-
 private:
 
 	static PatternGenModule *pinstance_;
@@ -111,8 +114,6 @@ private:
 	unsigned int 	startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 	unsigned int 	endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 
-
-
 	bool 			m_bCalibDataOk = true;							// If calibration data has no issue then pattern will perform calculations otherwise no calculations
 
 #ifdef _TWIN_WSS_
@@ -120,7 +121,7 @@ private:
 #else
 	int 			g_moduleNum{1};
 #endif
-	double 			g_LCOS_Temp{63};								// Default minimum
+
 	bool 			g_bSigmaNegative{false};						// Flip pattern per period for -ve sigma
 
 	const double 	g_wavelength{1.55};
@@ -149,6 +150,8 @@ private:
 
 	int 			BreakThreadLoop(void);							// Control when to end all thread loops, usually when class dies
 	void 			GetErrorMessage(std::string &);
+	double 			g_LCOS_Temp{63};								// Default minimum
+	int 			Get_LCOS_Temperature(void);
 
 	int 			PatternGen_Initialize(void);
 	void 			Create_Linear_LUT(double phaseDepth);
@@ -159,7 +162,7 @@ private:
 	int 			Init_PatternGen_All_Modules(int *mode);			// Needs to know which mode to initiate pattern generation for
 	void 			Save_Pattern_In_FileSystem(void);
 	void 			Find_OperationMode(int *mode);
-	int 			Get_LCOS_Temperature(void);
+
 	int 			Find_Parameters_By_Interpolation(inputParameters &, outputParameters &, bool interpolateSigma, bool interpolateOpt, bool interpolateAtt, bool interpolatePixelPos);
 
 	int 			Check_Need_For_GlobalParameterUpdate();

@@ -12,7 +12,7 @@
 
 #define _DEVELOPMENT_MODE_				// <---------- Uncomment it during production mode, Comment if when launching to customer
 #define _DEVELOPMENT_MODE_EXTRA_		// for gap , P1, P2, etc
-#define _FETCH_PATTERN_
+//#define _FETCH_PATTERN_
 #define _TWIN_WSS_						// If not defined then only Module.1 will exist for user to set.
 
 const double PI = 3.141592653589793238;
@@ -26,12 +26,12 @@ const double PI = 3.141592653589793238;
 #define WHOLE_BANDWIDTH 5150.01
 
 constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI resolution too)
-constexpr int g_LCOS_Width{1920};	// compile-time constant 1952
+constexpr int g_LCOS_Width{1952};	// compile-time constant 1952
 constexpr int g_Total_Channels{1024};	// compile-time constant 96
 
 
-constexpr int g_Max_Normal_Temperature{55}; //grating temperature
-constexpr int g_Min_Normal_Temperature{51}; //grating temperature
+constexpr double g_Max_Normal_Temperature{55.5}; //grating temperature
+constexpr double g_Min_Normal_Temperature{51.5}; //grating temperature
 
 // CmdDecoder Special
 #define _TEST_OVERLAP_

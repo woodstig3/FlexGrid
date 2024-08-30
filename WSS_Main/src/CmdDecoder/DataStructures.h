@@ -21,7 +21,7 @@
 		bool 			active = false;	   //default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;			//NOT IN USE IN PRODUCTION MODE
 		float 			ATT =0;			  //NOT IN USE IN PRODUCTION MODE
-		int 			CMP =0;				//NOT IN USE IN PRODUCTION MODE
+		int 			CMP =1;
 
 		double 			FC =0;				// for position
 		double 			BW =0;				// for channel width
@@ -40,6 +40,7 @@
 		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
 		int				F2ContiguousOrNot = 0;
 
+
 	};
 
 	struct FixedGrid
@@ -47,7 +48,7 @@
 		bool 			active = false;	//default all channels are active  //1 means channels are active and 0 means deleted
 		int 			ADP = 0;
 		float 			ATT =0;
-		int 			CMP =0;
+		int 			CMP =1;
 		double 			F1 = 0;
 		double 			F2 = 0;
 
@@ -197,7 +198,7 @@
 		bool 			active = false;	//default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;
 		float			ATT =0;
-		int 			CMP =0;
+		int 			CMP =1;
 		double 			FC =0;
 		double 			BW =0;
 
@@ -223,7 +224,7 @@
 		bool 			active = false;	//default all channels are active  //1 means channels are active and 0 means deleted
 		int 			ADP = 0;
 		float 			ATT =0;
-		int 			CMP =0;
+		int 			CMP =1;
 		double 			F1 = 0;
 		double 			F2 = 0;
 
@@ -242,6 +243,7 @@
 	{
 		uint64_t 		current{};		// 64 byte value ZTE
 		bool 			readyFlag{0};		// When desired temperature is reached this flag will go high 1.
+
 		//For Panel Gaps
 		bool			b_gapSet = false;
 		int				topGap = 0;

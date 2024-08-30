@@ -7,9 +7,14 @@
 
 #include "TemperatureMonitor.h"
 #include <cassert>
+
 long PRIMARK = 0.0;
+double g_direct_LCOS_Temp = 0x0;
+double g_direct_Hearter2_Temp = 0x0;
+
 #define TEC_STRCHEECK_LOW 50.0
 #define TEC_STRCHEECK_HIGH 58.0
+
 /*
  * When delta Temp change is more than +- 0.2 we calculate pattern
  * TEC working range is 65+-2C... 63-67C ,if temperature goes
@@ -88,19 +93,19 @@ int TemperatureMonitor::TemperatureMon_Initialize(void)
 	thread_id = 0;
 	pthread_attr_init(&thread_attrb);	//Default initialize thread attributes
 
-	if(Load_TempSensor_LUT() == -1)
+	if(Load_TempSensor_LUT() == -1)    //grating temperature
 	{
 		printf("Driver<TempMonitor>: LUT loading failed.\n");
 		return (-1);
 	}
 
-	if(Load_OldTempSensor_LUT() == -1)
+	if(Load_OldTempSensor_LUT() == -1)  //LCOS temperature
 	{
 		printf("Driver<TempMonitor>: LUT loading failed.\n");
 		return (-1);
 	}
 
-	if(Config_FPGA_TEC() == -1)
+	if(Config_FPGA_TEC() == -1)   //TEC init
 	{
 		printf("Driver<TempMonitor>: FPGA_TEC settings failed\n");
 		return (-1);
@@ -143,16 +148,17 @@ void *TemperatureMonitor::ThreadHandle(void *arg)
 
 void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 {
-    double m_direct_LCOS_Temp{0}, m_direct_Heater1_Temp{0}, m_direct_Heater2_Temp{0};
+    double m_direct_LCOS_Temp{0};
+	double m_direct_Heater1_Temp{0}, m_direct_Heater2_Temp{0};
 
-    double temp_buffer_LCOS[WINDOW_SIZE], temp_buffer_Heater1[WINDOW_SIZE], temp_buffer_Heater2[WINDOW_SIZE];
+    double temp_buffer_LCOS[WINDOW_SIZE], temp_buffer_Heater2[WINDOW_SIZE]; // temp_buffer_Heater1[WINDOW_SIZE];
 
     int buffer_index_LCOS{0};
-    int buffer_index_Heater1{0};
+//    int buffer_index_Heater1{0};
     int buffer_index_Heater2{0};
 
     double filteredTemp_LCOS{0};
-    double filteredTemp_Heater1{0};
+//    double filteredTemp_Heater1{0};
     double filteredTemp_Heater2{0};
 
 	while(true)
@@ -255,6 +261,7 @@ void TemperatureMonitor::ProcessLCOS(double& filteredTemp_LCOS, double temp_buff
 
 	// Read LCOS Temperature from FPGA
 	status = ReadTemperature(&m_direct_LCOS_Temp, Sensors::lCOS);
+	g_direct_LCOS_Temp = m_direct_LCOS_Temp;
 
 	if(status == ConversionStatus::BELOW_LUT_RANGE)
 	{
@@ -353,6 +360,8 @@ void TemperatureMonitor::ProcessHeater2(double &filteredTemp_Heater2,  double te
 
 	// Read HEATER2 Temperature from FPGA
 	status = ReadTemperature(&m_direct_Heater2_Temp, Sensors::HEATER2);
+	g_direct_Hearter2_Temp = m_direct_Heater2_Temp;
+
 	/*if((PRIMARK % 10) == 0)
 	{
 	    std::cout << "Heater2 : "<< m_direct_Heater2_Temp <<"\n";
@@ -413,6 +422,8 @@ bool TemperatureMonitor::ReturnWhenTECStable()
 {
 	if(EWMA_Filter() == 0)
 		return true;
+	else
+		return false;
 }
 
 bool TemperatureMonitor::isTECStableInFPGA()
@@ -696,7 +707,6 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 		*temp = ConvertToCelsius(LUT_MAX_HEX);
 		return(ConversionStatus::ABOVE_LUT_RANGE);
 	}
-
 
 
 }

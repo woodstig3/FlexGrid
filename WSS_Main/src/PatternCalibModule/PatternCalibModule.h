@@ -14,19 +14,19 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include "ParametersStructure.h"
 #include "SerialModule.h"
+#include "ParametersStructure.h"
+
 
 extern bool b_LoopOn;												// Loop running on threads
 
 #define LUT_OPT_FREQ_NUM 6
-#define LUT_ATT_FREQ_NUM 6
-#define LUT_SIGMA_FREQ_NUM 8
+#define LUT_ATT_FREQ_NUM  6
+#define LUT_SIGMA_FREQ_NUM 9    //drc modified from 8 according to calibration lut size
 #define LUT_PIXELPOS_FREQ_NUM 11
-#define LUT_ATT_ATT_NUM 6
-#define LUT_SIGMA_TEMP_NUM 3
-#define LUT_PIXELPOS_TEMP_NUM 9
+#define LUT_ATT_ATT_NUM 4
+#define LUT_SIGMA_TEMP_NUM 5  //from 3
+#define LUT_PIXELPOS_TEMP_NUM 5  // from 9
 #define PORT_NUM 23
 
 struct Opt{
@@ -96,7 +96,7 @@ public:
 	Pixel_Pos_ThreadArgs Pixel_Pos_params;
 
 	enum InterpolationStatus{ERROR = -1, SUCCESS = 0};
-	InterpolationStatus g_Status_Opt, g_Status_Att, g_Status_Sigma, g_Status_PixelPos = SUCCESS;	// If any interpolation has an error it will turn -1
+	InterpolationStatus g_Status_Opt, g_Status_Att, g_Status_Sigma, g_Status_PixelPos;	// If any interpolation has an error it will turn -1
 
 	// Thread arguments set by Pattern Generation Module
 	int 			Set_Aopt_Kopt_Args(int port, double freq);
@@ -114,7 +114,13 @@ private:
 	static PatternCalibModule *pinstance_;
 	bool 			m_bCalibDataOk = false;
 
+	bool 			b_LoopOn;
+	pthread_t 		thread1_id{0}, thread2_id{0}, thread3_id{0}, thread4_id{0};										// Create Thread id
+	pthread_attr_t 	thread_attrb;								// Create Attributes
+
+
 	/* Module 1 DS */
+
 	Opt				M1_lut_Opt;
 	Att				M1_lut_Att;
 	Sigma			M1_lut_Sigma;
@@ -122,6 +128,7 @@ private:
 	PixelPos		M1_lut_PixelPos;
 
 	/* Module 2 DS */
+
 	Opt				M2_lut_Opt;
 	Att				M2_lut_Att;
 	Sigma			M2_lut_Sigma;
@@ -129,16 +136,11 @@ private:
 	PixelPos		M2_lut_PixelPos;
 
 	/* Active Module */
-	Opt*			lut_Opt;
-	Att*			lut_Att;
-	Sigma*			lut_Sigma;
-	Sigma*			lut_SigmaL;	  //drc added for L port
-	PixelPos*		lut_PixelPos;
-
-	pthread_t 		thread1_id{0}, thread2_id{0}, thread3_id{0}, thread4_id{0};										// Create Thread id
-	pthread_attr_t 	thread_attrb;								// Create Attributes
-
-	bool 			b_LoopOn;
+	Opt*			lut_Opt{nullptr};
+	Att*			lut_Att{nullptr};
+	Sigma*			lut_Sigma{nullptr};
+	Sigma*			lut_SigmaL{nullptr};	  //drc added for L port
+	PixelPos*		lut_PixelPos{nullptr};
 
 private:
 

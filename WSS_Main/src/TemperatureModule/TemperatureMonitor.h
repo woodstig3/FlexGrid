@@ -19,7 +19,6 @@
 #include <unistd.h>
 #include <vector>
 
-
 #include "GlobalVariables.h"
 #include "SerialModule.h"
 #include "InterfaceModule/MemoryMapping.h"
@@ -135,8 +134,8 @@ private:
 	bool 			initial_cond_reached_LCOS = false;
 	bool 			initial_cond_reached_Heater1 = false;
 	bool 			initial_cond_reached_Heater2 = false;
-       double 			previousTemp_LCOS = 0;
-       double 			previousTemp_GRID = 0;
+    double 			previousTemp_LCOS = 0;
+    double 			previousTemp_GRID = 0;
 
     //Cpu temperature
 	float 			in_temp0_offset, in_temp0_scale;

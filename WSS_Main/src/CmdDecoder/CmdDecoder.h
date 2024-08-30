@@ -10,6 +10,8 @@
 
 #include "GlobalVariables.h"
 #include "DataStructures.h"		//All structures defined here
+
+
 #include <vector>
 #include <list>
 #include <string>
@@ -64,6 +66,7 @@ private:
 
 
 class CmdDecoder {
+
 public:
 					CmdDecoder();
 	virtual 	  	~CmdDecoder();
@@ -82,7 +85,7 @@ public:
 	enum 			Verbs { NONE, SET, GET, ADD, DELETE, ACTION};				//Global Verbs FLAG
 	Verbs 			eVerb;
 
-	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR};	//Global Object FLAG
+	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR};	//Global Object FLAG
 	Objects 		eObject;
 																			// ALL_ATTR_OF_CH =  // user want certain channel info and their attributes and slots
 	enum 			Getall {SOME_ATTR = 50, ALL_CH_ALL_ATTR, ALL_ATTR_OF_CH, ALL_SLOTS_OF_CH};				// When user want to GET attributes, we want to know if he requested all channels or all slots (all channles include slots info if FIXED GRID module)
@@ -129,6 +132,8 @@ public:
 	void 			SetPanelInfo(Panel&);
 	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
 	std::list<ChannelModules> activeChannels;
+	char           customerInfo[100] = " ";
+
 
 private:
 
