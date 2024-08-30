@@ -878,7 +878,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
               std::istringstream(column) >> value;
               lut.ATT[attIndex] = value;
           }
-          else if (rowNumber == 4 && columnNumber > 1 && portIndex == 0)           // Since Freqs are same for each port, we load it onces only
+          else if (rowNumber == 4 && columnNumber > 1 && portIndex == 0)           // Since Freqs are same for each port, we load it once only
           {
               std::istringstream(column) >> value;
               lut.Freq[freqIndex] = value;
@@ -901,7 +901,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
           ++attIndex;
       }
 
-      if(rowNumber > 9)
+      if(rowNumber > 10)
       {
           ++portIndex;
           rowNumber = 1;

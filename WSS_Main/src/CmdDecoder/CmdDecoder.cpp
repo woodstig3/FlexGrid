@@ -13,10 +13,14 @@
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
+#include <sys/reboot.h>
 
 #include "InterfaceModule/OCMTransfer.h"
 #include "InterfaceModule/Dlog.h"
 #include "CmdDecoder.h"
+
+extern double g_direct_LCOS_Temp;
+extern double g_direct_Hearter2_Temp;
 
 std::string out;
 using namespace std;
@@ -26,8 +30,9 @@ CmdDecoder::CmdDecoder() {
 	eModule1 = TF;
 	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "TF";
-	arrModules[1].slotSize = "625"; //drc why 625?
+	arrModules[1].slotSize = "625";
 
+	strcpy(customerInfo, "BAIANTEK");
 }
 
 CmdDecoder::~CmdDecoder()
@@ -168,7 +173,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 
 	if ((searchDone != -1) && b_SendString && (eVerb == GET))	// Place Delimiters and send the command if searchDone was successful in GET command
 	{
-		out = "\n\01";
+		out = "\01";
 		out += buff;
 		out += "\04";
 
@@ -183,7 +188,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	{
 		CopyDataStructures();	// Call function and copy data or wait  until pattern finish reading data and then copy.
 
-		PrintResponse("\x01OK\x04", NO_ERROR);
+		PrintResponse("\01OK\04", NO_ERROR);
 
 		WaitPatternTransfer();				// This wait is necessary because other modules can modify the PrintResponse if there is any error
 
@@ -212,7 +217,7 @@ int CmdDecoder::getCommandFormat(std::vector<std::string>& commandVector, const 
 
 		commandVector = SplitCmd(recvCommand, ":");
 
-		if(commandVector[0] == "-1")			// Means command don't have ';' means we use the command (recvCommand) to look for ':'  (not concatenated)
+		if(commandVector[0] == "-1")
 		{
 			status = CommandFormat::INVALID_CMD;
 		}
@@ -288,6 +293,10 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 					std::cout << "ERROR: Command format is Invalid" << std::endl;
 					PrintResponse("\01MISSING_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 					return (-1);	//Break
+				}
+				else if((commandItems > 2) && (eVerb == GET && (eObject == CH_TF || eObject == CH_FG)))
+				{//get:ch.1:id:chaid:fc:bw:att
+
 				}
 			}
 			else
@@ -414,6 +423,7 @@ void CmdDecoder::postProcessSingleCommandResult(int* searchDone)
 #endif
 
 #ifndef _TWIN_WSS_
+
 	if ((*searchDone != -1) && (g_moduleNum == 2))	// If its not twin wss then we dont allow module number 2 command
 	{
 		*searchDone = -1;
@@ -429,7 +439,7 @@ void CmdDecoder::postProcessSingleCommandResult(int* searchDone)
 int CmdDecoder::TestMandatoryAttributes(void)
 {
 	// Test mandatory attributes of current global Module and global channel w.r.t global Object choosen i.e. TF or FG
-	bool check;
+	bool check = false;
 
 	if(eObject == CH_TF)
 	{
@@ -468,7 +478,14 @@ vector<string> CmdDecoder::SplitCmd(string s, string delimiter)
 
 	if (pos_start == 0)			// When no delimiter is available the pos_start = 0
 	{
-		res.push_back("-1");	// Error code send at vector<string> 0th element
+		if((delimiter == ".") && (pos_end = s.find("TEMP")) != string::npos)
+		{
+			token = s.substr(pos_end, 4);
+			res.push_back(token);
+			return(res);
+		}
+		else
+			res.push_back("-1");	// Error code send at vector<string> 0th element
 	}
 
 	res.push_back(s.substr(pos_start));
@@ -479,7 +496,7 @@ int CmdDecoder::is_BWSlotSizeIntegral(int *calculatedSlotsNumber, const double *
 {
 	std::string str_slotSize = arrModules[g_moduleNum - 1].slotSize;	//Get the slot size of the module that is configured to fixed grid
 
-	if(!(str_slotSize == "625" || str_slotSize == "125")){
+	if(!(str_slotSize == "625" || str_slotSize == "125")){//drc to check if 3125 is needed to support
     	//ERROR
     	return(-1);
     }
@@ -697,7 +714,7 @@ bool CmdDecoder::PrintAllChannelsTF(int count)
 		// \01 delimiter added		//before--->>>> buffLenTemp += sprintf(&buff[buffLenTemp], "\01\nCH\t|\tADP\tATT\tCMP\tFc\tBW\n");		//Fill this string and get the length filled.
 		if((g_moduleNum_prev != g_moduleNum)	|| g_bPrevAttrDisplayed)	// i.e GET:CH.1.2;CH.2.5	or if previously attributes were displayed. GET:CH.1.2:ATT:ADP;CH.1.5
 		{
-			buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
+		//	buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
 		}
 
 		for (int i = 1; i <= count; i++)
@@ -716,8 +733,10 @@ bool CmdDecoder::PrintAllChannelsTF(int count)
 					buffLenTemp += sprintf(&buff[buffLenTemp], ":\n");
 
 				}
-				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nFC=%0.3f\nBW=%0.3f\n", i, g_moduleNum,TF_Channel_DS[g_moduleNum][i].ADP,
-							TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+				//buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nMOD=%d\nADP=%d\nATT=%0.3f\nCMP=%d\nFC=%0.3f\nBW=%0.3f\n", i, g_moduleNum,TF_Channel_DS[g_moduleNum][i].ADP,
+				//			TF_Channel_DS[g_moduleNum][i].ATT, TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].FC, TF_Channel_DS[g_moduleNum][i].BW);
+				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nMOD=%d\nADP=%d\nCMP=%d\nF1=%0.3f\nF2=%0.3f\nATT=%0.3f\n", i, g_moduleNum,TF_Channel_DS[g_moduleNum][i].ADP,
+											TF_Channel_DS[g_moduleNum][i].CMP, TF_Channel_DS[g_moduleNum][i].F1, TF_Channel_DS[g_moduleNum][i].F2, TF_Channel_DS[g_moduleNum][i].ATT);
 			}
 		}
 
@@ -752,7 +771,7 @@ bool CmdDecoder::PrintAllChannelsFG(int count)
 			if(c_channelActive != 1){
 				buffLenTemp += sprintf(&buff[buffLenTemp], ":\n");
 			}
-			buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%2d\r\nMOD=%2d\r\nADP=%d\r\nATT=%0.3f\r\nCMP=%d\r\nF1=%0.3f\nF2=%0.3f\nSLOTNUM=%d\n", i, g_moduleNum,FG_Channel_DS[g_moduleNum][i].ADP,
+			buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nMOD=%d\nADP=%d\nATT=%0.3f\nCMP=%d\nF1=%0.3f\nF2=%0.3f\nSLOTNUM=%d\n", i, g_moduleNum,FG_Channel_DS[g_moduleNum][i].ADP,
 								FG_Channel_DS[g_moduleNum][i].ATT, FG_Channel_DS[g_moduleNum][i].CMP, FG_Channel_DS[g_moduleNum][i].F1, FG_Channel_DS[g_moduleNum][i].F2, FG_Channel_DS[g_moduleNum][i].slotNum);
 		}
 	}
@@ -1109,12 +1128,15 @@ int CmdDecoder::SearchObject(std::string &object)
 							if(g_bNoAttribute)	// ACTION:RESTART.1 Doesn't have any attribute
 							{
 								// RESTART APPLCIATION "LOGIC HERE"
-								if (Sscanf(objVec[1], g_moduleNum, 'i'))
+								if (Sscanf<int>(objVec[1], g_moduleNum, 'i'))
 								{
 									if (g_moduleNum == 1)
 									{
 										eObject = RESTART;
 										b_RestartNeeded = true;				// Get the module number use in attribute functions
+
+										sync();
+										reboot(RB_AUTOBOOT);
 									}
 									else
 									{
@@ -1175,7 +1197,7 @@ int CmdDecoder::SearchObject(std::string &object)
 					}
 					case 6:
 					{
-						if (objVec[0] == "MODULE")
+						if (objVec[0] == "MODULE")   //to add store and restore
 						{
 							// DO SOMETHING
 							eObject = MODULE;
@@ -1278,7 +1300,7 @@ int CmdDecoder::SearchObject(std::string &object)
 					}
 					case 6:
 					{
-						if (objVec[0] == "MODULE") //drc
+						if (objVec[0] == "MODULE") //drc to check
 						{
 							eObject = MODULE;
 							if ((objVec.size() == 2))
@@ -1411,9 +1433,18 @@ int CmdDecoder::SearchObject(std::string &object)
 									if (Sscanf(objVec[1], g_moduleNum,'i')){
 
 										eObject = CH_TF;
-										eGet =  ALL_CH_ALL_ATTR;	//include all channel info
-										std::string chr_ask = "*";
-										Print_SearchAttributes(chr_ask);
+										if (g_bNoAttribute == true)
+										{
+											eGet =  ALL_CH_ALL_ATTR;	//include all channel info
+											std::string chr_ask = "*";
+											Print_SearchAttributes(chr_ask);
+										}
+										else
+										{
+											eGet = SOME_ATTR;
+											std::string chr_ask = "*";
+											Print_SearchAttributes(chr_ask);
+										}
 									}
 									else
 									{
@@ -1427,9 +1458,18 @@ int CmdDecoder::SearchObject(std::string &object)
 									if (Sscanf(objVec[1], g_moduleNum,'i')){
 
 										eObject = CH_FG;
-										eGet =  ALL_CH_ALL_ATTR;	//include all channel info
-										std::string chr_ask = "*";
-										Print_SearchAttributes(chr_ask);
+										if (g_bNoAttribute == true)
+										{
+											eGet =  ALL_CH_ALL_ATTR;	//include all channel info
+											std::string chr_ask = "*";
+											Print_SearchAttributes(chr_ask);
+										}
+										else
+										{
+											eGet = SOME_ATTR;
+											std::string chr_ask = "*";
+											Print_SearchAttributes(chr_ask);
+										}
 									}
 									else
 									{
@@ -1444,6 +1484,7 @@ int CmdDecoder::SearchObject(std::string &object)
 									std::string chr_null = " ";
 									g_moduleNum = 1;
 									Print_SearchAttributes(chr_null);
+#ifdef _TWIN_WSS_
 									if(eModule2 == TF)
 									{
 										eObject = CH_TF;
@@ -1461,6 +1502,7 @@ int CmdDecoder::SearchObject(std::string &object)
 										Print_SearchAttributes(chr_null);
 
 									}
+#endif
 								}
 
 								else if (objVec[1] == "*" && eModule1 == FIXEDGRID)
@@ -1470,6 +1512,7 @@ int CmdDecoder::SearchObject(std::string &object)
 									std::string chr_null = " ";
 									g_moduleNum = 1;
 									Print_SearchAttributes(chr_null);
+#ifdef _TWIN_WSS_
 									if (objVec[1] == "*" &&  eModule2 == FIXEDGRID)
 									{
 										eObject = CH_FG;
@@ -1487,6 +1530,7 @@ int CmdDecoder::SearchObject(std::string &object)
 										g_moduleNum = 2;
 										Print_SearchAttributes(chr_null);
 									}
+#endif
 								}
 								else
 								{
@@ -1627,6 +1671,41 @@ int CmdDecoder::SearchObject(std::string &object)
 								else
 								{
 									cout << "ERROR: Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: Object Format is Wrong" << endl;
+								return (-1);
+							}
+						}
+						else
+						{
+							cout << "ERROR: The command Object is wrong" << endl;
+							return (-1);
+						}
+						break;
+					}
+					case 4:
+					{
+						if (objVec[0] == "TEMP")
+						{
+							if((objVec.size() == 1))	// heatermonitor.1 or heatermonitor.2
+							{
+								eObject = TEMP;
+								eGet = SOME_ATTR;		// default
+
+								if (g_bNoAttribute == true)
+								{
+									// if no attribute is given
+									eGet = ALL_ATTR_OF_CH;
+									std::string chr_ask = "*";
+									Print_SearchAttributes(chr_ask);	//send signal that all channel values are needed
+								}
+								else
+								{
+									cout << "ERROR:  is wrong" << endl;
 									return (-1);
 								}
 							}
@@ -2071,6 +2150,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	//int attrLen;
 	int iValue;	// Integer converted value from user
 	double fValue = 0.0;	// Float converted value from user
+	std::string str_Value;
 
 	std::transform(attributes.begin(), attributes.end(), attributes.begin(), ::toupper);
 
@@ -2117,7 +2197,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					{
 						if (Sscanf(attr[1], iValue, 'i'))
 						{
-							if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	// Port 1 to 12
+							if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	//
 							{
 								TF_Channel_DS[g_moduleNum][g_channelNum].ADP = iValue;	// g_moduleNum and g_channelNums were found in SearchObject
 							}
@@ -2136,7 +2216,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					}
 					else if (attr[0] == "ATT")
 					{
-						if (Sscanf(attr[1], fValue, 'f'))
+						if(Sscanf(attr[1], fValue, 'f'))
 						{
 							if(fValue >= 0 && fValue < 35.01)		// Can't be negative  //drc modified to 35
 							{
@@ -2266,11 +2346,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 							if (fValue > VENDOR_FREQ_RANGE_LOW && fValue < VENDOR_FREQ_RANGE_HIGH)
 							{
-								if(static_cast<int>(fValue * 2) % 2 != 0)
+								/*if(fmod(fValue,0.5) != 0)
 								{
 									cout << "ERROR: The FC is not multiples of 0.5 GHz" << endl;
 									return (-1);
-								}
+								}*/
 								if(TF_Channel_DS[g_moduleNum][g_channelNum].BW != 0)
 								{
 
@@ -2280,14 +2360,13 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										cout << "ERROR: The channel is out of range" << endl;
 										return (-1);
 									}
-
 									TF_Channel_DS[g_moduleNum][g_channelNum].FC = fValue;
 									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = TF_Channel_DS[g_moduleNum][g_channelNum].FC - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = TF_Channel_DS[g_moduleNum][g_channelNum].FC + TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 
 								}
 								else
-								{
+								{//need to find a way to check bw is right configured
 									// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
 									TF_Channel_DS[g_moduleNum][g_channelNum].FC = fValue;
 								}
@@ -2326,11 +2405,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										cout << "ERROR: The channel bandwidth is out of range" << endl;
 										return (-1);
 									}
-									if(static_cast<int>((TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue) * 2) % 2 != 0)
+									/*if(fmod((TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue),0.5) != 0)
 									{
 										cout << "ERROR: The bandwidth is not multiples of 0.5 GHz" << endl;
 										return (-1);
-									}
+									}*/
 									// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
 									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = fValue;
 									TF_Channel_DS[g_moduleNum][g_channelNum].BW = TF_Channel_DS[g_moduleNum][g_channelNum].F2 - TF_Channel_DS[g_moduleNum][g_channelNum].F1;
@@ -2375,11 +2454,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										cout << "ERROR: The channel bandwidth is out of range" << endl;
 										return (-1);
 									}
-									if(static_cast<int>((fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1) * 2) % 2 != 0)
+									/*if(fmod((fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1),0.5) != 0)
 									{
 										cout << "ERROR: The Bandwidth is not multiples of 0.5 GHz" << endl;
 										return (-1);
-									}
+									}*/
 									// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
 									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = fValue;
 									TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1;
@@ -2426,11 +2505,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							if(fValue > VENDOR_MIN_BW && fValue < VENDOR_BW_RANGE_HIGH) //drc modified to VENDOR_MIN_BW
 #endif
 							{
-								if(static_cast<int>(fValue * 2) % 2 != 0)
+								/*if(fmod(fValue,0.5) != 0)
 								{
 									cout << "ERROR: The BW is not multiples of 0.5 GHz" << endl;
 									return (-1);
-								}
+								}*/
 								if(TF_Channel_DS[g_moduleNum][g_channelNum].FC != 0)
 								{
 									if((TF_Channel_DS[g_moduleNum][g_channelNum].FC + fValue/2) > VENDOR_FREQ_RANGE_HIGH ||
@@ -2443,8 +2522,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									TF_Channel_DS[g_moduleNum][g_channelNum].F1 = TF_Channel_DS[g_moduleNum][g_channelNum].FC - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 									TF_Channel_DS[g_moduleNum][g_channelNum].F2 = TF_Channel_DS[g_moduleNum][g_channelNum].FC + TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 								}
-								else
-								{
+							else{
 								// Get the float value of BW
 								TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue;
 								}
@@ -2576,7 +2654,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "ADP" && objVec.size() == 3)
 					{
-						if (Sscanf(attr[1], iValue, 'i'))
+						if (Sscanf<int>(attr[1], iValue, 'i'))
 						{
 							if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	// Port 1 to 12
 							{
@@ -2664,8 +2742,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									cout << "ERROR: The Channel Attenuation range is (0-35.0dbm +ve)" << endl;
 									return (-1);
 								}
-
-								// Get the float value of ATT
 								FG_Channel_DS[g_moduleNum][g_channelNum].ATT = fValue;
 							}
 							else
@@ -2784,7 +2860,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									}
 									else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
 									{
-										cout << "ERROR: BW range is not acceptable beding greater than full waveband" << endl;
+										cout << "ERROR: BW range is not acceptable being greater than full waveband" << endl;
 										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 										return (-1);
 
@@ -2835,7 +2911,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									}
 									else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
 									{
-										cout << "ERROR: BW range is not acceptable beding greater than full waveband" << endl;
+										cout << "ERROR: BW range is not acceptable being greater than full waveband" << endl;
 										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 										return (-1);
 
@@ -3119,7 +3195,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					else if (attr[0] == "PHASEDEPTH" && eVerb == SET)	// Dr.Du said we wont change phase depth, it stays 2Pi, we discuss with Yidan on 5/24/2023
 					{
 						float f_Value;
-						if (Sscanf(attr[1], f_Value, 'f'))
+						if (Sscanf<float>(attr[1], f_Value, 'f'))
 						{
 							pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
 							structDevelopMode.phaseDepth_changed = true;
@@ -4072,13 +4148,14 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;		// switch MODULE main one
 			}
-#ifdef _DEVELOPMENT_MODE_
+
 
 		case IDN:
 		{
-			if (attr[0] == "CUSTOMERINFO"	&& eVerb == SET)
+			std::string str_Value;
+			if (attr[0] == "CUSTOMERINFO" && eVerb == SET)
 			{
-				// Do something
+				strcpy(customerInfo, attr[1].c_str());
 			}
 			else
 			{
@@ -4089,6 +4166,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
+#ifdef _DEVELOPMENT_MODE_
 
 		case PANEL:
 		{
@@ -4340,33 +4418,33 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "ADP")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nadp=%d\n", "adp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ADP);
+					FillBuffer_ConcatAttributes("id=%d\nmod=%d\nadp=%d\n", "adp=%d\n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ADP);
 				}
 				else if (attributes == "ATT")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%.4f\n", "att=%.4f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ATT);
+					FillBuffer_ConcatAttributes("id=%d\nmod=%d\natt=%.4f\n", "att=%.4f\n", false, TF_Channel_DS[g_moduleNum][g_channelNum].ATT);
 				}
 				else if (attributes == "CMP")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \ncmp=%d\n", "cmp=%d \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].CMP);
+					FillBuffer_ConcatAttributes("id=%d\nmod=%d\ncmp=%d\n", "cmp=%d\n", false, TF_Channel_DS[g_moduleNum][g_channelNum].CMP);
 
 				}
 				else if (attributes == "FC")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nfc=%.3f\n", "fc=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].FC);
+					FillBuffer_ConcatAttributes("id=%d\nmod=%d\nfc=%.3f\n", "fc=%.3f\n", false, TF_Channel_DS[g_moduleNum][g_channelNum].FC);
 
 				}
 				else if (attributes == "BW")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nbw=%.3f\n", "bw=%.3f \n", false, TF_Channel_DS[g_moduleNum][g_channelNum].BW);
+					FillBuffer_ConcatAttributes("id=%d\nmod=%d\nbw=%.3f\n", "bw=%.3f\n", false, TF_Channel_DS[g_moduleNum][g_channelNum].BW);
 				}
 				else if(attributes == "CHANID")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nchanid=%d\n", "chanid=%d \n", false, g_channelNum);
+					FillBuffer_ConcatAttributes("id=%d\nmod=%d\nchanid=%d\n", "chanid=%d\n", false, g_channelNum);
 				}
 				else if (attributes == "ID")
 				{
-					FillBuffer_ConcatAttributes("\nmod=%d  \nID=%d\n", "ID=%d\n", true, activeChannels);   //drc to check
+					FillBuffer_ConcatAttributes("mod=%d\nID=%d\n", "ID=%d\n", true, g_channelNum);   //drc to check
 				}
 				else
 				{
@@ -4407,7 +4485,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					std::cout << FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1];
 
 					buffLenTemp += sprintf(&buff[buffLenTemp],
-							"\nid=%d "
+							"id=%d "
 							"\nmod=%d "
 							"\nslot=%d "
 							"\nadp=%d "
@@ -4431,44 +4509,44 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				// ALL SLOTS INFO	GET:CH.2.1.*
 				PrintAllSlotsFG(FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
 			}
-			else if ((eGet == SOME_ATTR) && (attributes != " ") && objVec.size() == 3)	// No slot defined get:ch.1.3:att
+			else if ((eGet == SOME_ATTR) && (attributes != " ") && objVec.size() == 2)	// No slot defined get:ch.1:att
 			{
 				if (attributes == "ADP")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nadp=%d\n", "ADP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ADP);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nadp=%d\n", "ADP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ADP);
 				}
 				else if (attributes == "ATT")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \natt=%.3f\n", "ATT=%.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ATT);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \natt=%.3f\n", "ATT=%.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ATT);
 				}
 				else if (attributes == "CMP")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \ncmp=%d\n", "CMP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].CMP);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \ncmp=%d\n", "CMP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].CMP);
 				}
 				else if (attributes == "F1")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf1=%.3f\n", "F1=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nf1=%.3f\n", "F1=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1);
 				}
 				else if (attributes == "F2")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf2=%.3f\n", "F2=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F2);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nf2=%.3f\n", "F2=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F2);
 				}
 				else if (attributes == "FC")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nfc=%.3f\n", "fc=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].FC);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nfc=%.3f\n", "fc=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].FC);
 				}
 				else if (attributes == "BW")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nf1=%.3f\n", "bw=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].BW);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nf1=%.3f\n", "bw=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].BW);
 				}
 				else if (attributes == "CHANID")
 				{
 // drc to check how to add chanid
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nchanid=%d\n", "chanid=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nchanid=%d\n", "chanid=%d\n", false, g_channelNum);  //FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
 				}
 				else if(attributes == "ID")
 				{
-					FillBuffer_ConcatAttributes("\nid=%d \nmod=%d \nid=%d\n", "id=%d\n", false, g_channelNum);
+					//just leave it
 				}
 				else
 				{
@@ -4481,11 +4559,47 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " ") && objVec.size() == 4)	// slot is defined
 			{
-				if (attributes == "ATT")	// Slot only have one attribute
+
+				if (attributes == "ADP")
 				{
-					// GET:CH.2.1.2:att
-					//buffLenTemp += sprintf(&buff[buffLenTemp], "CH.%d.%d.%d:  ATT=%.f\n", g_moduleNum, g_channelNum, g_slotNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
-					buffLenTemp += sprintf(&buff[buffLenTemp], "\nid=%d \nmod=%d \nch=%d \nATT=%.3f\n", g_slotNum, g_moduleNum, g_channelNum, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nadp=%d\n", "ADP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].ADP);
+				}
+				else if (attributes == "ATT")
+				{// GET:CH.2.1.2:att
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \natt=%.3f\n", "ATT=%.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1]);
+				}
+				else if (attributes == "CMP")
+				{
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \ncmp=%d\n", "CMP=%d\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].CMP);
+				}
+				else if (attributes == "F1")
+				{
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nf1=%.3f\n", "F1=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1 +
+							(g_slotNum-1)*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+				}
+				else if (attributes == "F2")
+				{
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nf2=%.3f\n", "F2=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1 +
+							g_slotNum*(FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+				}
+				else if (attributes == "FC")
+				{
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nfc=%.3f\n", "fc=%0.3f\n", false, FG_Channel_DS[g_moduleNum][g_channelNum].F1 +
+							(g_slotNum-1)*FG_Channel_DS[g_moduleNum][g_channelNum].BW + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2);
+				}
+				else if (attributes == "BW")
+				{
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nf1=%.3f\n", "bw=%0.3f\n", false, (FG_Channel_DS[g_moduleNum][g_channelNum].F2 -
+							FG_Channel_DS[g_moduleNum][g_channelNum].F1)/FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+				}
+				else if (attributes == "CHANID")
+				{
+// drc to check how to add chanid
+					FillBuffer_ConcatAttributes("id=%d \nmod=%d \nchanid=%d\n", "chanid=%d\n", false, g_channelNum);  //FG_Channel_DS[g_moduleNum][g_channelNum].slotNum);
+				}
+				else if(attributes == "ID")
+				{
+					//just leave it
 				}
 				else
 				{
@@ -4510,8 +4624,8 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod:%d\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%s\n", "DUMMY 45C"); //drc to check temperature readings
+				buffLenTemp += sprintf(&buff[buffLenTemp], "mod:%d\n", g_moduleNum);	//Fill this string and get the length filled.
+				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%d\n", g_direct_Hearter2_Temp); //drc to check temperature readings
 
 				g_bNoAttribute = false;
 			}
@@ -4519,7 +4633,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "TEMPACTUAL")
 				{
-					FillBuffer_ConcatAttributes("\nmod:%d:  \nTEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, "DUMMY 45C"); //drc to check
+					FillBuffer_ConcatAttributes("mod:%d:\nTEMPACTUAL=%s\n", "TEMPACTUAL=%d\n", true, g_direct_Hearter2_Temp); //drc to check
 				}
 				else
 				{
@@ -4536,22 +4650,34 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				// \01 delimiter added															// string to char *
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "MODULE\t|\tSLOTSIZE\tID\n");	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d \nslotsize=%s\n ", g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str());
+#ifndef _TWIN_WSS_
+				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nslotSize=%s\nBWE=%d\nFLow=%.3f\nFHigh=%.3f\ntfslotSize=%d\nm=%d\nn=%d\nconfigsavail=%s\n",
+						g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str(), 2, 191125.000, 196275.000, 625, 2, 23, "2x23");
+#else
+				buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nslotSize=%s\nBWE=%d\nFLow=%.3f\nFHigh=%.3f\ntfslotSize=%d\nm=%d\nn=%d\nconfigsavail=%s\n",
+						g_moduleNum, arrModules[g_moduleNum - 1].slotSize.c_str(), 2, 191125.000, 196275.000, 625, 2, 23, "2x23");
+#endif
 
 				g_bNoAttribute = false;
 			}
 			else if(eGet == ALL_CH_ALL_ATTR)
 			{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d \nslotsize=%s\n: ", 1, arrModules[0].slotSize.c_str());
-					buffLenTemp += sprintf(&buff[buffLenTemp], "\nmod=%d \nslotsize=%s\n ", 2, arrModules[1].slotSize.c_str());
-
+#ifdef _TWIN_WSS_
+					buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nslotSize=%s\nBWE=%d\nFLow=%.3f\nFHigh=%.3f\ntfslotSize=%d\nm=%d\nn=%d\nconfigsavail=%s\n:\n",
+							1, arrModules[0].slotSize.c_str(), 2, 191125.000, 196275.000, 625, 2, 23, "2x23");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nslotSize=%s\nBWE=%d\nFLow=%.3f\nFHigh=%.3f\ntfslotSize=%d\nm=%d\nn=%d\nconfigsavail=%s\n:\n",
+												2, arrModules[1].slotSize.c_str(), 2, 191125.000, 196275.000, 625, 2, 23, "2x23");
+#else
+					buffLenTemp += sprintf(&buff[buffLenTemp], "ID=%d\nslotSize=%s\nBWE=%d\nFLow=%.3f\nFHigh=%.3f\ntfslotSize=%d\nm=%d\nn=%d\nconfigsavail=%s\n",
+							1, arrModules[0].slotSize.c_str(), 2, 191125.000, 196275.000, 625, 2, 23, "2x23");
+#endif
 					g_bNoAttribute = false;
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
 			{
 				if (attributes == "SLOTSIZE")
 				{
-					FillBuffer_ConcatAttributes("\nmod=%d \nSLOTSIZE=%s\n", "SLOTSIZE=%s\n", true, arrModules[g_moduleNum - 1].slotSize.c_str());
+					FillBuffer_ConcatAttributes("ID=%d\nSLOTSIZE=%s\n", "SLOTSIZE=%s\n", true, arrModules[g_moduleNum - 1].slotSize.c_str());
 				}
 
 #ifdef _DEVELOPMENT_MODE_
@@ -4562,7 +4688,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					LCOSDisplayTest dispTest;
 					dispTest.RunTest();
 					dispTest.GetResult(tempStr);
-					FillBuffer_ConcatAttributes("\nMODULE.%d:  LCOS Pin Connection=%s\n", "LCOS Pin Connection=%s\n", true, tempStr.c_str());
+					FillBuffer_ConcatAttributes("MODULE.%d:  LCOS Pin Connection=%s\n", "LCOS Pin Connection=%s\n", true, tempStr.c_str());
 				}
 #endif
 				else
@@ -4575,21 +4701,48 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 
 			break;
 		}
-		case TECMONITOR:
+		case TEMP:   //drc to check
 		{
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nTECMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nTEMPACTUAL\t=\t%s\n", "DUMMY 35C");
+				//buffLenTemp += sprintf(&buff[buffLenTemp], "\nTECMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
+//				buffLenTemp += sprintf(&buff[buffLenTemp], "Temp=%.3f\n", g_direct_LCOS_Temp);
+				buffLenTemp += sprintf(&buff[buffLenTemp], "Temp=%.3f\n", g_direct_Hearter2_Temp);
 
 				g_bNoAttribute = false;
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
 			{
-				if (attributes == "TEMPACTUAL")
+				if (attributes == "TEMPACTUAL") //
 				{
-					FillBuffer_ConcatAttributes("\nmod=%d  \nTEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, "DUMMY 35C"); //drc to check
+					FillBuffer_ConcatAttributes("\nmod=%d  \nTEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, g_direct_Hearter2_Temp);  //"DUMMY 35C"); //drc to check
+				}
+				else
+				{
+					cout << "ERROR: Invalid Attribute" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			break;
+		}
+		case TECMONITOR:  //drc to check
+		{
+			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
+			{
+				// \01 delimiter added
+				//buffLenTemp += sprintf(&buff[buffLenTemp], "\nTECMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
+				buffLenTemp += sprintf(&buff[buffLenTemp], "Tempactual=%.3f\n", g_direct_LCOS_Temp);
+//				buffLenTemp += sprintf(&buff[buffLenTemp], "Temp=%.3f\n", g_direct_Hearter2_Temp);
+
+				g_bNoAttribute = false;
+			}
+			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
+			{
+				if (attributes == "TEMPACTUAL") //
+				{
+					FillBuffer_ConcatAttributes("\nmod=%d  \nTEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, g_direct_LCOS_Temp);// "DUMMY 35C"); //drc to check
 				}
 				else
 				{
@@ -4606,7 +4759,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				// \01 delimiter added
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "IDN.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\nVendorName=%s\nVendorPartNumber=%d\nVendorSerialNumber=%d\nVendorRevision=%d\n"
+				buffLenTemp += sprintf(&buff[buffLenTemp], "VendorName=%s\nVendorPartNumber=%d\nVendorSerialNumber=%d\nVendorRevision=%d\n"
 															"ManufacturingDate=%s\nManufacturingVintage=%s\nCustomerPartNumber=%d\nCustomerSerialNumber=%d\n"
 															"CustomerRevision=%d\nHardwarePartNumber=%d\nHardwareSerialNumber=%d\nHardwareRevision=%d\n"
 															"LCOSPartNumber=%d\nLCOSSerialNumber=%d\nLCOSRevision=%d\nOpticsPartNumber=%d\nOpticsSerialNumber=%d\n"
@@ -4614,7 +4767,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 															"ModuleType =%d\nUnitSerialNumber=%d\nDateOfManufacture=%s\nCalibrationVersion=%d\nHardwareRelease=%d\n"
 															"CustomerInfo=%s\n",
 															"Glosine Tech", 01,202001,01,"2024-07-11","highVintage", 02, 200212, 02, 01, 101, 1001, 02,
-															9001,901,01,01,1001,01,01,01,01,01,01,"2024-07-11",01,01,"ZTE CHINA");	//Fill this string and get the length filled.
+															9001,901,01,01,1001,01,01,01,01,01,01,"2024-07-11",01,01,customerInfo);	//Fill this string and get the length filled.
 
 				g_bNoAttribute = false;
 			}
@@ -4622,115 +4775,117 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "VENDORNAME")
 				{
-					FillBuffer_ConcatAttributes("\nVendorName=%s\n", "VendorName=%s\n", true, "Glosine Tech");
+					//FillBuffer_ConcatAttributes("VendorName=%s\n", "VendorName=%s\n", true, "Glosine Tech");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "VendorName=%s\n", "Glosine Tech");
 				}
 				else if (attributes == "VENDORPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nVendorPartNumber=%d\n", "VendorPartNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("VendorPartNumber=%d\n", "VendorPartNumber=%d\n", true, 01);
 				}
 				else if (attributes == "VENDORSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nVendorSerialNumber=%d\n", "VendorSerialNumber=%d\n", true, 202407);
+					FillBuffer_ConcatAttributes("VendorSerialNumber=%d\n", "VendorSerialNumber=%d\n", true, 202407);
 				}
 				else if (attributes == "VENDORREVISION")
 				{
-					FillBuffer_ConcatAttributes("\nVendorRevision=%d\n", "VendorRevision=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("VendorRevision=%d\n", "VendorRevision=%d\n", true, 01);
 				}
 				else if (attributes == "MANUFACTURINGDATE")
 				{
-					FillBuffer_ConcatAttributes("\nManufacturingDate=%s\n", "VendorRevision=%d\n", true, "2021-07-11");
+					FillBuffer_ConcatAttributes("ManufacturingDate=%s\n", "VendorRevision=%d\n", true, "2021-07-11");
 				}
 				else if (attributes == "MANUFACTURINGVINTAGE")
 				{
-					FillBuffer_ConcatAttributes("\nManufacturingVintage=%s\n", "ManufacturingVintage\t=\t%s", true, "highVintage");
+					FillBuffer_ConcatAttributes("ManufacturingVintage=%s\n", "ManufacturingVintage=%s", true, "highVintage");
 				}
 				else if (attributes == "CUSTOMERPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nCustomerPartNumber=%d\n", "CustomerPartNumber=%d\n", true, 02);
+					FillBuffer_ConcatAttributes("CustomerPartNumber=%d\n", "CustomerPartNumber=%d\n", true, 02);
 				}
 				else if (attributes == "CUSTOMERSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nCustomerSerialNumber=%d\n", "CustomerSerialNumber=%d\n", true, 200212);
+					FillBuffer_ConcatAttributes("CustomerSerialNumber=%d\n", "CustomerSerialNumber=%d\n", true, 200212);
 				}
 				else if (attributes == "CUSTOMERREVISION")
 				{
-					FillBuffer_ConcatAttributes("\nCustomerRevision=%d\n", "CustomerRevision=%d\n", true, 02);
+					FillBuffer_ConcatAttributes("CustomerRevision=%d\n", "CustomerRevision=%d\n", true, 02);
 				}
 				else if (attributes == "HARDWAREPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nHardwarePartNumber=%d\n", "HardwarePartNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("HardwarePartNumber=%d\n", "HardwarePartNumber=%d\n", true, 01);
 				}
 				else if (attributes == "HARDWARESERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nHardwareSerialNumber=%d\n", "HardwareSerialNumber=%d\n", true, 101);
+					FillBuffer_ConcatAttributes("HardwareSerialNumber=%d\n", "HardwareSerialNumber=%d\n", true, 101);
 				}
 				else if (attributes == "HARDWAREREVISION")
 				{
-					FillBuffer_ConcatAttributes("\nHardwareRevision=%d\n", "HardwareRevision=%d\n", true, 101);
+					FillBuffer_ConcatAttributes("HardwareRevision=%d\n", "HardwareRevision=%d\n", true, 101);
 				}
 				else if (attributes == "LCOSPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nLCOSPartNumber=%d\n", "LCOSPartNumber=%d\n", true, 1001);
+					FillBuffer_ConcatAttributes("LCOSPartNumber=%d\n", "LCOSPartNumber=%d\n", true, 1001);
 				}
 				else if (attributes == "LCOSSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nLCOSSerialNumber=%d\n", "LCOSSerialNumber=%d\n", true, 02);
+					FillBuffer_ConcatAttributes("LCOSSerialNumber=%d\n", "LCOSSerialNumber=%d\n", true, 02);
 				}
 				else if (attributes == "LCOSREVISION")
 				{
-					FillBuffer_ConcatAttributes("\nLCOSRevision=%d\n", "LCOSRevision=%d\n", true, 9001);
+					FillBuffer_ConcatAttributes("LCOSRevision=%d\n", "LCOSRevision=%d\n", true, 9001);
 				}
 				else if (attributes == "OPTICSPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nOpticsPartNumber=%d\n", "OpticsPartNumber=%d\n", true, 901);
+					FillBuffer_ConcatAttributes("OpticsPartNumber=%d\n", "OpticsPartNumber=%d\n", true, 901);
 				}
 				else if (attributes == "OPTICSSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nOpticsSerialNumber=%d\n", "OpticsSerialNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("OpticsSerialNumber=%d\n", "OpticsSerialNumber=%d\n", true, 01);
 				}
 				else if (attributes == "OPTICSREVISION")
 				{
-					FillBuffer_ConcatAttributes("\nOpticsRevision=%d\n", "OpticsRevision=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("OpticsRevision=%d\n", "OpticsRevision=%d\n", true, 01);
 				}
 				else if (attributes == "FIRMWARERELEASE")
 				{
-					FillBuffer_ConcatAttributes("\nFirmwareRelease=%d\n", "FirmwareRelease=%d\n", true, 1001);
+					FillBuffer_ConcatAttributes("FirmwareRelease=%d\n", "FirmwareRelease=%d\n", true, 1001);
 				}
 				else if (attributes == "BOOTLOADERRELEASE")
 				{
-					FillBuffer_ConcatAttributes("\nBootloaderRelease=%d\n", "BootloaderRelease=%d\n", true, 1001);
+					FillBuffer_ConcatAttributes("BootloaderRelease=%d\n", "BootloaderRelease=%d\n", true, 1001);
 				}
 				else if (attributes == "FPGAVERSION")
 				{
-					FillBuffer_ConcatAttributes("\nFPGAVersion=%d\n", "FPGAVersion=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("FPGAVersion=%d\n", "FPGAVersion=%d\n", true, 01);
 				}
 				else if (attributes == "DATABASEVERSION")
 				{
-					FillBuffer_ConcatAttributes("\nDatabaseVersion=%d\n", "DatabaseVersion=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("DatabaseVersion=%d\n", "DatabaseVersion=%d\n", true, 01);
 				}
 				else if (attributes == "MODULETYPE")
 				{
-					FillBuffer_ConcatAttributes("\nModuleType=%d\n", "ModuleType =%d\n", true, 01);
+					FillBuffer_ConcatAttributes("ModuleType=%d\n", "ModuleType =%d\n", true, 01);
 				}
 				else if (attributes == "UNITSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("\nUnitSerialNumber=%d\n", "UnitSerialNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("UnitSerialNumber=%d\n", "UnitSerialNumber=%d\n", true, 01);
 				}
 				else if (attributes == "DATEOFMANUFACTURE")
 				{
-					FillBuffer_ConcatAttributes("\nDateOfManufacture=%s\n", "DateOfManufacture=%s\n", true, "2024-07-11");
+					FillBuffer_ConcatAttributes("DateOfManufacture=%s\n", "DateOfManufacture=%s\n", true, "2024-07-11");
 				}
 				else if (attributes == "CALIBRATIONVERSION")
 				{
-					FillBuffer_ConcatAttributes("\nCalibrationVersion=%d\n", "CalibrationVersion=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("CalibrationVersion=%d\n", "CalibrationVersion=%d\n", true, 01);
 				}
 				else if (attributes == "HARDWARERELEASE")
 				{
-					FillBuffer_ConcatAttributes("\nHardwareRelease=%d\n", "HardwareRelease=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("HardwareRelease=%d\n", "HardwareRelease=%d\n", true, 01);
 				}
 				else if (attributes == "CUSTOMERINFO")
 				{
-					FillBuffer_ConcatAttributes("\nCustomerInfo=%s\n", "CustomerInfo=%s\n", true, "ZTE China");
+//					FillBuffer_ConcatAttributes("CustomerInfo=%s\n", "CustomerInfo=%s\n", true, "BAIAN Tek");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "CustomerInfo=%s\n", customerInfo);
 				}
 				else
 				{
@@ -4748,14 +4903,14 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				bool panelFlag {GetPanelInfo().readyFlag};
 
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
+				//buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
 				if(panelFlag == true)
 				{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", "TRUE");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " TRUE\n");
 				}
 				else
 				{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", "FALSE");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " FALSE\n");
 				}
 				g_bNoAttribute = false;
 			}
@@ -4766,14 +4921,14 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					bool panelFlag {GetPanelInfo().readyFlag};
 
 					//FillBuffer_ConcatAttributes("PANEL.%d:  READY\t=\t%d", "  READY\t=\t%s", true, panelFlag);
-					buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
+					//buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
 					if(panelFlag == true)
 					{
-						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s\n", "TRUE");
+						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " TRUE\n");
 					}
 					else
 					{
-						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s\n", "FALSE");
+						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " FALSE\n");
 					}
 
 				}
@@ -4895,7 +5050,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				MessDis Messtemp = {0};
 				Get_logitem(g_faultNum,&Messtemp);
-				std::cout<< "g_faultNum FAULT Why:" << g_faultNum <<endl;
+//				std::cout<< "g_faultNum FAULT Why:" << g_faultNum <<endl;
 				// \01 delimiter added
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "FAULT\t%d:\n", g_faultNum);	//Fill this string and get the length filled.
 				/*buffLenTemp += sprintf(&buff[buffLenTemp], "Name\t\t=\t%s\nTimestamp\t\t=\t%s\nDegraded\t\t=\t%s\n"
@@ -5003,6 +5158,10 @@ template <typename T> bool CmdDecoder::Sscanf(std::string &str, T &Value, char t
 			//ok
 			b_NumNotFound = false;
 		}
+		else if((str[i] >= 65 && str[i] <= 90) || (str[i] >= 97 && str[i] <= 122)) //drc added for characters
+		{
+			b_NumNotFound = false;
+		}
 		else if ((str[i] == 46 && dot_cnt == 0))		// only if type is double or float
 			dot_cnt++;
 		else if ((str[i] == 45 && minux_cnt == 0 && i == 0))
@@ -5023,8 +5182,10 @@ template <typename T> bool CmdDecoder::Sscanf(std::string &str, T &Value, char t
 	{
 		if(type == 'f')
 			Value = atof(str.c_str());
-		else
+		else if(type == 'i')
 			Value = atoi(str.c_str());
+//		else // 's'
+//			Value = str.c_str();
 		return (true);
 	}
 }
@@ -5048,7 +5209,7 @@ template <typename T> void CmdDecoder::FillBuffer_ConcatAttributes(const char* f
 	}
 	if(g_currentAttributeCount == 1)
 	{
-		buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	// \04 delimiter added
+//		buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	// \04 delimiter added
 	}
 }
 
@@ -5344,11 +5505,12 @@ int CmdDecoder::is_GetSlotFGDone(void)
 						std::string chr_ask = " ";			// Slot number is give
 						Print_SearchAttributes(chr_ask);	//send signal that all channel values are needed
 					}
-					else if (g_bNoAttribute == false && g_totalAttributes > 1)
+/*					else if (g_bNoAttribute == false && g_totalAttributes > 1)
 					{
 						cout << "ERROR: The Slot Requires one attribute only" << endl;
 						return (-1);
 					}
+*/
 				}
 				else
 				{
@@ -5492,7 +5654,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				// Reset elements
 				TF_Channel_DS[g_moduleNum][g_channelNum].ADP = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].ATT = 0;  //drc set default 35 according to L
-				TF_Channel_DS[g_moduleNum][g_channelNum].CMP = 0;
+				TF_Channel_DS[g_moduleNum][g_channelNum].CMP = 1;  //drc modified
 				TF_Channel_DS[g_moduleNum][g_channelNum].FC = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].BW = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].F1ContiguousOrNot = 0;
@@ -5540,7 +5702,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 	// Reset elements
 				TF_Channel_DS[g_moduleNum][i].ADP = 0;
 				TF_Channel_DS[g_moduleNum][i].ATT = 0;   //drc set to default according to L
-				TF_Channel_DS[g_moduleNum][i].CMP = 0;
+				TF_Channel_DS[g_moduleNum][i].CMP = 1;
 				TF_Channel_DS[g_moduleNum][i].FC = 0;
 				TF_Channel_DS[g_moduleNum][i].BW = 0;
 				TF_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
@@ -5595,7 +5757,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				// Reset elements
 				FG_Channel_DS[g_moduleNum][g_channelNum].ADP = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].ATT = 0;
-				FG_Channel_DS[g_moduleNum][g_channelNum].CMP = 0;
+				FG_Channel_DS[g_moduleNum][g_channelNum].CMP = 1;  //default CMP=1
 				FG_Channel_DS[g_moduleNum][g_channelNum].F1 = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].F2 = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].slotNum = 0;
@@ -5653,7 +5815,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 				// Reset elements
 				FG_Channel_DS[g_moduleNum][i].ADP = 0;
 				FG_Channel_DS[g_moduleNum][i].ATT = 0;
-				FG_Channel_DS[g_moduleNum][i].CMP = 0;
+				FG_Channel_DS[g_moduleNum][i].CMP = 1;
 				FG_Channel_DS[g_moduleNum][i].F1 = 0;
 				FG_Channel_DS[g_moduleNum][i].F2 = 0;
 				FG_Channel_DS[g_moduleNum][i].slotNum = 0;
