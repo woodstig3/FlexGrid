@@ -20,7 +20,7 @@
 	{
 		bool 			active = false;	   //default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;			//NOT IN USE IN PRODUCTION MODE
-		float 			ATT =0;			  //NOT IN USE IN PRODUCTION MODE
+		float 			ATT = 0;			  //NOT IN USE IN PRODUCTION MODE
 		int 			CMP =1;
 
 		double 			FC =0;				// for position
