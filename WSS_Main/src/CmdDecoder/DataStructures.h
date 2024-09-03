@@ -20,7 +20,7 @@
 	{
 		bool 			active = false;	   //default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;			//NOT IN USE IN PRODUCTION MODE
-		float 			ATT = 0;			  //NOT IN USE IN PRODUCTION MODE
+		float 			ATT = 35;			  //NOT IN USE IN PRODUCTION MODE
 		int 			CMP =1;
 
 		double 			FC =0;				// for position
@@ -47,7 +47,7 @@
 	{
 		bool 			active = false;	//default all channels are active  //1 means channels are active and 0 means deleted
 		int 			ADP = 0;
-		float 			ATT =0;
+		float 			ATT =35;
 		int 			CMP =1;
 		double 			F1 = 0;
 		double 			F2 = 0;
@@ -197,7 +197,7 @@
 	{
 		bool 			active = false;	//default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;
-		float			ATT =0;
+		float			ATT =35;
 		int 			CMP =1;
 		double 			FC =0;
 		double 			BW =0;
@@ -223,7 +223,7 @@
 	{
 		bool 			active = false;	//default all channels are active  //1 means channels are active and 0 means deleted
 		int 			ADP = 0;
-		float 			ATT =0;
+		float 			ATT =35;
 		int 			CMP =1;
 		double 			F1 = 0;
 		double 			F2 = 0;
