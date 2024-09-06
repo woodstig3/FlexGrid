@@ -55,7 +55,7 @@ struct Background_DS_For_Pattern{  //drc added for background pattern data struc
 	float A_ATT;
 	float K_ATT;
 	float LAMDA;  //default = 1.55;
-	float FC_PixelPos; //default = 960.5;
+	float FC_PixelPos; //default = 9760.0;
 	float F1_PixelPos; //default = 191125.0;
 	float F2_PixelPos; //default = 196275.0;
 };

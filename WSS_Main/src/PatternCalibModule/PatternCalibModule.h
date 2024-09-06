@@ -22,7 +22,7 @@ extern bool b_LoopOn;												// Loop running on threads
 
 #define LUT_OPT_FREQ_NUM 6
 #define LUT_ATT_FREQ_NUM  6
-#define LUT_SIGMA_FREQ_NUM 9    //drc modified from 8 according to calibration lut size
+#define LUT_SIGMA_FREQ_NUM 8    //drc modified from 8 according to calibration lut size
 #define LUT_PIXELPOS_FREQ_NUM 11
 #define LUT_ATT_ATT_NUM 5
 #define LUT_SIGMA_TEMP_NUM 5  //from 3

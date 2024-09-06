@@ -734,7 +734,7 @@ int TemperatureMonitor::Load_OldTempSensor_LUT(void)
     std::ifstream file("/mnt/OLDTempSensorLUT.csv");
 
     if (file.is_open()) {
-        std::cout << "[OLDTempSensor_LUT] File has been opened" << std::endl;
+//        std::cout << "[OLDTempSensor_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[OLDTempSensor_LUT] File opening Error" << std::endl;
@@ -797,7 +797,7 @@ int TemperatureMonitor::Load_TempSensor_LUT(void)
     std::ifstream file("/mnt/TempSensorLUT.csv");
 
     if (file.is_open()) {
-        std::cout << "[TempSensor_LUT] File has been opened" << std::endl;
+//        std::cout << "[TempSensor_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[TempSensor_LUT] File opening Error" << std::endl;

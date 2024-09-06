@@ -13,7 +13,7 @@
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
-#include <sys/reboot.h>
+//#include <sys/reboot.h>
 
 #include "InterfaceModule/OCMTransfer.h"
 #include "InterfaceModule/Dlog.h"
@@ -1135,8 +1135,8 @@ int CmdDecoder::SearchObject(std::string &object)
 										eObject = RESTART;
 										b_RestartNeeded = true;				// Get the module number use in attribute functions
 
-										sync();
-										reboot(RB_AUTOBOOT);
+//										sync();
+//										reboot(RB_AUTOBOOT);
 									}
 									else
 									{
@@ -4482,7 +4482,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				{
 					// GET:CH.2.1.2
 					// \01 delimiter added
-					std::cout << FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1];
+//					std::cout << FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum-1];
 
 					buffLenTemp += sprintf(&buff[buffLenTemp],
 							"id=%d "
@@ -5653,7 +5653,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 
 				// Reset elements
 				TF_Channel_DS[g_moduleNum][g_channelNum].ADP = 0;
-				TF_Channel_DS[g_moduleNum][g_channelNum].ATT = 0;  //drc set default 35 according to L
+				TF_Channel_DS[g_moduleNum][g_channelNum].ATT = 35;  //drc set default 35 according to L
 				TF_Channel_DS[g_moduleNum][g_channelNum].CMP = 1;  //drc modified
 				TF_Channel_DS[g_moduleNum][g_channelNum].FC = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].BW = 0;
@@ -5701,7 +5701,7 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][i].active = false;	// Channel is deleted or inactive
 	// Reset elements
 				TF_Channel_DS[g_moduleNum][i].ADP = 0;
-				TF_Channel_DS[g_moduleNum][i].ATT = 0;   //drc set to default according to L
+				TF_Channel_DS[g_moduleNum][i].ATT = 35;   //drc set to default according to L
 				TF_Channel_DS[g_moduleNum][i].CMP = 1;
 				TF_Channel_DS[g_moduleNum][i].FC = 0;
 				TF_Channel_DS[g_moduleNum][i].BW = 0;
@@ -5756,7 +5756,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 
 				// Reset elements
 				FG_Channel_DS[g_moduleNum][g_channelNum].ADP = 0;
-				FG_Channel_DS[g_moduleNum][g_channelNum].ATT = 0;
+				FG_Channel_DS[g_moduleNum][g_channelNum].ATT = 35;
 				FG_Channel_DS[g_moduleNum][g_channelNum].CMP = 1;  //default CMP=1
 				FG_Channel_DS[g_moduleNum][g_channelNum].F1 = 0;
 				FG_Channel_DS[g_moduleNum][g_channelNum].F2 = 0;
@@ -5814,7 +5814,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 
 				// Reset elements
 				FG_Channel_DS[g_moduleNum][i].ADP = 0;
-				FG_Channel_DS[g_moduleNum][i].ATT = 0;
+				FG_Channel_DS[g_moduleNum][i].ATT = 35;
 				FG_Channel_DS[g_moduleNum][i].CMP = 1;
 				FG_Channel_DS[g_moduleNum][i].F1 = 0;
 				FG_Channel_DS[g_moduleNum][i].F2 = 0;

@@ -57,7 +57,8 @@
 
 		int 			slotNum = 0;
 
-		std::vector<float> slotsATTEN; 	//holds every slot attentuation within a channel	//dynamic vector allocation
+		std::vector<float> slotsATTEN{0}; 	//holds every slot attentuation within a channel	//dynamic vector allocation
+		std::vector<int> slotBlockedOrNot{-1};
 
 		float 			LAMDA=0;
 		float 			SIGMA=0;

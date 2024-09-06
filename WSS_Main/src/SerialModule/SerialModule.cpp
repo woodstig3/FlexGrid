@@ -19,6 +19,7 @@
 #include <unistd.h> 													// Write(), read(), close()
 #include <sys/file.h>  													// Use of flock() to block other process accessing serial port
 #include <algorithm>
+#include <sys/reboot.h>
 
 #include <chrono>
 
@@ -209,6 +210,9 @@ void SerialModule::ProcessReadWrite(void)
 					//ahbInsMain->write_ahbRegister(0x01b8, 0);	// Writing 1 to DMA before restart. so DMA knows we are restarting
 					usleep(1000);
 					Serial_WritePort("\01Restarting Application...\04\n");
+					std::cout << "Restarting Application... " << std::endl;
+					sync();
+					reboot(RB_AUTOBOOT);
 					break;
 				 }
 			}

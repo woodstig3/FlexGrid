@@ -386,7 +386,7 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 		        {
 		        	// ERROR MESSAGE
 		        	Pixel_Pos_params.result_F1_PixelPos = 0;	// F1 not found means F1 is out of range
-		        	std::cout << "F2 out of range" << std::endl;
+		        	std::cout << "F1 out of range" << std::endl;
 		        }
 
 		        status = Interpolate_PixelPos_Bilinear(Pixel_Pos_params.temperature, Pixel_Pos_params.f2, Pixel_Pos_params.result_F2_PixelPos);
@@ -673,7 +673,7 @@ int PatternCalibModule::BinarySearch_LowIndex(const double *array, int size, dou
         low -= 1;
     }
 
-    if(target < array[0] || target > array[size-1])		//  if target is less than first element or target is greater than last element
+    if(target < array[0] || (target > array[size-1] && array[size-1] !=0))		//  if target is less than first element or target is greater than last element
     {
         index = -1;
         return -1;  // error, low can't be the last index number of array
@@ -757,7 +757,7 @@ int PatternCalibModule::Load_Opt_LUT(Opt& lut, const std::string& path)
     std::ifstream file(path);
 
     if (file.is_open()) {
-        std::cout << "[Opt_LUT] File has been opened" << std::endl;
+//        std::cout << "[Opt_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[Opt_LUT] File opening Error" << std::endl;
@@ -966,7 +966,7 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
     std::ifstream file(path);
 
     if (file.is_open()) {
-        std::cout << "[Sigma_LUT] File has been opened" << std::endl;
+//        std::cout << "[Sigma_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[Sigma_LUT] File opening Error" << std::endl;
@@ -1076,7 +1076,7 @@ int PatternCalibModule::Load_PixelPos_LUT(PixelPos& lut, const std::string& path
     std::ifstream file(path);
 
     if (file.is_open()) {
-        std::cout << "[PixelPos_LUT] File has been opened" << std::endl;
+//        std::cout << "[PixelPos_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[PixelPos_LUT] File opening Error" << std::endl;
