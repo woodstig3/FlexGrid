@@ -104,6 +104,7 @@ void SerialModule::ProcessReadWrite(void)
 	std::string temp_search_Str{""};									// Take data from temp_read_buf and perform delimiter searching. It also separate commands if they come all back to back \01 \04\01 \04
 	std::string finalCommand{""};										// One complete command without delimiters
 
+
 	while(b_LoopOn)														// Serial loop running on a thread.
 	{
 		usleep(1000);
@@ -143,6 +144,7 @@ void SerialModule::ProcessReadWrite(void)
 
 //			clock_t tstart = clock();
 //			std::cout << "First clock = " << tstart << std::endl;
+
 
 			int status = Serial_ExtractSingleCommand(finalCommand, temp_search_Str);	// Extract commands one after another if multiple commands are there with delimiters \01..\04\01...\04\01...\04.
 

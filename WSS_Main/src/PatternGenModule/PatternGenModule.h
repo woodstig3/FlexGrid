@@ -111,8 +111,8 @@ private:
 	static PatternGenModule *pinstance_;
 
 	std::vector<int> linearLUT{};									// The range depends on Phase_depth 2pi or 2.2pi etc
-	unsigned int 	startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
-	unsigned int 	endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
+	unsigned int 	 startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
+	unsigned int 	 endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 
 	bool 			m_bCalibDataOk = true;							// If calibration data has no issue then pattern will perform calculations otherwise no calculations
 

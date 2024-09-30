@@ -6,10 +6,11 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdc++.h>																		// uppercase or lowercase using STL.  std::transform()
+#include <stdc++.h>		// uppercase or lowercase using STL.  std::transform()
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
@@ -22,17 +23,21 @@
 extern double g_direct_LCOS_Temp;
 extern double g_direct_Hearter2_Temp;
 
+
 std::string out;
-using namespace std;
+//using namespace std;
 
 CmdDecoder::CmdDecoder() {
 	//Initial Module definition, user can changed this
 	eModule1 = TF;
+//	eModule2 = FIXEDGRID;
 	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "TF";
 	arrModules[1].slotSize = "625";
+//	arrModules[1].slotSize = "TF";
 
 	strcpy(customerInfo, "BAIANTEK");
+
 }
 
 CmdDecoder::~CmdDecoder()
@@ -41,6 +46,9 @@ CmdDecoder::~CmdDecoder()
 	delete[] TF_Channel_DS_For_Pattern;
 	delete[] FG_Channel_DS;
 	delete[] FG_Channel_DS_For_Pattern;
+
+	delete actionSR;
+
 }
 
 void CmdDecoder::WaitPatternTransfer(void)
@@ -184,7 +192,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	/*	    IF COMMAND SUCCESSFUL-> COPY PARAMETERS OF ATTRIBUTES TO NEW STRUCTURE       */
 	/*************************************************************************************/
 
-	if ((searchDone != -1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) || (eVerb == DELETE)))	// command was all successful
+	if ((searchDone != -1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == DELETE)))	// command was all successful
 	{
 		CopyDataStructures();	// Call function and copy data or wait  until pattern finish reading data and then copy.
 
@@ -192,6 +200,10 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 
 		WaitPatternTransfer();				// This wait is necessary because other modules can modify the PrintResponse if there is any error
 
+	}
+	else if((searchDone != -1) && (eVerb == ACTION && eObject == MODULE)) //drc added for store and restore
+	{
+		PrintResponse("\01OK\04", NO_ERROR);
 	}
 	else	// In case of command error or failure
 	{
@@ -968,8 +980,8 @@ void CmdDecoder::CopyDataStructures(void)
 		std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 	else
 	{
-		std::copy(&TF_Channel_DS[0][0], &TF_Channel_DS[0][0] + 3 * (g_Total_Channels+1), &TF_Channel_DS_For_Pattern[0][0]);	//3 * 97 is the size of array we defined
-		std::copy(&FG_Channel_DS[0][0], &FG_Channel_DS[0][0] + 3 * (g_Total_Channels+1), &FG_Channel_DS_For_Pattern[0][0]);
+		std::copy(&TF_Channel_DS[0][0], &TF_Channel_DS[0][0] + 3 * (g_Total_Channels), &TF_Channel_DS_For_Pattern[0][0]);	//3 * 97 is the size of array we defined
+		std::copy(&FG_Channel_DS[0][0], &FG_Channel_DS[0][0] + 3 * (g_Total_Channels), &FG_Channel_DS_For_Pattern[0][0]);
 
 		g_bNewCommandData = true;
 		if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
@@ -982,8 +994,8 @@ void CmdDecoder::ResetDataStructures(void)
 {
 	// Mutex is not needed because we are performing read operation from Pattern Data Structure & Pattern can't change DS
 	// IMPORTANT: Revert back to last known correct data structure
-	std::copy(&TF_Channel_DS_For_Pattern[0][0], &TF_Channel_DS_For_Pattern[0][0] + 3 * (g_Total_Channels+1), &TF_Channel_DS[0][0]);	//3 * 97 is the size of array we defined
-	std::copy(&FG_Channel_DS_For_Pattern[0][0], &FG_Channel_DS_For_Pattern[0][0] + 3 * (g_Total_Channels+1), &FG_Channel_DS[0][0]);
+	std::copy(&TF_Channel_DS_For_Pattern[0][0], &TF_Channel_DS_For_Pattern[0][0] + 3 * (g_Total_Channels), &TF_Channel_DS[0][0]);	//3 * 97 is the size of array we defined
+	std::copy(&FG_Channel_DS_For_Pattern[0][0], &FG_Channel_DS_For_Pattern[0][0] + 3 * (g_Total_Channels), &FG_Channel_DS[0][0]);
 }
 
 void CmdDecoder::PrintResponse(const std::string &strSend, const enum PrintType &currentErrorType)
@@ -1209,6 +1221,13 @@ int CmdDecoder::SearchObject(std::string &object)
 									if (g_moduleNum == 1 || g_moduleNum == 2)
 									{
 										// OK
+										if(g_moduleNum == 2)
+										{
+#ifndef _TWIN_WSS_
+											cout << "ERROR: The Module 2 Doesn't Exist!" << endl;
+												return (-1);
+#endif
+										}
 									}
 									else
 									{
@@ -1814,7 +1833,7 @@ int CmdDecoder::SearchObject(std::string &object)
 							{
 								if (objVec[1] == "1" || objVec[1] == "2")	// Read Module Number.
 								{
-									if (Sscanf(objVec[1], g_moduleNum,'i'))
+									if (Sscanf(objVec[1], g_heaterNum,'i'))
 									{
 										eObject = HEATERMONITOR;
 										eGet = SOME_ATTR;		// default
@@ -2070,6 +2089,35 @@ int CmdDecoder::SearchObject(std::string &object)
 							{
 								if (is_DeleteFGDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
 									return (-1);
+							}
+							else if(objVec[1] == "*" ) //drc added to delete all channels on both modules as required by running test at BAIAN
+							{
+								objVec.insert(objVec.begin() + 1, "1");
+								objVec.insert(objVec.begin() + 2, "*");
+								if(eModule1 == TF)
+								{
+									if (is_DeleteTFDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
+										return (-1);
+								}
+								else
+								{
+									if(is_DeleteFGDone(objVec[1],objVec[2]) == -1)
+										return(-1);
+								}
+#ifdef _TWIN_WSS_				//module 2
+								objVec.insert(objVec.begin() + 1, "2");
+								objVec.insert(objVec.begin() + 2, "*");
+								if(eModule2 == TF )
+								{
+									if (is_DeleteTFDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
+										return (-1);
+								}
+								else // eModule2 == FIXEDGRID
+								{
+									if (is_DeleteFGDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
+										return (-1);
+								}
+#endif
 							}
 							else
 							{
@@ -2560,7 +2608,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ADP is not numerical" << endl;
+							cout << "ERROR: The command attribute LAMDA is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -2607,7 +2655,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ATT is not numerical" << endl;
+							cout << "ERROR: The command attribute K_OP is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -2775,7 +2823,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ATT is not numerical" << endl;
+							cout << "ERROR: The command attribute A_ATT is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3057,7 +3105,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ADP is not numerical" << endl;
+							cout << "ERROR: The command attribute LAMDA is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3106,7 +3154,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ATT is not numerical" << endl;
+							cout << "ERROR: The command attribute K_OP is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3120,7 +3168,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ATT is not numerical" << endl;
+							cout << "ERROR: The command attribute K_ATT is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3204,7 +3252,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The Port# is not numerical" << endl;
+							cout << "ERROR: The PHASEDEPTH is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3221,7 +3269,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The phase not numerical" << endl;
+							cout << "ERROR: The phase start not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3238,7 +3286,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The phase not numerical" << endl;
+							cout << "ERROR: The phase send not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3355,7 +3403,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							}
 							else
 							{
-								cout << "ERROR: The command attribute TEC is not numerical" << endl;
+								cout << "ERROR: The command attribute TEC1 KP is not numerical" << endl;
 								PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 								return (-1);
 							}
@@ -3375,7 +3423,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							}
 							else
 							{
-								cout << "ERROR: The command attribute TEC is not numerical" << endl;
+								cout << "ERROR: The command attribute TEC KI is not numerical" << endl;
 								PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 								return (-1);
 							}
@@ -3395,7 +3443,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							}
 							else
 							{
-								cout << "ERROR: The command attribute TEC is not numerical" << endl;
+								cout << "ERROR: The command attribute TEC KD is not numerical" << endl;
 								PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 								return (-1);
 							}
@@ -3417,7 +3465,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The command attribute TEC is not numerical" << endl;
+							cout << "ERROR: The command attribute TEC TV is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3551,23 +3599,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "STORE" && eVerb == ACTION)	// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-							//ActionVrb actionSR;	// drc Store restore
+						actionSR->StoreModule(g_moduleNum);
 
-						    if ((g_moduleNum == 1 && eModule1 == TF) || (g_moduleNum == 2 && eModule2 == TF))
-							//if (eModule1 == TF || eModule2 == TF)
-							{
-								actionSR.StoreModuleTF(g_moduleNum, TF_Channel_DS, arrModules);
-							}
-							else if ((g_moduleNum == 1 && eModule1 == FIXEDGRID) || (g_moduleNum == 2 && eModule2 == FIXEDGRID))
-							//else if (eModule1 == FIXEDGRID || eModule2 == FIXEDGRID)
-							{
-								actionSR.StoreModuleFG(g_moduleNum, FG_Channel_DS, arrModules);
-							}
-							else
-							{
-								cout << "ERROR: Module configuration is not defined" << endl;
-								return (-1);
-							}
 					}
 					else if (attr[0] == "SLOTSIZE" && eVerb == SET)	// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
@@ -3583,9 +3616,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									if(TestChannelsNotActive(arrModules[g_moduleNum - 1].slotSize,g_moduleNum))	//check if current module has any channel?
 									{
 										eModule1 = TF;
-											pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]);
-											arrModules[0].slotSize = "TF";
-											pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]);
+										pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]);
+										arrModules[0].slotSize = "TF";
+										pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]);
 									}
 									else	// Some channels are active and we must tell user can't change mode
 									{
@@ -3672,7 +3705,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						std::vector<std::string > f_SigmaSplit = SplitCmd(attr[1], ","); // 0.00881,0.001155....
 						float f_Value;
 
-						if(f_SigmaSplit.size() <= 17)	// 17 different freqs 1544,1545,1546....1560nm
+						if(f_SigmaSplit.size() <= 17)	// 17 different freqs 1544,1545,1546....1560nm  //drc: why?
 						{
 							for(unsigned int i=0; i< f_SigmaSplit.size() ; i++)
 							{
@@ -3867,38 +3900,14 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "RESTORE" && eVerb == ACTION)		// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-							//ActionVrb actionSR;	// Store restore
-
-							if (g_moduleNum == 1)
-							{
-								//Software dont know which module has which type initially
-								actionSR.RestoreModule1(g_moduleNum, TF_Channel_DS, FG_Channel_DS, arrModules);
-								if (arrModules[g_moduleNum - 1].slotSize == "TF")
-								{
-									eModule1 = TF;	// SET THE FLAGS AFTER RESTORING
-								}
-								else
-								{
-									eModule1 = FIXEDGRID;	// SET THE FLAGS AFTER RESTORING
-								}
-							}
-							else if (g_moduleNum == 2)
-							{
-								actionSR.RestoreModule2(g_moduleNum, TF_Channel_DS, FG_Channel_DS, arrModules);
-								if (arrModules[g_moduleNum - 1].slotSize == "TF")
-								{
-									eModule2 = TF;	// SET THE FLAGS AFTER RESTORING
-								}
-								else
-								{
-									eModule2 = FIXEDGRID;	// SET THE FLAGS AFTER RESTORING
-								}
-							}
-							else
-							{
-								cout << "ERROR: The Module Number is Wrong" << endl;
-								return (-1);
-							}
+						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
+						{
+							actionSR->RestoreModule(g_moduleNum);
+						}
+						else
+						{
+							break;
+						}
 					}
 #ifdef _DEVELOPMENT_MODE_
 					else if (attr[0] == "ROTATE" && eVerb == SET)
@@ -3991,7 +4000,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 								// Each time developMode is switched we reset modules and channels
 								std::string chNum = "*";
-								std::string modNum = "1";   //drc to check if sth.need to be done here
+								std::string modNum = "2";   //drc to check if sth.need to be done here
 //								if(g_moduleNum == 1)
 								{
 									is_DeleteTFDone(modNum,chNum);	// Delete module 1 all channels
@@ -3999,8 +4008,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								}
 								//else if (g_moduleNum == 2)
 								{
-									modNum = "2";
-									is_DeleteFGDone(modNum,chNum);	// Delete module 2 all channels
+									modNum = "1";
+									is_DeleteTFDone(modNum,chNum);	// Delete module 2 all channels
 									is_DeleteFGDone(modNum,chNum);	// Delete module 2 all channels
 								}
 
@@ -4274,6 +4283,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				if (Sscanf(attr[1], iValue, 'i'))
 				{
 					structDevelopMode.m_switch = iValue;
+					g_heaterNum = (iValue == 0? 1:2);
+
 				}
 				else
 				{
@@ -4624,16 +4635,32 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "mod:%d\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%d\n", g_direct_Hearter2_Temp); //drc to check temperature readings
-
+//				buffLenTemp += sprintf(&buff[buffLenTemp], "mod:%d\n", g_moduleNum);	//Fill this string and get the length filled.
+				if(g_heaterNum == 1)
+					buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%.3f", g_direct_LCOS_Temp); //drc to check temperature readings
+				else if(g_heaterNum == 2)
+					buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%.3f", g_direct_Hearter2_Temp); //drc to check temperature readings
+				else{
+					cout << "ERROR: Invalid Attribute" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
 				g_bNoAttribute = false;
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
 			{
 				if (attributes == "TEMPACTUAL")
 				{
-					FillBuffer_ConcatAttributes("mod:%d:\nTEMPACTUAL=%s\n", "TEMPACTUAL=%d\n", true, g_direct_Hearter2_Temp); //drc to check
+//					buffLenTemp += sprintf(&buff[buffLenTemp], "mod:%d\n", g_moduleNum);	//Fill this string and get the length filled.
+					if(g_heaterNum == 1)
+						buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%.3f", g_direct_LCOS_Temp); //drc to check temperature readings
+					else if(g_heaterNum == 2)
+						buffLenTemp += sprintf(&buff[buffLenTemp], "TEMPACTUAL=%.3f", g_direct_Hearter2_Temp); //drc to check temperature readings
+					else{
+						cout << "ERROR: Invalid Attribute" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
 				}
 				else
 				{
@@ -4708,15 +4735,15 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				// \01 delimiter added
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "\nTECMONITOR.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
 //				buffLenTemp += sprintf(&buff[buffLenTemp], "Temp=%.3f\n", g_direct_LCOS_Temp);
-				buffLenTemp += sprintf(&buff[buffLenTemp], "Temp=%.3f\n", g_direct_Hearter2_Temp);
+				buffLenTemp += sprintf(&buff[buffLenTemp], "Temp=%.3f", g_direct_Hearter2_Temp);
 
-				g_bNoAttribute = false;
+//				g_bNoAttribute = false;
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
 			{
 				if (attributes == "TEMPACTUAL") //
 				{
-					FillBuffer_ConcatAttributes("\nmod=%d  \nTEMPACTUAL=%s\n", "TEMPACTUAL=%s\n", true, g_direct_Hearter2_Temp);  //"DUMMY 35C"); //drc to check
+					FillBuffer_ConcatAttributes("\nmod=%d  \nTEMPACTUAL=%s", "TEMPACTUAL=%s", true, g_direct_Hearter2_Temp);  //"DUMMY 35C"); //drc to check
 				}
 				else
 				{
@@ -4906,11 +4933,11 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
 				if(panelFlag == true)
 				{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " TRUE\n");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " TRUE");
 				}
 				else
 				{
-					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " FALSE\n");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " FALSE");
 				}
 				g_bNoAttribute = false;
 			}
@@ -4924,11 +4951,11 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					//buffLenTemp += sprintf(&buff[buffLenTemp], "\n");	//Fill this string and get the length filled.
 					if(panelFlag == true)
 					{
-						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " TRUE\n");
+						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " TRUE");
 					}
 					else
 					{
-						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " FALSE\n");
+						buffLenTemp += sprintf(&buff[buffLenTemp], "READY:%s", " FALSE");
 					}
 
 				}
@@ -5885,35 +5912,247 @@ Panel CmdDecoder::GetPanelInfo()
 	Panel p;
 
 	if (pthread_mutex_lock(&global_mutex[LOCK_MODULE_DS]) != 0)
-		std::cout << "global_mutex[LOCK_MODULE_DS] lock unsuccessful" << std::endl;
+		cout << "global_mutex[LOCK_MODULE_DS] lock unsuccessful" << std::endl;
 	else
 	{
 		p = panelInfo;
 
 		if (pthread_mutex_unlock(&global_mutex[LOCK_MODULE_DS]) != 0)
-			std::cout << "global_mutex[LOCK_MODULE_DS] unlock unsuccessful" << std::endl;
+			cout << "global_mutex[LOCK_MODULE_DS] unlock unsuccessful" << std::endl;
 	}
 	return p;
 }
 
 
-//drc added for store and restore
-bool ActionVrb::StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
+//drc added for store to and restore from channel config data files
+bool CmdDecoder::ActionVrb::StoreModule(int moduleNum)
 {
-	return true;
-}
-bool ActionVrb::StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
-{
+
+	if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
+	{
+		std::copy(&outerRef.TF_Channel_DS_For_Pattern[moduleNum][0], &outerRef.TF_Channel_DS_For_Pattern[moduleNum][0]+g_Total_Channels, &TF_Channel_DS_For_Save[moduleNum][0]);
+	}
+	else
+	{
+		std::copy(&outerRef.FG_Channel_DS_For_Pattern[moduleNum][0], &outerRef.FG_Channel_DS_For_Pattern[moduleNum][0]+g_Total_Channels, &FG_Channel_DS_For_Save[moduleNum][0]);
+	}
+
+	if(moduleNum == 2)
+	{
+		std::ofstream outfile("/mnt/SavedModule2ConfigInfo.cfg", std::ios::trunc | std::ios::binary);
+		if(outfile.is_open())
+		{
+			// Write the struct data into the file
+			//arrModules info first
+			outfile.write(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
+			{
+				outfile.write(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][0]), sizeof(TrueFlex)*g_Total_Channels);
+			}
+			else
+			{
+				outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][0]), sizeof(FixedGrid)*g_Total_Channels);
+			}
+			for (auto& ch : outerRef.activeChannels)
+			{
+				if(ch.moduleNo == moduleNum)
+					outfile.write(reinterpret_cast<char*>(&ch), sizeof(ChannelModules));
+			}
+			std::cout << "Data has been saved to file SavedModule2ConfigInfo.cfg" << std::endl;
+
+			// Close the file
+			outfile.close();
+			bModuleConfigStored[moduleNum] = true;
+		}
+		else
+		{
+			std::cerr << "Error opening the file SavedModule2ConfigInfo.cfg for writing." << std::endl;
+			return false;
+		}
+	}
+	else
+	{
+		std::ofstream outfile("/mnt/SavedModule1ConfigInfo.cfg", std::ios::trunc | std::ios::binary);
+		if(outfile.is_open())
+		{
+			// Write the struct data into the file
+			//arrModules info first
+			outfile.write(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
+			{
+				outfile.write(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][0]), sizeof(TrueFlex)*g_Total_Channels);
+			}
+			else
+			{
+				outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][0]), sizeof(FixedGrid)*g_Total_Channels);
+			}
+			for (auto& ch : outerRef.activeChannels)
+			{
+				if(ch.moduleNo == moduleNum)
+					outfile.write(reinterpret_cast<char*>(&ch), sizeof(ChannelModules));
+			}
+			std::cout << "Data has been saved to file SavedModule1ConfigInfo.cfg" << std::endl;
+
+			// Close the file
+			outfile.close();
+			bModuleConfigStored[moduleNum] = true;
+		}
+		else
+		{
+			std::cerr << "Error opening the file SavedModule1ConfigInfo.cfg for writing." << std::endl;
+			return false;
+
+		}
+	}
+
 	return true;
 }
 
-bool ActionVrb::RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
+bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 {
+
+	if(moduleNum == 2)
+	{
+		std::ifstream infile("/mnt/SavedModule2ConfigInfo.cfg", std::ios::binary);
+		if (infile.is_open())
+		{
+			/*arrModules info first*/
+			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
+			{
+				for(int i = 0; i < g_Total_Channels;i++)
+				{
+					infile.read(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][i]), sizeof(TrueFlex));
+				}
+				//delete old channel in the list first
+				outerRef.activeChannels.remove_if([moduleNum](const ChannelModules& point){return point.moduleNo == moduleNum;});
+				ChannelModules temp;
+				while (infile.read(reinterpret_cast<char*>(&temp), sizeof(ChannelModules)))
+				{ // Read each channel from binary
+					outerRef.activeChannels.push_back(temp); // Then add the read channel into the list
+				}
+				if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
+				else
+				{
+
+					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS_For_Pattern[moduleNum][0]);
+					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS[moduleNum][0]);
+					g_bNewCommandData = true;
+				}
+				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+			}
+			else  // FG channels
+			{
+				for(int i = 0; i < g_Total_Channels;i++)
+				{
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i]), sizeof(FixedGrid));
+				}
+
+				 //delete old channel in the list first
+				outerRef.activeChannels.remove_if([moduleNum](const ChannelModules& point){return point.moduleNo == moduleNum;});
+				ChannelModules temp;
+				while (infile.read(reinterpret_cast<char*>(&temp), sizeof(ChannelModules)))
+				{ // Read each channel from binary
+					outerRef.activeChannels.push_back(temp); // Then add the read channel into the list
+				}
+
+				if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
+				else
+				{
+
+					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS_For_Pattern[moduleNum][0]);
+					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS[moduleNum][0]);
+					g_bNewCommandData = true;
+				}
+				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+					std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+			}
+			infile.close();
+		}
+		else
+		{
+			std::cerr << "Error opening the SavedModule2Config file for reading." << std::endl;
+			return false;
+		}
+	}
+	else  //module 1
+	{
+		std::ifstream infile("/mnt/SavedModule1ConfigInfo.cfg", std::ios::binary);
+		if (infile.is_open())
+		{
+			/*arrModules info first*/
+			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
+			{
+				for(int i = 0; i < g_Total_Channels;i++)
+				{
+					infile.read(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][i]), sizeof(TrueFlex));
+				}
+
+				 //delete old channel in the list first
+				outerRef.activeChannels.remove_if([moduleNum](const ChannelModules& point){return point.moduleNo == moduleNum;});
+				ChannelModules temp;
+				while (infile.read(reinterpret_cast<char*>(&temp), sizeof(ChannelModules)))
+				{ // Read each channel from binary
+					outerRef.activeChannels.push_back(temp); // Then add the read channel into the list
+				}
+
+				if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
+				else
+				{
+					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS_For_Pattern[moduleNum][0]);
+					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS[moduleNum][0]);
+					g_bNewCommandData = true;
+				}
+				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+			}
+			else
+			{
+				for(int i = 0; i < g_Total_Channels;i++)
+				{
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i]), sizeof(FixedGrid));
+				}
+
+				 //delete old channel in the list first
+				outerRef.activeChannels.remove_if([moduleNum](const ChannelModules& point){return point.moduleNo == moduleNum;});
+				ChannelModules temp;
+				while (infile.read(reinterpret_cast<char*>(&temp), sizeof(ChannelModules)))
+				{ // Read each channel from binary
+					outerRef.activeChannels.push_back(temp); // Then add the read channel into the list
+				}
+
+				if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
+				else
+				{
+					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS_For_Pattern[moduleNum][0]);
+					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS[moduleNum][0]);
+					g_bNewCommandData = true;
+				}
+				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
+						std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+			}
+			infile.close();
+		}
+		else
+		{
+			std::cerr << "Error opening the SavedModule1Config file for reading." << std::endl;
+			return false;
+		}
+	}
+
+
+//	    std::cout << "fc: " << TF_Channel_DS_For_Save[moduleNum][1].FC << ", bw: " << TF_Channel_DS_For_Save[moduleNum][1].BW << std::endl;
+
 	return true;
 }
-bool ActionVrb::RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules)
-{
-	return true;
-}
+
+
+
 
 

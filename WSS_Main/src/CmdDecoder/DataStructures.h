@@ -80,7 +80,7 @@
 	struct ModulesInfo{
 		std::string 	slotSize = "0";			// for TF and numerical
 		int 			ID;
-		enum 			action {STORE, RESTORE};
+//		enum 			action {STORE, RESTORE};
 
 		// for setting grayscales low and high range
 		bool 			b_NewValueSet= false;	//when user set new low and high range of grayscale
@@ -214,7 +214,6 @@
 	{
 		std::string 	slotSize = "0";			// for TF and numerical
 		int 			ID;
-		enum 			action {STORE, RESTORE};
 	};
 
 
@@ -238,6 +237,7 @@
 		int				F2ContiguousOrNot = 0;
 
 		std::vector<float> slotsATTEN; 	//holds every slot attentuation within a channel	//dynamic vector allocation
+		std::vector<int> slotBlockedOrNot{-1};
 	};
 
 	struct Panel

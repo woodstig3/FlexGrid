@@ -60,7 +60,6 @@ PatternCalibModule::PatternCalibModule()
 		m_bCalibDataOk = true;
 	}
 
-
 }
 
 PatternCalibModule::~PatternCalibModule()
@@ -210,6 +209,7 @@ int PatternCalibModule::Set_Pixel_Pos_Args(double f1, double f2, double fc, doub
 
 void PatternCalibModule::Calculation_Aopt_Kopt()
 {
+
 	while(true) {
 
 		if(BreakThreadLoops() == 0)
@@ -844,7 +844,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
     std::ifstream file(path);
 
     if (file.is_open()) {
-        std::cout << "[Att_LUT] File has been opened" << std::endl;
+ //       std::cout << "[Att_LUT] File has been opened" << std::endl;
     }
     else {
         std::cout << "[Att_LUT] File opening Error" << std::endl;

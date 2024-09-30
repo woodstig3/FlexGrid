@@ -56,6 +56,7 @@ TemperatureMonitor::TemperatureMonitor()
 		m_bTempLUTOk = true;
 	}
 
+
 }
 
 TemperatureMonitor::~TemperatureMonitor()

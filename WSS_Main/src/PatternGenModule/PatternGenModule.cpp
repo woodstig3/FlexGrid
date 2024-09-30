@@ -42,7 +42,6 @@ PatternGenModule::PatternGenModule()
 	m_customLCOS_Height = g_LCOS_Height;
 #endif
 
-
 }
 
 PatternGenModule::~PatternGenModule()
@@ -110,7 +109,6 @@ void PatternGenModule::ProcessPatternGeneration(void)
 
 	Load_Background_LUT(); //drc added for loading parameters for background pattern display
 	loadBackgroundPattern();
-
 
 	while(true)
 	{
@@ -958,7 +956,6 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 
 	for(const auto& ch: g_serialMod->cmd_decoder.activeChannels)
 	{
-
 		channelNo = ch.channelNo;
 		g_moduleNum = ch.moduleNo;
 
@@ -1663,7 +1660,7 @@ void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos)
 {
 	int i = 0;
-
+	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 	int ch_start_pixelLocation = round(f1_PixelPos);
 	int ch_end_pixelLocation = round(f2_PixelPos);
 
@@ -1685,7 +1682,7 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 	{
 		while (i < m_customLCOS_Height)
 		{
-			unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
+
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
@@ -1730,7 +1727,7 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 				}else{
 #endif
 					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
-				}
+//				}
 
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
@@ -1863,7 +1860,7 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos)
 {
 	int i = 0;
-
+	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 	int ch_start_pixelLocation = round(f1_PixelPos);
 	int ch_end_pixelLocation = round(f2_PixelPos);
 
@@ -1885,7 +1882,7 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 	{
 		while (i < m_customLCOS_Height)
 		{
-			unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
+
 
 			if(g_moduleNum == 1)		// Top side of LCOS
 			{
@@ -1926,7 +1923,7 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 		}else{
 #endif
 			value = channelColumnData[1][i + m_customLCOS_Height *chNum];
-			}
+//			}
 
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
@@ -2818,5 +2815,7 @@ void PatternGenModule::loadPatternFile_Bin(std::string path)
 	}
 
 }
+
+
 
 

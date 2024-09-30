@@ -31,44 +31,12 @@ struct ChannelModules
 	int channelNo;
 };
 
-class ActionVrb {
-public:
-						ActionVrb(){
-
-		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels] = new TrueFlex[3][g_Total_Channels]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
-
-		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
-
-		ModulesInfo 	arrModules[2];
-		};
-		virtual 	  	~ActionVrb(){
-
-			delete[]		TF_Channel_DS_For_Save;
-			delete[]		FG_Channel_DS_For_Save;
-		};
-
-
-		bool            StoreModuleTF(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
-		bool			StoreModuleFG(int moduleNum, FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
-
-		bool 			RestoreModule1(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
-		bool 			RestoreModule2(int moduleNum, TrueFlex (*arrTFChannel_DS)[g_Total_Channels], FixedGrid (*arrFGChannel_DS)[g_Total_Channels], ModulesInfo* arrModules);
-
-private:
-
-		TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels];
-		FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels];
-
-		bool			bModuleConfigStored[2]{0,0};           //  to see if two modules config info stored or not when restart,stored = 1, not stored = 0
-
-};
-
-
 
 class CmdDecoder {
 
+
 public:
-					CmdDecoder();
+	CmdDecoder();
 	virtual 	  	~CmdDecoder();
 
 	bool 			b_SendString = true;												//FLag that message to user needs to be send
@@ -108,7 +76,6 @@ public:
 
 	Panel 			panelInfo;												// Keep Panel Records
 
-	ActionVrb       actionSR;  //drc added for store and restore action process
 
 #ifdef _DEVELOPMENT_MODE_
 
@@ -151,6 +118,7 @@ private:
 	int 			g_channelNum = 0;												//Channel number
 	int 			g_slotNum = 0;													//Slot number
     int             g_faultNum = 0;
+    int				g_heaterNum = 0;
 
 	bool 			g_bNoAttribute;												//Flag if no attribute is present
 
@@ -211,7 +179,32 @@ private:
 
 	void            PrintAllSlotsFG(int SlotNum);
 
+public:
+
+	class ActionVrb {
+	public:
+			ActionVrb(CmdDecoder& cmd_Decoder) : outerRef(cmd_Decoder) {
+
+			};
+			virtual	~ActionVrb(){
+
+				delete[]		TF_Channel_DS_For_Save;
+				delete[]		FG_Channel_DS_For_Save;
+			};
+
+
+			bool            StoreModule(int moduleNum);
+			bool 			RestoreModule(int moduleNum);
+			CmdDecoder&     outerRef;
+			bool			bModuleConfigStored[3]{0,0};           //  to see if two modules config info stored or not when restart,stored = 1, not stored = 0
+
+			TrueFlex 		(*TF_Channel_DS_For_Save)[g_Total_Channels] = new TrueFlex[3][g_Total_Channels]();
+			FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();
+	};
+	ActionVrb *actionSR = new ActionVrb(*this);
 };
+
+
 
 
 #endif /* SRC_CMDDECODER_CMDDECODER_H_ */

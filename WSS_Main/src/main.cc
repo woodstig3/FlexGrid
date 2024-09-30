@@ -97,6 +97,9 @@ int main(int argc, char* argv[])
 //			printf("\n");
 //	}
 
+//	serialIns->cmd_decoder.actionSR->RestoreModule(1);
+//	serialIns->cmd_decoder.actionSR->RestoreModule(2);
+
 	while(!serialIns->b_endMainSignal) 												// To close main loop and end application when serial thread ends
 	{
 		sleep(2);
@@ -144,3 +147,31 @@ void DestroyGlobalMutex(void)
 			std::cout << "pthread_mutex_destroy unsuccessful" << std::endl;
 	}
 }
+
+/*
+InitModule::InitModule(void)
+{
+	g_serialMod = SerialModule::GetInstance();
+	g_patternCalib = PatternCalibModule::GetInstance();
+	g_tempMonitor = TemperatureMonitor::GetInstance();
+	g_patternGen = PatternGenModule::GetInstance();
+
+	int status = HW_Initialize();
+	int status = SW_Initialize();
+	int status = CFG_Initialize();
+
+	if(status != 0)
+	{
+		printf(" Initialization Failed. \n");
+		g_serialMod->Serial_WritePort("\01INTERNAL_ERROR\04\n");
+	}
+}
+
+InitModule::~InitModule()
+{
+	printf("............APPLICATION IS CLOSED............\n\r");
+}
+
+*/
+
+
