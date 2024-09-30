@@ -1724,10 +1724,13 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 						mgapped++;
 					}
 
-				}else{
+				}
+				else
 #endif
+				{
+
 					value = channelColumnData[1][i + m_customLCOS_Height *chNum];
-//				}
+				}
 
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
@@ -1920,10 +1923,12 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 							value = channelColumnData[1][i + m_customLCOS_Height *chNum];
 					}
 
-		}else{
+		}
+		else
 #endif
+		{
 			value = channelColumnData[1][i + m_customLCOS_Height *chNum];
-//			}
+		}
 
 #ifndef _FLIP_DISPLAY_
 				if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F1ContiguousOrNot == 0 && g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].F2ContiguousOrNot == 0)
