@@ -182,7 +182,7 @@ private:
 public:
 
 	class ActionVrb {
-	public:
+		public:
 			ActionVrb(CmdDecoder& cmd_Decoder) : outerRef(cmd_Decoder) {
 
 			};

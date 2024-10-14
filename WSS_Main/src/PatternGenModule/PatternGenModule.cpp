@@ -102,7 +102,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 {
 	OCMTransfer ocmTrans;
 
-	int is_bPatternDone;
+	int is_bPatternDone, is_bRestarted = 0;
 	int status;
 	enum bTrigger {NONE,TEMP_CHANGED, COMMAND_CAME};
 	bTrigger etrigger = NONE;
@@ -182,7 +182,17 @@ void PatternGenModule::ProcessPatternGeneration(void)
 				std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
 		}
 
+#ifndef _DEVELOPMENT_MODE_
+		if(is_bRestarted == 0)
+		{
+			is_bRestarted = 1;
+			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
+				std::cout << "No restoring module 1 pattern" << std::endl;
 
+			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(2) == false)
+				std::cout << "No restoring module 2 pattern" << std::endl;
+		}
+#endif
 		if(is_bPatternDone == PatternOutcome::SUCCESS)
 		{
 			if(rotationAngle != 0)
@@ -214,7 +224,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 				g_serialMod->cmd_decoder.PrintResponse(msg, g_serialMod->cmd_decoder.PrintType::ERROR_HI_PRIORITY);	 // If Command came and caused error then write message to PrintResponse
 			}
 
-			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);  //drc why still true here?
+			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);  //drc why still true here WHILE FAILED OUTCOME?
 		}
 
 	}
@@ -2226,7 +2236,7 @@ void PatternGenModule::RelocateSlot(unsigned int chNum, unsigned int slotNum, un
 			}
 
 #ifndef _FLIP_DISPLAY_
-			if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].slotBlockedOrNot[slotNum] == 1)
+			if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][chNum+1].slotBlockedOrNot[slotNum-1] == 1)
 			{
 				memset(fullPatternData + ((i + m_customLCOS_Height) *g_LCOS_Width) + slot_Start_Location, BackgroundColumnData[i+m_customLCOS_Height], slot_Width_inPixels* sizeof(char));
 			}

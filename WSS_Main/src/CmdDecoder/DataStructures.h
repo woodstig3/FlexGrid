@@ -221,6 +221,7 @@
 
 	struct FixedGrid
 	{
+
 		bool 			active = false;	//default all channels are active  //1 means channels are active and 0 means deleted
 		int 			ADP = 0;
 		float 			ATT =35;
@@ -229,7 +230,7 @@
 		double 			F2 = 0;
 
 		double 			FC = 0;
-		double 			BW =0;			// for channel width
+		double 			BW =0;	// for channel width
 
 		int 			slotNum = 0;
 
@@ -238,6 +239,26 @@
 
 		std::vector<float> slotsATTEN; 	//holds every slot attentuation within a channel	//dynamic vector allocation
 		std::vector<int> slotBlockedOrNot{-1};
+
+//		float slotsATTEN[160];
+//		int slotBlockedOrNot[160];
+
+/*		FixedGrid() = default;
+		FixedGrid(const FixedGrid& source):
+			active(source.active),
+			ADP(source.ADP),
+			ATT(source.ATT),
+			CMP(source.CMP),
+			F1(source.F1),
+			F2(source.F2),
+			FC(source.FC),
+			BW(source.BW),
+			slotNum(source.slotNum),
+			F1ContiguousOrNot(source.F1ContiguousOrNot),
+			F2ContiguousOrNot(source.F2ContiguousOrNot),
+			slotsATTEN(source.slotsATTEN),
+			slotBlockedOrNot(source.slotBlockedOrNot){}
+*/
 	};
 
 	struct Panel

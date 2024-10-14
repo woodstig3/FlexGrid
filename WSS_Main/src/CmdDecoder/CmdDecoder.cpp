@@ -25,7 +25,7 @@ extern double g_direct_Hearter2_Temp;
 
 
 std::string out;
-//using namespace std;
+using namespace std;
 
 CmdDecoder::CmdDecoder() {
 	//Initial Module definition, user can changed this
@@ -2448,7 +2448,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										cout << "ERROR: The f1 is crossing of f2" << endl;
 										return (-1);
 									}
+#ifndef _DEVELOPMENT_MODE_
 									if(TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue > VENDOR_BW_RANGE_HIGH)
+#else
+									if(TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue > VENDOR_FREQ_RANGE_HIGH - VENDOR_FREQ_RANGE_LOW)
+#endif
 									{
 										cout << "ERROR: The channel bandwidth is out of range" << endl;
 										return (-1);
@@ -2497,7 +2501,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										cout << "ERROR: The f2 is crossing of f1" << endl;
 										return (-1);
 									}
+#ifndef _DEVELOPMENT_MODE_
 									if(fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1 > VENDOR_BW_RANGE_HIGH)
+#else
+									if(fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1 > VENDOR_BW_RANGE_HIGH - VENDOR_FREQ_RANGE_LOW)
+#endif
 									{
 										cout << "ERROR: The channel bandwidth is out of range" << endl;
 										return (-1);
@@ -3900,14 +3908,14 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "RESTORE" && eVerb == ACTION)		// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
-						{
+//						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
+	//					{
 							actionSR->RestoreModule(g_moduleNum);
-						}
-						else
-						{
-							break;
-						}
+	//					}
+		//				else
+			//			{
+				//			break;
+					//	}
 					}
 #ifdef _DEVELOPMENT_MODE_
 					else if (attr[0] == "ROTATE" && eVerb == SET)
@@ -4786,13 +4794,13 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				// \01 delimiter added
 				//buffLenTemp += sprintf(&buff[buffLenTemp], "IDN.%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "VendorName=%s\nVendorPartNumber=%d\nVendorSerialNumber=%d\nVendorRevision=%d\n"
-															"ManufacturingDate=%s\nManufacturingVintage=%s\nCustomerPartNumber=%d\nCustomerSerialNumber=%d\n"
-															"CustomerRevision=%d\nHardwarePartNumber=%d\nHardwareSerialNumber=%d\nHardwareRevision=%d\n"
-															"LCOSPartNumber=%d\nLCOSSerialNumber=%d\nLCOSRevision=%d\nOpticsPartNumber=%d\nOpticsSerialNumber=%d\n"
-															"OpticsRevision=%d\nFirmwareRelease=%d\nBootloaderRelease=%d\nFPGAVersion=%d\nDatabaseVersion=%d\n"
-															"ModuleType =%d\nUnitSerialNumber=%d\nDateOfManufacture=%s\nCalibrationVersion=%d\nHardwareRelease=%d\n"
-															"CustomerInfo=%s\n",
+				buffLenTemp += sprintf(&buff[buffLenTemp], "VendorName:%s\nVendorPartNumber:%d\nVendorSerialNumber:%d\nVendorRevision:%d\n"
+															"ManufacturingDate:%s\nManufacturingVintage:%s\nCustomerPartNumber:%d\nCustomerSerialNumber:%d\n"
+															"CustomerRevision:%d\nHardwarePartNumber:%d\nHardwareSerialNumber:%d\nHardwareRevision:%d\n"
+															"LCOSPartNumber:%d\nLCOSSerialNumber:%d\nLCOSRevision:%d\nOpticsPartNumber:%d\nOpticsSerialNumber:%d\n"
+															"OpticsRevision:%d\nFirmwareRelease:%d\nBootloaderRelease:%d\nFPGAVersion:%d\nDatabaseVersion:%d\n"
+															"ModuleType:%d\nUnitSerialNumber:%d\nDateOfManufacture:%s\nCalibrationVersion:%d\nHardwareRelease:%d\n"
+															"CustomerInfo:%s\n",
 															"Glosine Tech", 01,202001,01,"2024-07-11","highVintage", 02, 200212, 02, 01, 101, 1001, 02,
 															9001,901,01,01,1001,01,01,01,01,01,01,"2024-07-11",01,01,customerInfo);	//Fill this string and get the length filled.
 
@@ -4803,116 +4811,116 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				if (attributes == "VENDORNAME")
 				{
 					//FillBuffer_ConcatAttributes("VendorName=%s\n", "VendorName=%s\n", true, "Glosine Tech");
-					buffLenTemp += sprintf(&buff[buffLenTemp], "VendorName=%s\n", "Glosine Tech");
+					buffLenTemp += sprintf(&buff[buffLenTemp], "VendorName:%s\n", "Glosine Tech");
 				}
 				else if (attributes == "VENDORPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("VendorPartNumber=%d\n", "VendorPartNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("VendorPartNumber:%d\n", "VendorPartNumber:%d\n", true, 01);
 				}
 				else if (attributes == "VENDORSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("VendorSerialNumber=%d\n", "VendorSerialNumber=%d\n", true, 202407);
+					FillBuffer_ConcatAttributes("VendorSerialNumber:%d\n", "VendorSerialNumber:%d\n", true, 202407);
 				}
 				else if (attributes == "VENDORREVISION")
 				{
-					FillBuffer_ConcatAttributes("VendorRevision=%d\n", "VendorRevision=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("VendorRevision:%d\n", "VendorRevision:%d\n", true, 01);
 				}
 				else if (attributes == "MANUFACTURINGDATE")
 				{
-					FillBuffer_ConcatAttributes("ManufacturingDate=%s\n", "VendorRevision=%d\n", true, "2021-07-11");
+					FillBuffer_ConcatAttributes("ManufacturingDate:%s\n", "VendorRevision:%d\n", true, "2021-07-11");
 				}
 				else if (attributes == "MANUFACTURINGVINTAGE")
 				{
-					FillBuffer_ConcatAttributes("ManufacturingVintage=%s\n", "ManufacturingVintage=%s", true, "highVintage");
+					FillBuffer_ConcatAttributes("ManufacturingVintage:%s\n", "ManufacturingVintage:%s", true, "highVintage");
 				}
 				else if (attributes == "CUSTOMERPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("CustomerPartNumber=%d\n", "CustomerPartNumber=%d\n", true, 02);
+					FillBuffer_ConcatAttributes("CustomerPartNumber:%d\n", "CustomerPartNumber:%d\n", true, 02);
 				}
 				else if (attributes == "CUSTOMERSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("CustomerSerialNumber=%d\n", "CustomerSerialNumber=%d\n", true, 200212);
+					FillBuffer_ConcatAttributes("CustomerSerialNumber:%d\n", "CustomerSerialNumber:%d\n", true, 200212);
 				}
 				else if (attributes == "CUSTOMERREVISION")
 				{
-					FillBuffer_ConcatAttributes("CustomerRevision=%d\n", "CustomerRevision=%d\n", true, 02);
+					FillBuffer_ConcatAttributes("CustomerRevision:%d\n", "CustomerRevision:%d\n", true, 02);
 				}
 				else if (attributes == "HARDWAREPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("HardwarePartNumber=%d\n", "HardwarePartNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("HardwarePartNumber:%d\n", "HardwarePartNumber:%d\n", true, 01);
 				}
 				else if (attributes == "HARDWARESERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("HardwareSerialNumber=%d\n", "HardwareSerialNumber=%d\n", true, 101);
+					FillBuffer_ConcatAttributes("HardwareSerialNumber:%d\n", "HardwareSerialNumber:%d\n", true, 101);
 				}
 				else if (attributes == "HARDWAREREVISION")
 				{
-					FillBuffer_ConcatAttributes("HardwareRevision=%d\n", "HardwareRevision=%d\n", true, 101);
+					FillBuffer_ConcatAttributes("HardwareRevision:%d\n", "HardwareRevision:%d\n", true, 101);
 				}
 				else if (attributes == "LCOSPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("LCOSPartNumber=%d\n", "LCOSPartNumber=%d\n", true, 1001);
+					FillBuffer_ConcatAttributes("LCOSPartNumber:%d\n", "LCOSPartNumber:%d\n", true, 1001);
 				}
 				else if (attributes == "LCOSSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("LCOSSerialNumber=%d\n", "LCOSSerialNumber=%d\n", true, 02);
+					FillBuffer_ConcatAttributes("LCOSSerialNumber:%d\n", "LCOSSerialNumber:%d\n", true, 02);
 				}
 				else if (attributes == "LCOSREVISION")
 				{
-					FillBuffer_ConcatAttributes("LCOSRevision=%d\n", "LCOSRevision=%d\n", true, 9001);
+					FillBuffer_ConcatAttributes("LCOSRevision:%d\n", "LCOSRevision:%d\n", true, 9001);
 				}
 				else if (attributes == "OPTICSPARTNUMBER")
 				{
-					FillBuffer_ConcatAttributes("OpticsPartNumber=%d\n", "OpticsPartNumber=%d\n", true, 901);
+					FillBuffer_ConcatAttributes("OpticsPartNumber:%d\n", "OpticsPartNumber:%d\n", true, 901);
 				}
 				else if (attributes == "OPTICSSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("OpticsSerialNumber=%d\n", "OpticsSerialNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("OpticsSerialNumber:%d\n", "OpticsSerialNumber:%d\n", true, 01);
 				}
 				else if (attributes == "OPTICSREVISION")
 				{
-					FillBuffer_ConcatAttributes("OpticsRevision=%d\n", "OpticsRevision=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("OpticsRevision:%d\n", "OpticsRevision:%d\n", true, 01);
 				}
 				else if (attributes == "FIRMWARERELEASE")
 				{
-					FillBuffer_ConcatAttributes("FirmwareRelease=%d\n", "FirmwareRelease=%d\n", true, 1001);
+					FillBuffer_ConcatAttributes("FirmwareRelease:%d\n", "FirmwareRelease:%d\n", true, 1001);
 				}
 				else if (attributes == "BOOTLOADERRELEASE")
 				{
-					FillBuffer_ConcatAttributes("BootloaderRelease=%d\n", "BootloaderRelease=%d\n", true, 1001);
+					FillBuffer_ConcatAttributes("BootloaderRelease:%d\n", "BootloaderRelease:%d\n", true, 1001);
 				}
 				else if (attributes == "FPGAVERSION")
 				{
-					FillBuffer_ConcatAttributes("FPGAVersion=%d\n", "FPGAVersion=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("FPGAVersion:%d\n", "FPGAVersion:%d\n", true, 01);
 				}
 				else if (attributes == "DATABASEVERSION")
 				{
-					FillBuffer_ConcatAttributes("DatabaseVersion=%d\n", "DatabaseVersion=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("DatabaseVersion:%d\n", "DatabaseVersion:%d\n", true, 01);
 				}
 				else if (attributes == "MODULETYPE")
 				{
-					FillBuffer_ConcatAttributes("ModuleType=%d\n", "ModuleType =%d\n", true, 01);
+					FillBuffer_ConcatAttributes("ModuleType:%d\n", "ModuleType:%d\n", true, 01);
 				}
 				else if (attributes == "UNITSERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("UnitSerialNumber=%d\n", "UnitSerialNumber=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("UnitSerialNumber:%d\n", "UnitSerialNumber:%d\n", true, 01);
 				}
 				else if (attributes == "DATEOFMANUFACTURE")
 				{
-					FillBuffer_ConcatAttributes("DateOfManufacture=%s\n", "DateOfManufacture=%s\n", true, "2024-07-11");
+					FillBuffer_ConcatAttributes("DateOfManufacture:%s\n", "DateOfManufacture:%s\n", true, "2024-07-11");
 				}
 				else if (attributes == "CALIBRATIONVERSION")
 				{
-					FillBuffer_ConcatAttributes("CalibrationVersion=%d\n", "CalibrationVersion=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("CalibrationVersion:%d\n", "CalibrationVersion:%d\n", true, 01);
 				}
 				else if (attributes == "HARDWARERELEASE")
 				{
-					FillBuffer_ConcatAttributes("HardwareRelease=%d\n", "HardwareRelease=%d\n", true, 01);
+					FillBuffer_ConcatAttributes("HardwareRelease:%d\n", "HardwareRelease:%d\n", true, 01);
 				}
 				else if (attributes == "CUSTOMERINFO")
 				{
 //					FillBuffer_ConcatAttributes("CustomerInfo=%s\n", "CustomerInfo=%s\n", true, "BAIAN Tek");
-					buffLenTemp += sprintf(&buff[buffLenTemp], "CustomerInfo=%s\n", customerInfo);
+					buffLenTemp += sprintf(&buff[buffLenTemp], "CustomerInfo:%s\n", customerInfo);
 				}
 				else
 				{
@@ -5316,7 +5324,7 @@ int CmdDecoder::is_SetNoSlotFGDone(void)
 				if (arrModules[g_moduleNum - 1].slotSize == "0")
 				{
 					// If Fixed Grid module size is not defined then we give error
-					cout << "ERROR: The Module Size is not defined" << endl;
+					cout << "ERROR: The Module Slotsize is not defined" << endl;
 					return (-1);
 				}
 				else
@@ -5360,7 +5368,7 @@ int CmdDecoder::is_SetSlotFGDone(void)
 				if (arrModules[g_moduleNum - 1].slotSize == "0")
 				{
 					// if fixed grid module size is not defined then we give error
-					cout << "ERROR: The Module Size is not defined" << endl;
+					cout << "ERROR: The Module Slotsize is not defined" << endl;
 					return (-1);
 				}
 
@@ -5943,23 +5951,52 @@ bool CmdDecoder::ActionVrb::StoreModule(int moduleNum)
 		if(outfile.is_open())
 		{
 			// Write the struct data into the file
-			//arrModules info first
-			outfile.write(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			//write arrModules info first
+			int strLen = outerRef.arrModules[moduleNum-1].slotSize.size();
+			outfile.write(reinterpret_cast<char*>(&strLen), sizeof(strLen));
+			outfile.write(outerRef.arrModules[moduleNum-1].slotSize.c_str(), strLen);
+
 			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
 			{
 				outfile.write(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][0]), sizeof(TrueFlex)*g_Total_Channels);
 			}
+			else if (outerRef.arrModules[moduleNum-1].slotSize == "625")
+			{
+				for(int i = 0; i < g_Total_Channels;i++)
+				{
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].active), sizeof(FG_Channel_DS_For_Save[moduleNum][i].active));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ADP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ADP));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ATT), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ATT));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].CMP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].CMP));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].FC), sizeof(FG_Channel_DS_For_Save[moduleNum][i].FC));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].BW), sizeof(FG_Channel_DS_For_Save[moduleNum][i].BW));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].slotNum), sizeof(FG_Channel_DS_For_Save[moduleNum][i].slotNum));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot));
+
+					int vecLen = FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.size();
+					outfile.write(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					outfile.write(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.data()), sizeof(float)*vecLen);
+
+					vecLen = FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.size();
+					outfile.write(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					outfile.write(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.data()), sizeof(int)*vecLen);
+
+				}
+			}
 			else
 			{
-				outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][0]), sizeof(FixedGrid)*g_Total_Channels);
+				std::cout << "Wrong Slotsize" << std::endl;
+				outfile.close();
+				return false;
 			}
 			for (auto& ch : outerRef.activeChannels)
 			{
 				if(ch.moduleNo == moduleNum)
 					outfile.write(reinterpret_cast<char*>(&ch), sizeof(ChannelModules));
 			}
-			std::cout << "Data has been saved to file SavedModule2ConfigInfo.cfg" << std::endl;
-
 			// Close the file
 			outfile.close();
 			bModuleConfigStored[moduleNum] = true;
@@ -5970,29 +6007,58 @@ bool CmdDecoder::ActionVrb::StoreModule(int moduleNum)
 			return false;
 		}
 	}
-	else
+	else   //Module 1
 	{
 		std::ofstream outfile("/mnt/SavedModule1ConfigInfo.cfg", std::ios::trunc | std::ios::binary);
 		if(outfile.is_open())
 		{
 			// Write the struct data into the file
 			//arrModules info first
-			outfile.write(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			int strLen = outerRef.arrModules[moduleNum-1].slotSize.size();
+			outfile.write(reinterpret_cast<char*>(&strLen), sizeof(strLen));
+			outfile.write(outerRef.arrModules[moduleNum-1].slotSize.c_str(), strLen);
+
 			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
 			{
 				outfile.write(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][0]), sizeof(TrueFlex)*g_Total_Channels);
 			}
+			else if(outerRef.arrModules[moduleNum-1].slotSize == "625")
+			{
+				for(int i = 0; i < g_Total_Channels;i++)
+				{
+
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].active), sizeof(FG_Channel_DS_For_Save[moduleNum][i].active));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ADP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ADP));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ATT), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ATT));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].CMP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].CMP));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].FC), sizeof(FG_Channel_DS_For_Save[moduleNum][i].FC));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].BW), sizeof(FG_Channel_DS_For_Save[moduleNum][i].BW));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].slotNum), sizeof(FG_Channel_DS_For_Save[moduleNum][i].slotNum));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot));
+					outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot));
+
+					int vecLen = FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.size();
+					outfile.write(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					outfile.write(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.data()), sizeof(float)*vecLen);
+
+					vecLen = FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.size();
+					outfile.write(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					outfile.write(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.data()), sizeof(int)*vecLen);
+				}
+			}
 			else
 			{
-				outfile.write(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][0]), sizeof(FixedGrid)*g_Total_Channels);
+				std::cout << "Wrong Slotsize" << std::endl;
+				outfile.close();
+				return false;
 			}
 			for (auto& ch : outerRef.activeChannels)
 			{
 				if(ch.moduleNo == moduleNum)
 					outfile.write(reinterpret_cast<char*>(&ch), sizeof(ChannelModules));
 			}
-			std::cout << "Data has been saved to file SavedModule1ConfigInfo.cfg" << std::endl;
-
 			// Close the file
 			outfile.close();
 			bModuleConfigStored[moduleNum] = true;
@@ -6001,7 +6067,6 @@ bool CmdDecoder::ActionVrb::StoreModule(int moduleNum)
 		{
 			std::cerr << "Error opening the file SavedModule1ConfigInfo.cfg for writing." << std::endl;
 			return false;
-
 		}
 	}
 
@@ -6017,9 +6082,17 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 		if (infile.is_open())
 		{
 			/*arrModules info first*/
-			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			int strLen = 0;
+			infile.read(reinterpret_cast<char*>(&strLen), sizeof(strLen));
+			outerRef.arrModules[moduleNum-1].slotSize.resize(strLen);
+			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1].slotSize[0]), strLen);
+
+
+			std::cout << "Slotsize:" << outerRef.arrModules[moduleNum-1].slotSize <<std::endl;
+
 			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
 			{
+				outerRef.eModule2 = TF;
 				for(int i = 0; i < g_Total_Channels;i++)
 				{
 					infile.read(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][i]), sizeof(TrueFlex));
@@ -6035,7 +6108,6 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 				else
 				{
-
 					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS_For_Pattern[moduleNum][0]);
 					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS[moduleNum][0]);
 					g_bNewCommandData = true;
@@ -6043,11 +6115,33 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
 						std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
 			}
-			else  // FG channels
+			else if(outerRef.arrModules[moduleNum-1].slotSize == "625")  // FG channels
 			{
+				outerRef.eModule2 = FIXEDGRID;
 				for(int i = 0; i < g_Total_Channels;i++)
 				{
-					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i]), sizeof(FixedGrid));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].active), sizeof(FG_Channel_DS_For_Save[moduleNum][i].active));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ADP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ADP));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ATT), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ATT));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].CMP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].CMP));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].FC), sizeof(FG_Channel_DS_For_Save[moduleNum][i].FC));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].BW), sizeof(FG_Channel_DS_For_Save[moduleNum][i].BW));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].slotNum), sizeof(FG_Channel_DS_For_Save[moduleNum][i].slotNum));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot));
+
+					int vecLen = 0;
+					infile.read(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.resize(vecLen);
+					infile.read(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.data()), sizeof(float)*vecLen);
+
+
+					vecLen = 0;
+					infile.read(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.resize(vecLen);
+					infile.read(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.data()), sizeof(int)*vecLen);
 				}
 
 				 //delete old channel in the list first
@@ -6062,13 +6156,18 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 				else
 				{
-
 					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS_For_Pattern[moduleNum][0]);
 					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS[moduleNum][0]);
 					g_bNewCommandData = true;
 				}
 				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
 					std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+			}
+			else
+			{
+				std::cerr << "Error Slotsize." << std::endl;
+				infile.close();
+				return false;
 			}
 			infile.close();
 		}
@@ -6083,16 +6182,22 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 		std::ifstream infile("/mnt/SavedModule1ConfigInfo.cfg", std::ios::binary);
 		if (infile.is_open())
 		{
-			/*arrModules info first*/
-			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1]), sizeof(ModulesInfo));
+			/*Read arrModules info first*/
+			int strLen = 0;
+			infile.read(reinterpret_cast<char*>(&strLen), sizeof(strLen));
+			outerRef.arrModules[moduleNum-1].slotSize.resize(strLen);
+			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1].slotSize[0]), strLen);
+
+			std::cout << "Slotsize:" << outerRef.arrModules[moduleNum-1].slotSize <<std::endl;
 			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
 			{
+				outerRef.eModule1 = TF;
 				for(int i = 0; i < g_Total_Channels;i++)
 				{
 					infile.read(reinterpret_cast<char*>(&TF_Channel_DS_For_Save[moduleNum][i]), sizeof(TrueFlex));
 				}
 
-				 //delete old channel in the list first
+				//delete old channel in the list first
 				outerRef.activeChannels.remove_if([moduleNum](const ChannelModules& point){return point.moduleNo == moduleNum;});
 				ChannelModules temp;
 				while (infile.read(reinterpret_cast<char*>(&temp), sizeof(ChannelModules)))
@@ -6101,7 +6206,7 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 				}
 
 				if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
-						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
+					std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 				else
 				{
 					std::copy(&TF_Channel_DS_For_Save[moduleNum][0], &TF_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.TF_Channel_DS_For_Pattern[moduleNum][0]);
@@ -6109,13 +6214,35 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 					g_bNewCommandData = true;
 				}
 				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
-						std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+					std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
 			}
-			else
+			else if(outerRef.arrModules[moduleNum-1].slotSize == "625")
 			{
+				outerRef.eModule1 = FIXEDGRID;
 				for(int i = 0; i < g_Total_Channels;i++)
 				{
-					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i]), sizeof(FixedGrid));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].active), sizeof(FG_Channel_DS_For_Save[moduleNum][i].active));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ADP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ADP));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].ATT), sizeof(FG_Channel_DS_For_Save[moduleNum][i].ATT));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].CMP), sizeof(FG_Channel_DS_For_Save[moduleNum][i].CMP));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].FC), sizeof(FG_Channel_DS_For_Save[moduleNum][i].FC));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].BW), sizeof(FG_Channel_DS_For_Save[moduleNum][i].BW));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].slotNum), sizeof(FG_Channel_DS_For_Save[moduleNum][i].slotNum));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F1ContiguousOrNot));
+					infile.read(reinterpret_cast<char*>(&FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot), sizeof(FG_Channel_DS_For_Save[moduleNum][i].F2ContiguousOrNot));
+
+					int vecLen = 0;
+					infile.read(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.resize(vecLen);
+					infile.read(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotsATTEN.data()), sizeof(float)*vecLen);
+
+
+					vecLen = 0;
+					infile.read(reinterpret_cast<char*>(&vecLen), sizeof(vecLen));
+					FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.resize(vecLen);
+					infile.read(reinterpret_cast<char*>(FG_Channel_DS_For_Save[moduleNum][i].slotBlockedOrNot.data()), sizeof(int)*vecLen);
 				}
 
 				 //delete old channel in the list first
@@ -6130,12 +6257,20 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 				else
 				{
+					outerRef.FG_Channel_DS_For_Pattern[moduleNum][0].slotBlockedOrNot.resize(160);
+					outerRef.FG_Channel_DS_For_Pattern[moduleNum][0].slotsATTEN.resize(160);
 					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS_For_Pattern[moduleNum][0]);
 					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS[moduleNum][0]);
 					g_bNewCommandData = true;
 				}
 				if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)
 						std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
+			}
+			else
+			{
+				std::cerr << "Error Slotsize." << std::endl;
+				infile.close();
+				return false;
 			}
 			infile.close();
 		}
@@ -6145,7 +6280,6 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 			return false;
 		}
 	}
-
 
 //	    std::cout << "fc: " << TF_Channel_DS_For_Save[moduleNum][1].FC << ", bw: " << TF_Channel_DS_For_Save[moduleNum][1].BW << std::endl;
 

@@ -71,6 +71,7 @@ int main(int argc, char* argv[])
 		printf("PatternCalibModule: MoveToThread Failed!\n");
 
 
+
 //	if(argc > 1)	// SEND COMMAND DIRECTLY FROM CONSOLE ARGUMENTS
 //	{
 //		for(int c=1; c< argc; ++c)

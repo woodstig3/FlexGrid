@@ -113,6 +113,7 @@ void SerialModule::ProcessReadWrite(void)
 		{
 			num_bytes = Serial_ReadPort(temp_search_Str);				// Keep reading serial port until command stop arriving
 
+
 			if(num_bytes < 0)
 			{
 				printf("Error reading: %s", strerror(errno));	// If board is not logged in
