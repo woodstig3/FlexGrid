@@ -6,6 +6,7 @@ const char *uiod0 = "/dev/uio0";
 const char *uiod1 = "/dev/uio1";
 const char *uiod2 = "/dev/uio2";
 const char *uiod3 = "/dev/uio3";
+const char *uiod4 = "/dev/uio4";
 
 AlarmModule *AlarmModule::pinstance_{nullptr};
 
@@ -36,6 +37,11 @@ AlarmModule::AlarmModule()
     if (UIO_LCOS_Temp < 1)
     {
         printf("Invalid UIO device file : %s.\n",uiod3);
+    }
+    UIO_LCOS_Ready = open(uiod4, O_RDWR | O_NONBLOCK);
+    if (UIO_LCOS_Ready < 1)
+    {
+        printf("Invalid UIO device file : %s.\n",uiod4);
     }
 
     //For GPIO
@@ -80,6 +86,7 @@ AlarmModule::~AlarmModule()
 	close(UIO_GRID_Temp);
 	close(UIO_LCOS_Temp);
 	close(GPIO_valuefd);
+	close(UIO_LCOS_Ready);
 }
 
 AlarmModule *AlarmModule::GetInstance()
@@ -281,6 +288,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 DeOA_Flag = false;
             }
         }
+
 
 	}
 	pthread_exit(NULL);

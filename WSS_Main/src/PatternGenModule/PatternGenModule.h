@@ -49,12 +49,12 @@ struct outputParameters{
 struct Background_DS_For_Pattern{  //drc added for background pattern data structure
 
 	float SIGMA;
-	float PD;   //default 2.2;
-	float A_OPP; //default 0.5;
+	float PD=2.2;   //default 2.2;
+	float A_OPP=0.5; //default 0.5;
 	float K_OPP;
 	float A_ATT;
 	float K_ATT;
-	float LAMDA;  //default = 1.55;
+	float LAMDA = 1.55;  //default = 1.55;
 	float FC_PixelPos; //default = 9760.0;
 	float F1_PixelPos; //default = 191125.0;
 	float F2_PixelPos; //default = 196275.0;
@@ -188,7 +188,7 @@ private:
 	void			loadPatternFile_Bin(std::string path);				// send pattern file .bin to ocm
 	void			loadOneColorPattern(unsigned int colorVal);
 	void			loadBackgroundPattern();    //drc added for background pattern generation
-	int 			Calculate_Module_BackgroundPattern_DevelopMode(unsigned char ModuleNum);
+	int 			Calculate_Channel_EdgePattern_DevelopMode(unsigned char channelNum);
 	int 			Load_Background_LUT(void);
 	void            AjustEdgePixelAttenuation(unsigned int ch, double F1_PixelPos, double F2_PixelPos, double FC_PixelPos);
 

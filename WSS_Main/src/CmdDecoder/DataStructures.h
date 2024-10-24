@@ -28,7 +28,7 @@
 		double          F1 = 0;
 		double          F2 = 0;
 
-		float 			LAMDA=0;
+		float 			LAMDA=1.55;
 		float 			SIGMA=0;
 		float 			K_OPP=0;
 		float 			A_OPP=0;
@@ -40,6 +40,12 @@
 		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
 		int				F2ContiguousOrNot = 0;
 
+		//added for calib for fc mismatch issue
+		float 			K_ATT_L=0;  //Left edge k value
+		float 			A_ATT_L=0;	//Left edge a value
+
+		float 			K_ATT_R=0;  //Right edge k value
+		float 			A_ATT_R=0;	//Right edge a value
 
 	};
 
@@ -60,7 +66,7 @@
 		std::vector<float> slotsATTEN{0}; 	//holds every slot attentuation within a channel	//dynamic vector allocation
 		std::vector<int> slotBlockedOrNot{-1};
 
-		float 			LAMDA=0;
+		float 			LAMDA=1.55;
 		float 			SIGMA=0;
 		float 			K_OPP=0;
 		float 			A_OPP=0;
