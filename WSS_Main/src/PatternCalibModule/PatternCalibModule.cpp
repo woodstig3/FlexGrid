@@ -901,7 +901,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
           ++attIndex;
       }
 
-      if(rowNumber > 10)
+      if(rowNumber > 11)
       {
           ++portIndex;
           rowNumber = 1;

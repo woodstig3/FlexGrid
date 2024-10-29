@@ -47,6 +47,12 @@
 		float 			K_ATT_R=0;  //Right edge k value
 		float 			A_ATT_R=0;	//Right edge a value
 
+#ifdef _OCM_SCAN_
+		float 			OCM_SIGMA=-0.0014;
+		float 			OCM_K_OPP=0.5;
+		float 			OCM_A_OPP=0.001;
+#endif
+
 	};
 
 	struct FixedGrid
@@ -192,10 +198,18 @@
 
 		//For Panel Gaps
 		bool			b_gapSet = false;
-		int				topGap = 0;
-		int				bottomGap = 0;
-		int 			middleGap = 0;
-		int				middleGapPosition = 0;
+		int				topGap = 10;
+		int				bottomGap = 10;
+		int 			middleGap = 80;
+		int				middleGapPosition = 540;
+
+		//For OCM region
+		bool			b_OCMSet = true;  //true for test only
+		int 			top_M1 = 400;
+		int 			bottom_M1 = 500;
+
+		int 			top_M2 = 40;
+		int 			bottom_M2 = 140;
 	};
 
 #else
@@ -214,6 +228,12 @@
 
 		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
 		int				F2ContiguousOrNot = 0;
+
+#ifdef _OCM_SCAN_
+		float 			OCM_SIGMA=0;
+		float 			OCM_K_OPP=0;
+		float 			OCM_A_OPP=0;
+#endif
 	};
 
 	struct ModulesInfo
@@ -278,6 +298,14 @@
 		int				bottomGap = 0;
 		int 			middleGap = 0;
 		int				middleGapPosition = 0;
+
+		//For OCM region
+		bool			b_OCMSet = true;  //true for test only
+		int 			top_M1 = 400;
+		int 			bottom_M1 = 500;
+
+		int 			top_M2 = 600;
+		int 			bottom_M2 = 700;
 	};
 #endif
 

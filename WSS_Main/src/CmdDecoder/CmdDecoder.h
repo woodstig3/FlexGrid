@@ -56,7 +56,7 @@ public:
 	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR};	//Global Object FLAG
 	Objects 		eObject;
 																			// ALL_ATTR_OF_CH =  // user want certain channel info and their attributes and slots
-	enum 			Getall {SOME_ATTR = 50, ALL_CH_ALL_ATTR, ALL_ATTR_OF_CH, ALL_SLOTS_OF_CH};				// When user want to GET attributes, we want to know if he requested all channels or all slots (all channles include slots info if FIXED GRID module)
+	enum 			Getall {SOME_ATTR = 50, ALL_MODULE_ALL_ATTR, ALL_CH_ALL_ATTR, ALL_ATTR_OF_CH, ALL_SLOTS_OF_CH};				// When user want to GET attributes, we want to know if he requested all channels or all slots (all channles include slots info if FIXED GRID module)
 	Getall 			eGet;
 
 	enum 			VerbError {VERB_NOTFOUND = 60, VERB_FOUND, VERB_WRONG};
@@ -72,9 +72,11 @@ public:
 	FixedGrid 		(*FG_Channel_DS)[g_Total_Channels]= new FixedGrid[3][g_Total_Channels]();			//() brackets are very important. inialize them to default values
 	FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
+	TrueFlex		(*TF_Channel_DS_For_OCM)[VENDOR_MAX_PORT] = new TrueFlex[3][VENDOR_MAX_PORT]();
+
 	ModulesInfo 	arrModules[3];										// Two modules info, 0 not used
 
-	Panel 			panelInfo;												// Keep Panel Records
+	Panel 			panelInfo;											// Keep Panel Records
 
 
 #ifdef _DEVELOPMENT_MODE_
@@ -121,6 +123,7 @@ private:
     int				g_heaterNum = 0;
 
 	bool 			g_bNoAttribute;												//Flag if no attribute is present
+	bool			g_bNoPrevModule;									//flag if prev module got no channel at all
 
 	int 			g_currentAttributeCount = 0;
 	int 			g_totalAttributes = 0;

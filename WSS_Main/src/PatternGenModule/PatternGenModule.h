@@ -61,6 +61,21 @@ struct Background_DS_For_Pattern{  //drc added for background pattern data struc
 };
 
 
+#ifdef _OCM_SCAN_
+
+struct OCMScan_Para
+{
+	unsigned char 	port = 1;   //which port is to be scanned
+	double 			f1_startpixelpos = 0.500;
+	double 			f2_endpixelpos = 1919.000;   // 1920 for test only
+	int 			bw = 5;    //in pixels
+
+	double 			sigma = -0.0014;
+	double 			a_opt = 0.5;
+	double 			k_opt = 0.01;
+};
+#endif
+
 class PatternGenModule {
 protected:
 					PatternGenModule();
@@ -90,34 +105,41 @@ public:
 	PatternCalibModule *g_patternCalib{nullptr};
 	TemperatureMonitor *g_tempMonitor{nullptr};
 
-	int 			MoveToThread();
-	void 			StopThread();
+	int 				MoveToThread();
+	void 				StopThread();
 
-	enum 			OperationMode {DEVELOPMENT, PRODUCTION};
-	enum 			ErrorMessage {NO_ERROR, INTERPOLATION_FAILURE, PATTERN_CALC_FAILURE, PATTERN_RELOCATE_FAILURE, CALIB_FILES_NOTOK};
-	enum 			PatternOutcome {SUCCESS = 0, FAILED, NO_OPERATION};
-	ErrorMessage 	g_errorMsg = NO_ERROR;
+	enum 				OperationMode {DEVELOPMENT, PRODUCTION};
+	enum 				ErrorMessage {NO_ERROR, INTERPOLATION_FAILURE, PATTERN_CALC_FAILURE, PATTERN_RELOCATE_FAILURE, CALIB_FILES_NOTOK};
+	enum 				PatternOutcome {SUCCESS = 0, FAILED, NO_OPERATION};
+	ErrorMessage 		g_errorMsg = NO_ERROR;
 
-	unsigned char 	channelColumnData[3][g_Total_Channels*g_LCOS_Height]{};       // channelColumnData hold only 1 pixel width data value for each channel
-	unsigned char 	*fullPatternData = new unsigned char[g_LCOS_Width*g_LCOS_Height]();		       // fullPatternData hold complete picture of all channels with their widths. This is used by OCM!
-	unsigned char 	rotated[g_LCOS_Width*g_LCOS_Height];
-	float 			rotationAngle{};
-	unsigned char 	RotatedSquare[2160][4320]{}; // double the resolution
-	unsigned char   BackgroundColumnData[g_LCOS_Height]{0}; //drc added to store background grating gray scale value
+	unsigned char 		channelColumnData[3][g_Total_Channels*g_LCOS_Height]{};       // channelColumnData hold only 1 pixel width data value for each channel
+	unsigned char 		*fullPatternData = new unsigned char[g_LCOS_Width*g_LCOS_Height]();		       // fullPatternData hold complete picture of all channels with their widths. This is used by OCM!
+	unsigned char 		rotated[g_LCOS_Width*g_LCOS_Height];
+	float 				rotationAngle{};
+	unsigned char 		RotatedSquare[2160][4320]{}; // double the resolution
+	unsigned char   	BackgroundColumnData[g_LCOS_Height]{0}; //drc added to store background grating gray scale value
 	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3]{};  //drc added for 2 module background configuration, index start from 1 not 0
+
+
+#ifdef _OCM_SCAN_
+	unsigned char   	OCMColumnData[3][g_LCOS_Height]{0}; //drc added to store ocm pattern column data
+	OCMScan_Para    	OCMPattern_Para[3]{};
+//	TrueFlex			(*TF_Channel_DS_For_OCM)[VENDOR_MAX_PORT] = new TrueFlex[3][VENDOR_MAX_PORT]();   //when OCM debug finishes, no cmd needed so def could move here.
+#endif
 
 private:
 
 	static PatternGenModule *pinstance_;
 
-	std::vector<int> linearLUT{};									// The range depends on Phase_depth 2pi or 2.2pi etc
-	unsigned int 	 startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
-	unsigned int 	 endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
+	std::vector<int>linearLUT{};									// The range depends on Phase_depth 2pi or 2.2pi etc
+	unsigned int 	startOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
+	unsigned int 	endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 
 	bool 			m_bCalibDataOk = true;							// If calibration data has no issue then pattern will perform calculations otherwise no calculations
 
 #ifdef _TWIN_WSS_
-	int 			g_moduleNum{2};
+	int 		 	g_moduleNum{2};
 #else
 	int 			g_moduleNum{1};
 #endif
@@ -195,6 +217,7 @@ private:
 	int             ChannelsContiguousTest(void);
 	int             Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
 	void            refreshBackgroundPattern(void);
+	void            CalculateOCMPattern(void);
 };
 
 #endif /* SRC_PATTERNGENMODULE_PATTERNGENMODULE_H_ */
