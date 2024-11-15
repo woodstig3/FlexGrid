@@ -40,7 +40,7 @@
 		int            	F1ContiguousOrNot = 0;     // drc added 0: not contiguous; 1: contiguous;
 		int				F2ContiguousOrNot = 0;
 
-		//added for calib for fc mismatch issue
+		//added for calib for fc mismatch issue only
 		float 			K_ATT_L=0;  //Left edge k value
 		float 			A_ATT_L=0;	//Left edge a value
 
@@ -48,9 +48,13 @@
 		float 			A_ATT_R=0;	//Right edge a value
 
 #ifdef _OCM_SCAN_
-		float 			OCM_SIGMA=-0.0014;
-		float 			OCM_K_OPP=0.5;
-		float 			OCM_A_OPP=0.001;
+		float 			OCM_SIGMA=-0.014;
+		float 			OCM_K_OPP=0.0;
+		float 			OCM_A_OPP=0.5;
+
+		float			OCM_P1=0.0; 			//start pixel pos of ocm scan
+		float			OCM_P2=1952.0;			//end pixel pos of ocm scan
+
 #endif
 
 	};
@@ -198,18 +202,18 @@
 
 		//For Panel Gaps
 		bool			b_gapSet = false;
-		int				topGap = 10;
-		int				bottomGap = 10;
+		int				topGap = 0;
+		int				bottomGap = 0;
 		int 			middleGap = 80;
 		int				middleGapPosition = 540;
 
 		//For OCM region
-		bool			b_OCMSet = true;  //true for test only
-		int 			top_M1 = 400;
-		int 			bottom_M1 = 500;
+		int 			b_OCMSet = 0;  //true for test only
+		int 			ocm_top_M1 = 400;
+		int 			ocm_bottom_M1 = 500;
 
-		int 			top_M2 = 40;
-		int 			bottom_M2 = 140;
+		int 			ocm_top_M2 = 40;
+		int 			ocm_bottom_M2 = 140;
 	};
 
 #else
@@ -233,6 +237,9 @@
 		float 			OCM_SIGMA=0;
 		float 			OCM_K_OPP=0;
 		float 			OCM_A_OPP=0;
+
+		float			OCM_P1=0;
+		float			OCM_P2=1952.0;
 #endif
 	};
 
@@ -301,11 +308,11 @@
 
 		//For OCM region
 		bool			b_OCMSet = true;  //true for test only
-		int 			top_M1 = 400;
-		int 			bottom_M1 = 500;
+		int 			ocm_top_M1 = 400;
+		int 			ocm_bottom_M1 = 500;
 
-		int 			top_M2 = 600;
-		int 			bottom_M2 = 700;
+		int 			ocm_top_M2 = 600;
+		int 			ocm_bottom_M2 = 700;
 	};
 #endif
 

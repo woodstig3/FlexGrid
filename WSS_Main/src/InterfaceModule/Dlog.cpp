@@ -63,7 +63,7 @@ int Debug_logfile(FaultName nameIndex,char *buf)
 		Lod++;
       }
 
-	cout << "line of file was : " << Lod << endl;
+//	cout << "line of file was : " << Lod << endl;
 	Wsslog.close();
 
 	if(Lod >= MaxLine)

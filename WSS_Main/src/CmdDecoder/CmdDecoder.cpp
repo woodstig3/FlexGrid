@@ -47,6 +47,8 @@ CmdDecoder::~CmdDecoder()
 	delete[] FG_Channel_DS;
 	delete[] FG_Channel_DS_For_Pattern;
 
+	delete[] TF_Channel_DS_For_OCM;
+
 	delete actionSR;
 
 }
@@ -2747,60 +2749,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				}
 				break;
 			}
-#ifdef _OCM_SCAN_
-			case 'O':
-			{
-				if (attr[0] == "OCM_K_OP")
-				{
-					if (Sscanf(attr[1], fValue,'f'))
-					{
-						// Get the float value of
-						TF_Channel_DS[g_moduleNum][g_channelNum].OCM_K_OPP = fValue;
-					}
-					else
-					{
-						cout << "ERROR: The command attribute OCM_K_OP is not numerical" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-				}
-				else if (attr[0] == "OCM_A_OP")
-				{
-					if (Sscanf(attr[1], fValue,'f'))
-					{
-						// Get the float value of
-						TF_Channel_DS[g_moduleNum][g_channelNum].OCM_A_OPP = fValue;
-					}
-					else
-					{
-						cout << "ERROR: The command attribute OCM_A_OP is not numerical" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-				}
-				else if (attr[0] == "OCM_SIGMA")
-				{
-					if (Sscanf(attr[1], fValue,'f'))
-					{
-						// Get the float value of
-						TF_Channel_DS[g_moduleNum][g_channelNum].OCM_SIGMA = fValue;
-					}
-					else
-					{
-						cout << "ERROR: The command attribute OCM_SIGAMA is not numerical" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-				}
-				else
-				{
-					cout << "ERROR: The command attribute is wrong" << endl;
-					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-					return (-1);
-				}
-				break;
-			}
-#endif
 #endif
 			default:
 			{
@@ -4019,14 +3967,14 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "RESTORE" && eVerb == ACTION)		// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
+//						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
 						{
 							actionSR->RestoreModule(g_moduleNum);
 						}
-						else
-						{
-							break;
-						}
+//						else
+//						{
+//							break;
+//						}
 					}
 #ifdef _DEVELOPMENT_MODE_
 					else if (attr[0] == "ROTATE" && eVerb == SET)
@@ -4314,7 +4262,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
-			}else if (attr[0] == "MGAP"	&& eVerb == SET){
+			}
+			else if (attr[0] == "MGAP"	&& eVerb == SET)
+			{
 				unsigned int ui_Value;
 
 				if (Sscanf(attr[1], ui_Value,'i'))
@@ -4329,7 +4279,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
-			}else if (attr[0] == "MGAP_POS"	&& eVerb == SET){
+			}
+			else if (attr[0] == "MGAP_POS"	&& eVerb == SET)
+			{
 				unsigned int ui_Value;
 
 				if (Sscanf(attr[1], ui_Value,'i'))
@@ -4344,7 +4296,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
-			}else if (attr[0] == "TGAP"	&& eVerb == SET){
+			}
+			else if (attr[0] == "TGAP"	&& eVerb == SET)
+			{
 				unsigned int ui_Value;
 
 				if (Sscanf(attr[1], ui_Value,'i'))
@@ -4359,7 +4313,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
-			}else if (attr[0] == "ENABLEGAP"	&& eVerb == SET){  //drc to check
+			}
+			else if (attr[0] == "ENABLEGAP"	&& eVerb == SET)
+			{  //drc to check
 				unsigned int ui_Value;
 
 				if (Sscanf(attr[1], ui_Value,'i'))
@@ -4374,7 +4330,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
-			}else if (attr[0] == "BACK_COLOR"	&& eVerb == SET){
+			}
+			else if (attr[0] == "BACK_COLOR"&& eVerb == SET)
+			{
 				int i_Value;
 				if(Sscanf(attr[1],i_Value,'i'))
 				{
@@ -4397,7 +4355,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
-			}else if (attr[0] == "TESTRIG_SWITCH" && eVerb == SET)
+			}
+			else if (attr[0] == "TESTRIG_SWITCH" && eVerb == SET)
 			{
 				if (Sscanf(attr[1], iValue, 'i'))
 				{
@@ -4412,6 +4371,152 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					return (-1);
 				}
 			}
+#ifdef _OCM_SCAN_
+			else if(attr[0] == "OCM_P1"&& eVerb == SET)
+			{
+				if (Sscanf(attr[1], fValue,'f'))
+				{
+					// Get the float value of
+					TF_Channel_DS_For_OCM[0][0].OCM_P1 = fValue;  //[0][0] just for test
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_P1 is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if(attr[0] == "OCM_P2"&& eVerb == SET)
+			{
+				if (Sscanf(attr[1], fValue,'f'))
+				{
+					// Get the float value of
+					TF_Channel_DS_For_OCM[0][0].OCM_P2 = fValue;
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_P2 is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if(attr[0] == "OCM_SCAN"&& eVerb == SET)
+			{
+				Panel p = GetPanelInfo();
+				if (Sscanf(attr[1], iValue, 'i'))
+				{
+					p.b_OCMSet = iValue;
+					SetPanelInfo(p);
+
+				}
+			}
+			else if(attr[0] == "OCM_TOP_M1"&& eVerb == SET)
+			{
+				unsigned int ui_Value;
+				if (Sscanf(attr[1], ui_Value,'i'))
+				{
+					Panel p = GetPanelInfo();
+					p.ocm_top_M1 = ui_Value;
+					SetPanelInfo(p);
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_TOP_M1 is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if(attr[0] == "OCM_TOP_M2"&& eVerb == SET)
+			{
+				unsigned int ui_Value;
+				if (Sscanf(attr[1], ui_Value,'i'))
+				{
+					Panel p = GetPanelInfo();
+					p.ocm_top_M2 = ui_Value;
+					SetPanelInfo(p);
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_TOP_M2 is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if(attr[0] == "OCM_BOTTOM_M1"&& eVerb == SET)
+			{
+				unsigned int ui_Value;
+				if (Sscanf(attr[1], ui_Value,'i'))
+				{
+					Panel p = GetPanelInfo();
+					p.ocm_bottom_M1 = ui_Value;
+					SetPanelInfo(p);
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_BOTTOM_M1 is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if(attr[0] == "OCM_BOTTOM_M2"&& eVerb == SET)
+			{
+				unsigned int ui_Value;
+				if (Sscanf(attr[1], ui_Value,'i'))
+				{
+					Panel p = GetPanelInfo();
+					p.ocm_bottom_M2 = ui_Value;
+					SetPanelInfo(p);
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_BOTTOM_M2 is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if (attr[0] == "OCM_K_OP"&& eVerb == SET)
+			{
+				if (Sscanf(attr[1], fValue,'f'))
+				{
+					// Get the float value of
+					TF_Channel_DS_For_OCM[0][0].OCM_K_OPP = fValue;
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_K_OP is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if (attr[0] == "OCM_A_OP"&& eVerb == SET)
+			{
+				if (Sscanf(attr[1], fValue,'f'))
+				{
+					// Get the float value of
+					TF_Channel_DS_For_OCM[0][0].OCM_A_OPP = fValue;
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_A_OP is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			else if (attr[0] == "OCM_SIGMA"&& eVerb == SET)
+			{
+				if (Sscanf(attr[1], fValue,'f'))
+				{
+					// Get the float value of
+					TF_Channel_DS_For_OCM[0][0].OCM_SIGMA = fValue;
+				}
+				else
+				{
+					cout << "ERROR: The command attribute OCM_SIGAMA is not numerical" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+#endif
 			else
 			{
 				cout << "ERROR: The command attribute is wrong" << endl;
@@ -6226,7 +6331,7 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1].slotSize[0]), strLen);
 
 
-			std::cout << "Slotsize:" << outerRef.arrModules[moduleNum-1].slotSize <<std::endl;
+//			std::cout << "Slotsize:" << outerRef.arrModules[moduleNum-1].slotSize <<std::endl;
 
 			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
 			{
@@ -6326,7 +6431,7 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 			outerRef.arrModules[moduleNum-1].slotSize.resize(strLen);
 			infile.read(reinterpret_cast<char*>(&outerRef.arrModules[moduleNum-1].slotSize[0]), strLen);
 
-			std::cout << "Slotsize:" << outerRef.arrModules[moduleNum-1].slotSize <<std::endl;
+//			std::cout << "Slotsize:" << outerRef.arrModules[moduleNum-1].slotSize <<std::endl;
 			if(outerRef.arrModules[moduleNum-1].slotSize == "TF")
 			{
 				outerRef.eModule1 = TF;

@@ -395,7 +395,7 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 		        {
 		        	// ERROR MESSAGE
 		        	std::cout << "F2 out of range" << std::endl;
-		        	Pixel_Pos_params.result_F2_PixelPos = 1919;	// F2 not found means F2 is out of range
+		        	Pixel_Pos_params.result_F2_PixelPos = 1951.99;	// F2 not found means F2 is out of range
 		        }
 
 		        if(status != 0)
@@ -468,12 +468,16 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	double v22 = lut_Att->Katt[port][freqHigh][attHigh];
 
 	// Two interpolation along x-axis (temperature)
-	double R1 = wT1*v11 + wT2*v21;
-	double R2 = wT1*v12 + wT2*v22;
+//	double R1 = wT1*v11 + wT2*v21;
+//	double R2 = wT1*v12 + wT2*v22;
+
+	double R1 = wF1*v11 + wF2*v12;
+	double R2 = wF1*v21 + wF2*v22;   //drc modified
 
 	// One interpolation along y-axis (Frequency)
 
-	result_Katt = R1*wF1 + R2*wF2;
+//	result_Katt = R1*wF1 + R2*wF2;
+	result_Katt = R1*wT1 + R2*wT2;   //drc modified according to bilinear interpolation
 
 	return (0);
 }
@@ -595,8 +599,6 @@ int PatternCalibModule::Interpolate_Sigma_Bilinear(double temperature, double fr
 
 	result_sigma = R1*wF1 + R2*wF2;
 
-	//std::cout << "sigma = " << result_sigma << std::endl;
-
 	return(0);
 }
 
@@ -639,11 +641,13 @@ int PatternCalibModule::Interpolate_PixelPos_Bilinear(double temperature, double
 		double R1 = wT1*v11 + wT2*v21;
 		double R2 = wT1*v12 + wT2*v22;
 
+//		double R1 = wF1*v11 + wF2*v12;
+//		double R2 = wF1*v21 + wF2*v22;   //drc modified
+
 		// One interpolation along y-axis (Frequency)
 
+//		result_pixelPos = R1*wT1 + R2*wT2;  //drc modified
 		result_pixelPos = R1*wF1 + R2*wF2;
-
-		//std::cout << "sigma = " << result_sigma << std::endl;
 
 		return(0);
 }
@@ -657,7 +661,7 @@ int PatternCalibModule::BinarySearch_LowIndex(const double *array, int size, dou
     {
         int mid = low + (high - low) / 2;
 
-        if(array[mid] < target)
+        if(array[mid] <= target)
         {
             low = mid + 1;
         }
@@ -868,7 +872,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
 
       while (std::getline(iss, column, ',')) {
 
-          if(rowNumber == 3 && columnNumber == 2)               // Fetch value of Aatt
+    	  if(rowNumber == 3 && columnNumber == 2)               // Fetch value of Aatt
           {
               std::istringstream(column) >> value;
               lut.Aatt[portIndex] = value;
@@ -903,10 +907,11 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
 
       if(rowNumber > 11)
       {
-          ++portIndex;
-          rowNumber = 1;
-          attIndex = 0;
+    	  ++portIndex;
+		  rowNumber = 1;
+		  attIndex = 0;
       }
+
     }
 
 	file.close();

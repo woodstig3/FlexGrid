@@ -42,6 +42,7 @@ public:
 	bool 			b_SendString = true;												//FLag that message to user needs to be send
 	bool 			b_CmdDecError = false;
 	bool 			b_RestartNeeded = false;
+	bool            b_Start_OCM_SCAN = false;
 
 	enum 			PreProcessConcat {FAILED, SUCCESS};
 
