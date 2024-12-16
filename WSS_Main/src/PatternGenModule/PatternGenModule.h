@@ -16,10 +16,8 @@
 #include <fstream>
 #include <cstring>	// for memset and strerror
 
-
 #include "SerialModule.h"
 #include "PatternCalibModule.h"
-#include "GlobalVariables.h"
 #include "TemperatureMonitor.h"
 
 #include "InterfaceModule/OCMTransfer.h"

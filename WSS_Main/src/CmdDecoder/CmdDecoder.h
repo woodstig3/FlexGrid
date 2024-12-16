@@ -8,19 +8,17 @@
 #ifndef SRC_CMDDECODER_CMDDECODER_H_
 #define SRC_CMDDECODER_CMDDECODER_H_
 
-#include "GlobalVariables.h"
-#include "DataStructures.h"		//All structures defined here
-
-
 #include <vector>
 #include <list>
-#include <string>
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <time.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "FileTransfer.h"
+#include "DataStructures.h"		//All structures defined here
+
 #include "InterfaceModule/LCOSDisplayTest.h"
 #include "InterfaceModule/EEPROMUpdate.h"
 
@@ -34,7 +32,6 @@ struct ChannelModules
 
 class CmdDecoder {
 
-
 public:
 	CmdDecoder();
 	virtual 	  	~CmdDecoder();
@@ -43,6 +40,7 @@ public:
 	bool 			b_CmdDecError = false;
 	bool 			b_RestartNeeded = false;
 	bool            b_Start_OCM_SCAN = false;
+//	bool            b_Start_Download = false;    //drc added for fwupgrade
 
 	enum 			PreProcessConcat {FAILED, SUCCESS};
 
@@ -54,7 +52,7 @@ public:
 	enum 			Verbs { NONE, SET, GET, ADD, DELETE, ACTION};				//Global Verbs FLAG
 	Verbs 			eVerb;
 
-	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR};	//Global Object FLAG
+	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR, BGUPGRADE, PPM1UPGRADE, PPM2UPGRADE, GMUPGRADE, ATTM1UPGRADE, ATTM2UPGRADE, OPTM1UPGRADE, OPTM2UPGRADE, SIGM1UPGRADE, SIGM2UPGRADE};	//Global Object FLAG
 	Objects 		eObject;
 																			// ALL_ATTR_OF_CH =  // user want certain channel info and their attributes and slots
 	enum 			Getall {SOME_ATTR = 50, ALL_MODULE_ALL_ATTR, ALL_CH_ALL_ATTR, ALL_ATTR_OF_CH, ALL_SLOTS_OF_CH};				// When user want to GET attributes, we want to know if he requested all channels or all slots (all channles include slots info if FIXED GRID module)
@@ -79,7 +77,6 @@ public:
 
 	Panel 			panelInfo;											// Keep Panel Records
 
-
 #ifdef _DEVELOPMENT_MODE_
 
 	bool 			TECSet = false;
@@ -94,6 +91,7 @@ public:
 	bool 			g_bTransferFinished = false;								// True when pattern generation finish transfering
 	bool 			GetPatternTransferFlag(void);
 	void 			SetPatternTransferFlag(bool);
+	void            GetDownloadFilePath(int eObj, std::string& strOldPath, std::string& strNewPath);								//for FWUPGRADE
 
 	void 			PrintResponse(const std::string &, const enum PrintType &);
 
@@ -206,6 +204,8 @@ public:
 			FixedGrid 		(*FG_Channel_DS_For_Save)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();
 	};
 	ActionVrb *actionSR = new ActionVrb(*this);
+
+	FileTransfer  *file_transfer;
 };
 
 

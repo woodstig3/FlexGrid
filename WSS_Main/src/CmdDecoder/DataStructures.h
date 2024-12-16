@@ -8,9 +8,9 @@
 #ifndef SRC_CMDDECODER_DATASTRUCTURES_H_
 #define SRC_CMDDECODER_DATASTRUCTURES_H_
 
-#include "GlobalVariables.h"
 #include <string>
 #include <vector>
+#include "GlobalVariables.h"
 
 
 #ifdef _DEVELOPMENT_MODE_
@@ -20,7 +20,7 @@
 	{
 		bool 			active = false;	   //default all channels are active	//1 means channels are active and 0 means deleted
 		int 			ADP = 0;			//NOT IN USE IN PRODUCTION MODE
-		float 			ATT = 35;			  //NOT IN USE IN PRODUCTION MODE
+		float 			ATT = 35;			//NOT IN USE IN PRODUCTION MODE
 		int 			CMP =1;
 
 		double 			FC =0;				// for position

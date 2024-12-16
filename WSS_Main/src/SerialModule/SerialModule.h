@@ -15,6 +15,7 @@
 #include "CmdDecoder.h"
 #include "InterfaceModule/MemoryMapping.h"
 
+
 class SerialModule
 {
 protected:
@@ -65,13 +66,14 @@ private:
 	int 			iSerialFD;												// Serial file descriptor
 	bool 			b_LoopOn;												// Loop running on thread
 
-	pthread_t 		thread_id{0};										// Create Thread id
+	pthread_t 		thread_id{0};								// Create Thread id
 	pthread_attr_t 	thread_attrb;								// Create Attributes
 
 	const unsigned int MAX_BUFFER_LENGTH = 50000;
 	const unsigned int SERIAL_READ_LENGTH = 15000;
 
 	const char 		START_DELIMITER = '\01';
+	const char      START_DOWNLOAD_DELIMITER = '\03';
 	const char 		END_DELIMITER = '\04';
 
 	std::string 	sendMsg{""};
@@ -95,6 +97,8 @@ private:
 	int 			Serial_LockFileDescriptor();
 
 	int 			Serial_ExtractSingleCommand(std::string& dest, std::string& scr);
+	int             Serial_ExtractFilePacket(std::string& dest, std::string& scr);  //drc added for file packets parsing
+
 	//std::string& 	Serial_InitiateCommandDecoding(const std::string& finalCommand);
 	//int Serial_ExtractSingleCommand2(std::string& dest, std::string& scr, std::string &temp_buff, bool *startDelimiter, bool *endDelimiter);
 

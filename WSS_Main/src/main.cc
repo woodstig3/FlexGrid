@@ -26,6 +26,7 @@
 #include "InterfaceModule/I2CProtocol.h"
 #include "InterfaceModule/Dlog.h"
 
+
 pthread_mutex_t global_mutex[NUM_OF_MUTEXES];
 pthread_mutexattr_t mutex_attribute;
 pthread_cond_t cond, cond_result_ready;
@@ -48,6 +49,8 @@ void DestroyGlobalMutex(void);
  *
  * Classical Singleton Design
  */
+
+ThreadSafeQueue<std::string> packetQueue;  //the queue used for receiving file transfer packets from serial module to file-transfer module.
 
 int main(int argc, char* argv[])
 {
@@ -98,8 +101,21 @@ int main(int argc, char* argv[])
 //			printf("\n");
 //	}
 
-//	serialIns->cmd_decoder.actionSR->RestoreModule(1);
-//	serialIns->cmd_decoder.actionSR->RestoreModule(2);
+#ifdef _SPI_INTERFACE_
+	SPIInterface& spi = SPIInterface::getInstance(); // Create or get the singleton SPI instance
+	spi.init(500000, SPI_MODE_0, 8);
+
+	ThreadManager& manager = ThreadManager::getInstance();
+	manager.startThreads(spi);
+
+	 // Run for a while then stop (for demonstration purposes)
+	    sleep(30);
+
+	 // Shutdown spi interface module
+	manager.stopThreads();
+
+#endif
+
 
 	while(!serialIns->b_endMainSignal) 												// To close main loop and end application when serial thread ends
 	{

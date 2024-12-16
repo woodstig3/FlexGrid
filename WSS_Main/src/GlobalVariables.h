@@ -18,8 +18,8 @@
 
 const double PI = 3.141592653589793238;
 
-#define VENDOR_FREQ_RANGE_LOW  191124.99
-#define VENDOR_FREQ_RANGE_HIGH	 196275.01
+#define VENDOR_FREQ_RANGE_LOW  191124.999999
+#define VENDOR_FREQ_RANGE_HIGH	 196275.000001
 
 #define VENDOR_BW_RANGE_LOW 37.49
 #define VENDOR_BW_RANGE_HIGH 500.01
@@ -27,7 +27,7 @@ const double PI = 3.141592653589793238;
 #define VENDOR_MAX_PORT 23
 #define VENDOR_MIN_BW 6.249
 
-#define WHOLE_BANDWIDTH 5150.01
+#define WHOLE_BANDWIDTH 5150
 
 #define MAX_ATT_BLOCK   15
 
@@ -37,6 +37,7 @@ constexpr int g_Total_Channels{1024};	// compile-time constant 96
 
 constexpr double g_Max_Normal_Temperature{55.5}; //grating temperature
 constexpr double g_Min_Normal_Temperature{51.5}; //grating temperature
+
 
 // CmdDecoder Special
 #define _TEST_OVERLAP_

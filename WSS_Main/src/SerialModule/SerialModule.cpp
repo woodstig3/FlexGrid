@@ -25,6 +25,8 @@
 
 SerialModule* SerialModule::pinstance_{nullptr};
 
+extern ThreadSafeQueue<std::string> packetQueue;   //for file packets transfer between serial and file transfer thread
+
 SerialModule::SerialModule()
 {
 	int status = Serial_Initialize();
@@ -102,7 +104,8 @@ void SerialModule::ProcessReadWrite(void)
 	int num_bytes{0};
 //	unsigned int readData{0};
 	std::string temp_search_Str{""};									// Take data from temp_read_buf and perform delimiter searching. It also separate commands if they come all back to back \01 \04\01 \04
-	std::string finalCommand{""};										// One complete command without delimiters
+	std::string finalCommand{""};
+	std::string strPacket{""};										// One complete command without delimiters
 
 
 	while(b_LoopOn)														// Serial loop running on a thread.
@@ -112,7 +115,6 @@ void SerialModule::ProcessReadWrite(void)
 		do																// Read from user until all data from serial line are received...
 		{
 			num_bytes = Serial_ReadPort(temp_search_Str);				// Keep reading serial port until command stop arriving
-
 
 			if(num_bytes < 0)
 			{
@@ -137,7 +139,6 @@ void SerialModule::ProcessReadWrite(void)
 
 		}while(num_bytes != 0 && b_LoopOn);
 
-
 		while(temp_search_Str.size() > 0)
 		{
 		   // Start the clock
@@ -146,8 +147,37 @@ void SerialModule::ProcessReadWrite(void)
 //			clock_t tstart = clock();
 //			std::cout << "First clock = " << tstart << std::endl;
 
+			//extract download file packets into queue
+			int status = Serial_ExtractFilePacket(strPacket, temp_search_Str);
 
-			int status = Serial_ExtractSingleCommand(finalCommand, temp_search_Str);	// Extract commands one after another if multiple commands are there with delimiters \01..\04\01...\04\01...\04.
+			if (status == DelimiterStatus::FOUND)
+			{
+				Serial_WritePort("\01OK\04");
+
+#ifdef  _TEST_DOWNLOAD_
+			    // Create a test packet with a packet number and firmware bytes
+			    uint16_t packetNumber = 1; // Packet number 1
+			    const int packetSize = 2048; // Size of firmware data per packet
+			    std::string testPacket = "\x03"; // Start delimiter
+			    testPacket += cmd_decoder.file_transfer->intToHexChar((packetNumber >> 8) & 0xFF); // High byte of packet number
+			    testPacket += cmd_decoder.file_transfer->intToHexChar(packetNumber & 0xFF);      // Low byte of packet number
+
+			    // Append firmware data (for brevity, using a pattern of 0xAA and 0xBB)
+			    for (int i = 0; i < packetSize; ++i) {
+			        testPacket += (i % 2 == 0) ? "\xAA" : "\xBB";
+			    }
+
+			    // Append the end delimiter
+			    testPacket += "\x04";
+
+//			    cmd_decoder.file_transfer->processFirmwarePackets(testPacket, packetSize+4);
+
+				cmd_decoder.file_transfer->processFirmwarePackets(strPacket,cmd_decoder.file_transfer->file_num_bytes);
+#endif
+				continue;
+			}
+
+			status = Serial_ExtractSingleCommand(finalCommand, temp_search_Str);	// Extract commands one after another if multiple commands are there with delimiters \01..\04\01...\04\01...\04.
 
 			if (status == DelimiterStatus::INVALID)
 			{
@@ -214,8 +244,22 @@ void SerialModule::ProcessReadWrite(void)
 					usleep(1000);
 					Serial_WritePort("\01Restarting Application...\04\n");
 					std::cout << "Restarting Application... " << std::endl;
-					sync();
-					reboot(RB_AUTOBOOT);
+//					sync();
+//					reboot(RB_AUTOBOOT);
+
+					const char* processName = "WSS_Main.elf"; // Replace with the name of your application
+
+					// Kill the application
+					std::string killCommand = std::string("pkill ") + processName; // This will send SIGTERM
+					system(killCommand.c_str());
+
+					 // Wait for the application to terminate
+					sleep(1); // Optional: Wait for 1 second
+
+					// Relaunch the application
+					std::string launchCommand = std::string("./") + processName; // Assuming the app is in the current directory
+					system(launchCommand.c_str());
+
 					break;
 				 }
 			}
@@ -264,6 +308,83 @@ void SerialModule::StopThread()
 
 }
 
+int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& temp_search_Str)
+{
+	std::size_t delimiter04_pos = 0;
+	std::size_t delimiter03_pos = 0;
+
+	bool b_missingDelim = false;
+	bool b_invalidDelim = false;
+	bool issue = false;
+
+//	if(cmd_decoder.file_transfer->b_Start_Download == true)
+	{
+		delimiter03_pos = temp_search_Str.find(START_DOWNLOAD_DELIMITER, 0);
+		if( delimiter03_pos == std::string::npos)	// Not Found at all-
+		{
+			// file packets delimited by '\03\' Not found at all
+//			temp_search_Str.clear();
+			b_missingDelim = true;
+			issue = true;
+		}
+		else
+		{
+			delimiter04_pos = temp_search_Str.rfind(END_DELIMITER);
+			if( delimiter04_pos == std::string::npos)	// END_DELIMITER Not Found at all
+			{
+				b_missingDelim = true;
+//				temp_search_Str.clear();
+				issue = true;
+			}
+			else
+			{
+				//For case \03
+				if(delimiter04_pos < delimiter03_pos)
+				{// For case \04....\03..
+					b_invalidDelim = true;
+//						temp_search_Str.clear();
+					issue = true;
+				}
+				else
+				{
+					// All Good
+				}
+			}
+		}
+
+		//Extract file packets
+		if(issue == false)
+		{
+			strPacket = temp_search_Str.substr(delimiter03_pos,delimiter04_pos+1);
+			//push packet into queue
+			packetQueue.push(strPacket);
+			temp_search_Str.erase(delimiter03_pos, delimiter04_pos+1);
+			std::cout << strPacket << " size = "<< strPacket.size() <<std::endl;
+			return (DelimiterStatus::FOUND);
+		}
+		else
+		{
+			if(b_invalidDelim)
+			{
+				return (DelimiterStatus::INVALID);
+			}
+			else if(b_missingDelim)
+			{
+				return (DelimiterStatus::MISSING);
+			}
+			else
+			{
+				//Not file packet, go to next step: command format parsing
+			}
+		}
+
+	}
+//	else
+	{
+		//if no packet download, nothing else happened
+	}
+	return (0);
+}
 int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::string& temp_search_Str)
 {
 	/*Following commands were tested and the following results were found:
@@ -278,8 +399,11 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 	 * \04Hellow\01Maybe\04		- Second command ok, first delimiter missing
 	 */
 
+	/*for file downloading, [0x3]<packet_num><FW_bytes>[0x4] format is also correct*/
+
 	std::size_t delimiter04_pos = 0;
 	std::size_t delimiter01_pos = 0;
+
 	bool b_missingDelim = false;
 	bool b_invalidDelim = false;
 	bool issue = false;
@@ -303,15 +427,15 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 		}
 		else
 		{
+			//For case \03
 
-			// For case \01....\01.....\04
 			std::size_t temp_delimiter_01 = 0;
 
 			temp_delimiter_01 = temp_search_Str.find(START_DELIMITER, delimiter01_pos+1);	// Find \01 other than previous one
 			if( temp_delimiter_01 == std::string::npos)	// Not Found at all-
 			{
 				if(delimiter04_pos < delimiter01_pos)
-				{
+				{// For case \04....\01..
 					b_invalidDelim = true;
 					temp_search_Str.clear();
 					issue = true;
@@ -448,7 +572,7 @@ int SerialModule::Serial_LockFileDescriptor(void)
 int SerialModule::Serial_ReadPort(std::string& temp_search_Str)
 {
 	int num_bytes{0};
-	char temp_read_buf [SERIAL_READ_LENGTH]{0};										// This buffer hold temporary data upon each read function.
+	char temp_read_buf [SERIAL_READ_LENGTH]{0};					// This buffer hold temporary data upon each read function.
 
 	memset(&temp_read_buf, '\0', sizeof(temp_read_buf));				// Reset temp_read_buf all values with \0
 
@@ -506,10 +630,10 @@ int SerialModule::CheckOperationFromCommandDecoder(void)
 		Serial_WritePort(sendMsg);
 		sendMsg.clear();
 
-			if(cmd_decoder.b_RestartNeeded)
-			{
-				return (OperationMode::RESTART);
-			}
+		if(cmd_decoder.b_RestartNeeded)
+		{
+			return (OperationMode::RESTART);
+		}
 	}
 
 	return (OperationMode::NORMAL);

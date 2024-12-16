@@ -20,9 +20,11 @@
 #include "InterfaceModule/Dlog.h"
 #include "CmdDecoder.h"
 
+
 extern double g_direct_LCOS_Temp;
 extern double g_direct_Hearter2_Temp;
 
+extern ThreadSafeQueue<std::string> packetQueue;
 
 std::string out;
 using namespace std;
@@ -38,6 +40,8 @@ CmdDecoder::CmdDecoder() {
 
 	strcpy(customerInfo, "BAIANTEK");
 
+	file_transfer = new FileTransfer("/mnt/WSS_Main.elf", "/mnt/WSS_Backup.elf");
+
 }
 
 CmdDecoder::~CmdDecoder()
@@ -50,6 +54,7 @@ CmdDecoder::~CmdDecoder()
 	delete[] TF_Channel_DS_For_OCM;
 
 	delete actionSR;
+	delete file_transfer;
 
 }
 
@@ -108,6 +113,32 @@ void CmdDecoder::SetPatternTransferFlag(bool flag)
 	}
 }
 
+
+void CmdDecoder::GetDownloadFilePath(int eObj, std::string& strOldPath, std::string& strNewPath)
+{
+	switch(eObj)
+	{
+		case FWUPGRADE:
+			strNewPath = "/mnt/WSS_Backup.elf";
+			strOldPath = "/mnt/WSS_Main.elf";
+
+			break;
+		case GMUPGRADE:
+			strNewPath = "/mnt/EEPROM_LINUX_OCM_New.hec";
+			strOldPath = "/mnt/EEPROM_LINUX_OCM.hec";
+			break;
+		case ATTM1UPGRADE:
+			strNewPath = "/mnt/Att_LUT_M1_New.csv";
+			strOldPath = "/mnt/Att_LUT_M1.csv";
+			break;
+		default:
+			return;
+
+	}
+}
+
+
+
 std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 {
 	ResetGlobalVariables();
@@ -116,7 +147,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	int commandCount = 1;									// IMPORTANT: first command in concatenated commands must have verb, rest of the commands following can have no verb, is ok.
 
 	vector<string> commandVector;
-	cout << "Command Received: " << recvCommand <<endl;
+//	cout << "Command Received: " << recvCommand <<endl;
 
 	int status = getCommandFormat(commandVector, recvCommand);
 
@@ -203,7 +234,8 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 		WaitPatternTransfer();				// This wait is necessary because other modules can modify the PrintResponse if there is any error
 
 	}
-	else if((searchDone != -1) && (eVerb == ACTION && eObject == MODULE)) //drc added for store and restore
+	else if((searchDone != -1) && (eVerb == ACTION && (eObject == MODULE || eObject == FWUPGRADE
+			|| eObject == ATTM1UPGRADE))) //drc added for store and restore
 	{
 		PrintResponse("\01OK\04", NO_ERROR);
 	}
@@ -252,6 +284,7 @@ int CmdDecoder::getCommandFormat(std::vector<std::string>& commandVector, const 
 int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, int commandCount)
 {
 	int commandItems = singleCommandVector.size();		// Include verb, object and attributes ---->	/**  ADD	 **/
+	std::string attribute = {""};                      //for FWUPGRADE.1:PREPARE:78667
 
 	if(commandCount == 1)						// First 1 command
 	{
@@ -312,6 +345,10 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				{//get:ch.1:id:chaid:fc:bw:att
 
 				}
+				else if((commandItems > 2) && (eVerb == ACTION && eObject == FWUPGRADE))
+				{
+//					b_Start_Download = true;
+				}
 			}
 			else
 			{
@@ -322,12 +359,27 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				g_currentAttributeCount = commandItems - index;		// How many attributes are there in once command
 				g_bNoAttribute = false;	// Attribute exists
 
+				if((g_currentAttributeCount == 2) && (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE)))
+				{//prepare:12345..
+					attribute = singleCommandVector[index]+":";
+
+				}
+				else if((g_currentAttributeCount == 1) && (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE)))
+				{
+					attribute += singleCommandVector[index];
+					int status = SearchAttribute(attribute);
+					if(status == -1)
+						return (-1);
+				}
 				// We will not call get attribute functions if usr has  *asterisk in object, because this function will be called from Object module. We only call this function when attribute is given by the user
+				else {
 
-				int status = SearchAttribute(singleCommandVector[index]);
+					int status = SearchAttribute(singleCommandVector[index]);
+					if(status == -1)
+						return (-1);
+				}
 
-				if(status == -1)
-					return (-1);
+
 			}
 		}
 		else if (commandCount > 1)
@@ -343,7 +395,7 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				if (status == -1)		// Print_Search() function call here is only in case when no attribute exist, if attribute exists it will set the flag
 					return (-1);		// Break if error in command
 
-				if ((commandItems <= 1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) || (eVerb == ACTION && eObject == FWUPGRADE)))
+				if ((commandItems <= 1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) || (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE))))
 				{
 					std::cout << "ERROR: Command format is Invalid" << std::endl;
 					PrintResponse("\01MISSING_ATTRIBUTE\04", ERROR_HI_PRIORITY);
@@ -1192,6 +1244,75 @@ int CmdDecoder::SearchObject(std::string &object)
 								if (g_moduleNum == 1)
 								{
 									eObject = FWUPGRADE;
+//									b_Start_Download = true;  //when file is downloading, '\03\' is valid
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+
+						else if(objVec[0] == "GMUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = GMUPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+						else if(objVec[0] == "BGUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = BGUPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+						else if(objVec[0] == "PPUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = PPM1UPGRADE;
+								}
+								else if(g_moduleNum == 2)
+								{
+									eObject = PPM2UPGRADE;
 								}
 								else
 								{
@@ -1210,6 +1331,91 @@ int CmdDecoder::SearchObject(std::string &object)
 							cout << "ERROR: The command Object is wrong" << endl;
 							return (-1);
 						}
+						break;
+					}
+					case 10:
+					{
+						if (objVec[0] == "ATTUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = ATTM1UPGRADE;
+								}
+								else if(g_moduleNum == 2)
+								{
+									eObject = ATTM2UPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+
+						else if(objVec[0] == "OPTUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = OPTM1UPGRADE;
+								}
+								else if(g_moduleNum == 2)
+								{
+									eObject = OPTM2UPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+						else if(objVec[0] == "SIGUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = SIGM1UPGRADE;
+								}
+								else if(g_moduleNum == 2)
+								{
+									eObject = SIGM2UPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+						else
+						{
+
+						}
+
 						break;
 					}
 					case 6:
@@ -1978,18 +2184,15 @@ int CmdDecoder::SearchObject(std::string &object)
 							{
 								if (objVec[1] == "1")	// Read Module Number must be 1 only
 								{
-									if (Sscanf(objVec[1], g_moduleNum, 'i'))
-									{
-										eObject = FWUPGRADE;
-										eGet = SOME_ATTR;		// default
+									eObject = FWUPGRADE;
+									eGet = SOME_ATTR;		// default
 
-										if (g_bNoAttribute == true)
-										{
-											// if no attribute is given
-											eGet = ALL_ATTR_OF_CH;
-											std::string chr_ask = "*";
-											Print_SearchAttributes(chr_ask);	//send signal that all channel values are needed
-										}
+									if (g_bNoAttribute == true)
+									{
+										// if no attribute is given
+										eGet = ALL_ATTR_OF_CH;
+										std::string chr_ask = "*";
+										Print_SearchAttributes(chr_ask);	//send signal that all channel values are needed
 									}
 									else
 									{
@@ -2231,8 +2434,32 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 	}
 	else
 	{
-		attr.push_back(attributes);	// Move the attribute to 0th index of vector i.e STORE or RESTORE to attr[0]
-		attr.push_back("0");	// EXTENDING VECTOR for safety and avoid segmentation error
+		if(eObject != FWUPGRADE && eObject != ATTM1UPGRADE)
+		{
+			attr.push_back(attributes);	// Move the attribute to 0th index of vector i.e STORE or RESTORE to attr[0]
+			attr.push_back("0");	// EXTENDING VECTOR for safety and avoid segmentation error
+		}
+		else
+		{
+			attr = SplitCmd(attributes, ":");
+
+			if(attr[0] == "-1" || attr.size() < 2)
+			{
+				attr.push_back(attributes);	// Move the attribute to 0th index of vector i.e COMMIT or REVERT to attr[0]
+				attr.push_back("0");		// EXTENDING VECTOR for safety and avoid segmentation error
+			}
+			if (attr[0] == "-1" || attr.size() > 2)
+			{
+				cout << "ERROR: Invalid Attribute Format"<< endl;
+				return (-1);
+			}
+
+			if (attr.size() == 2 && attr[1] == "")				// When attribute value is not given i.e. ADD:CH.1.1:ADP=
+			{
+				PrintResponse("\01MISSING_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+				return (-1);
+			}
+		}
 	}
 
 
@@ -2762,510 +2989,510 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 		}
 
 		case CH_FG:
+		{
+			switch(attr[0][0])
 			{
-				switch(attr[0][0])
+			case 'A':
+			{
+				if (attr[0] == "ADP" && objVec.size() == 3)
 				{
-				case 'A':
-				{
-					if (attr[0] == "ADP" && objVec.size() == 3)
+					if (Sscanf<int>(attr[1], iValue, 'i'))
 					{
-						if (Sscanf<int>(attr[1], iValue, 'i'))
+						if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	// Port 1 to 12
 						{
-							if(iValue >=1 && iValue <=VENDOR_MAX_PORT)	// Port 1 to 12
-							{
-								FG_Channel_DS[g_moduleNum][g_channelNum].ADP = iValue;
-							}
-							else
-							{
-								PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-								return (-1);
-							}
+							FG_Channel_DS[g_moduleNum][g_channelNum].ADP = iValue;
 						}
 						else
 						{
-							cout << "ERROR: The command attribute ADP is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 					}
-					else if (attr[0] == "ATT")
+					else
 					{
-						/****************************************/
-						/*	    Attenuation Belongs to Slot      */
-						/****************************************/
-						if (objVec.size() == 4)
+						cout << "ERROR: The command attribute ADP is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else if (attr[0] == "ATT")
+				{
+					/****************************************/
+					/*	    Attenuation Belongs to Slot      */
+					/****************************************/
+					if (objVec.size() == 4)
+					{
+						// If Object Slot is defined. M.N.S. If 'S' is defined means attention value is for slot not for channel
+
+						// Check if Bandwidth of channel is defined or not
+						if ((FG_Channel_DS[g_moduleNum][g_channelNum].F1 != 0) && (FG_Channel_DS[g_moduleNum][g_channelNum].F2 != 0))
 						{
-							// If Object Slot is defined. M.N.S. If 'S' is defined means attention value is for slot not for channel
+							//If Channel BW is defined then calculate slot numbers and add attenuation to the slot index
 
-							// Check if Bandwidth of channel is defined or not
-							if ((FG_Channel_DS[g_moduleNum][g_channelNum].F1 != 0) && (FG_Channel_DS[g_moduleNum][g_channelNum].F2 != 0))
-							{
-								//If Channel BW is defined then calculate slot numbers and add attenuation to the slot index
-
-								/************below part i added, remove and uncomment if anything go wrong***********/
-								if (Sscanf(attr[1], fValue,'f'))
-								{
-									if((FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) >= 0 && (FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) < 35.01)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
-									{
-										// Get the float value of ATT
-										FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum - 1] = fValue;
-									}
-									else
-									{
-										cout << "ERROR: The slot attenuation is violating channel relative attenuation rule" << endl;
-										return (-1);
-									}
-								}
-								else
-								{
-									cout << "ERROR: The Command Attribute ATT is not numerical" << endl;
-									PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-									return (-1);
-								}
-
-							}
-							else
-							{
-								cout << "ERROR: The Channel Bandwidth (F1 & F2) not defined" << endl;
-								return (-1);
-							}
-						}
-
-						/****************************************/
-						/*	   Attenuation Belongs to Channel    */
-						/****************************************/
-
-						else
-						{
-							// The Object doesn't have slot defined. The attenuation value belongs to channel
+							/************below part i added, remove and uncomment if anything go wrong***********/
 							if (Sscanf(attr[1], fValue,'f'))
 							{
-								if(fValue >=0 && fValue < 35.01)		// Can't be negative //drc confirmed with L and zte, should be 35.0
+								if((FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) >= 0 && (FG_Channel_DS[g_moduleNum][g_channelNum].ATT + fValue) < 35.01)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
 								{
-									// Test all slots to make sure it doesnt violate relationship with channel attenuation
-									for(int s=0; s< FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; s++)
-									{
-										if((FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) < 0 || (FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) > 35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
-										{
-											cout << "ERROR: The channel attenuation is violating slot relative attenuation rule" << endl;
-											return (-1);
-										}
-									}
+									// Get the float value of ATT
+									FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[g_slotNum - 1] = fValue;
 								}
 								else
 								{
-									cout << "ERROR: The Channel Attenuation range is (0-35.0dbm +ve)" << endl;
+									cout << "ERROR: The slot attenuation is violating channel relative attenuation rule" << endl;
 									return (-1);
 								}
-								FG_Channel_DS[g_moduleNum][g_channelNum].ATT = fValue;
 							}
 							else
 							{
-								cout << "ERROR: The command attribute ATT is not numerical" << endl;
+								cout << "ERROR: The Command Attribute ATT is not numerical" << endl;
 								PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 								return (-1);
 							}
+
+						}
+						else
+						{
+							cout << "ERROR: The Channel Bandwidth (F1 & F2) not defined" << endl;
+							return (-1);
 						}
 					}
-#ifdef _DEVELOPMENT_MODE_
-					else if (attr[0] == "A_OP")
+
+					/****************************************/
+					/*	   Attenuation Belongs to Channel    */
+					/****************************************/
+
+					else
 					{
+						// The Object doesn't have slot defined. The attenuation value belongs to channel
 						if (Sscanf(attr[1], fValue,'f'))
 						{
-							FG_Channel_DS[g_moduleNum][g_channelNum].A_OPP = fValue;
-						}
-						else
-						{
-							cout << "ERROR: The command attribute a_op is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else if (attr[0] == "A_ATT")
-					{
-						if (Sscanf(attr[1], fValue,'f'))
-						{
-							// Get the float value of ATT
-							FG_Channel_DS[g_moduleNum][g_channelNum].A_ATT = fValue;
-						}
-						else
-						{
-							cout << "ERROR: The command attribute A_ATT is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-#endif
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
-				}
-				case 'C':
-				{
-					if (attr[0] == "CMP" && objVec.size() == 3)
-					{
-						if (Sscanf(attr[1], iValue, 'i'))
-						{
-							if(iValue == 1 || iValue == 2)
+							if(fValue >=0 && fValue < 35.01)		// Can't be negative //drc confirmed with L and zte, should be 35.0
 							{
-								FG_Channel_DS[g_moduleNum][g_channelNum].CMP = iValue;
-							}
-							else
-							{
-								cout << "ERROR: Invalid CMP value" << endl;
-								PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-								return (-1);
-							}
-						}
-						else
-						{
-							cout << "ERROR: The command attribute CMP is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
-				}
-				case 'F':
-				{
-					if (attr[0] == "F1")
-					{
-						// We ignore if f2 or f1 is not defined at the moment, we only give bandwidth not integral error when both f1 and f2 are defined and then bandwidth not integral of slotsize
-						double f1;
-						if (Sscanf(attr[1], f1,'f'))
-						{
-							// If F1 is numerical
-							if (f1 > VENDOR_FREQ_RANGE_LOW && f1 < VENDOR_FREQ_RANGE_HIGH)
-							{
-								if(g_edgeFreqDefined == 1 && f1 > FG_Channel_DS[g_moduleNum][g_channelNum].F2)
+								// Test all slots to make sure it doesnt violate relationship with channel attenuation
+								for(int s=0; s< FG_Channel_DS[g_moduleNum][g_channelNum].slotNum; s++)
 								{
-									cout << "ERROR: The Edge Freqs F1 & F2 are crossed" << endl;
-									return (-1);
-								}
-
-								changeF1 = true;	// Signal that F1 is changed
-								prevF1 = FG_Channel_DS[g_moduleNum][g_channelNum].F1;	// save previous value of F1 to compare contract or expand later
-								FG_Channel_DS[g_moduleNum][g_channelNum].F1 = f1;
-								//std::cout << std::setprecision(10) << " F1 = " << FG_Channel_DS[g_moduleNum][g_channelNum].F1 <<std::endl;
-								g_edgeFreqDefined++;	// whether user provided only F1 or F2, or both. for both == 2, for F1/F2 == 1
-
-								if(FG_Channel_DS[g_moduleNum][g_channelNum].F2 != 0) //(changeF2 == true)	// Fill FC and BW of Fixed Grid channel
-								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
-									FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
-									//std::cout << std::setprecision(10) << " FC = " << FG_Channel_DS[g_moduleNum][g_channelNum].FC <<std::endl;
-
-									if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW) //drc to check minimal BW
+									if((FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) < 0 || (FG_Channel_DS[g_moduleNum][g_channelNum].slotsATTEN[s] + fValue) > 35.0)		// Slot attenuation is relative and should not be less than 0 or more than 20dbm
 									{
-										cout << "ERROR: BW range is not acceptable being less than 6.25GHz" << endl;
-										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-										return (-1);
-									}
-									else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
-									{
-										cout << "ERROR: BW range is not acceptable being greater than full waveband" << endl;
-										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-										return (-1);
-
-									}
-								}
-							}
-							else
-							{
-								cout << "ERROR: The F1 is not in desired range (i.e VENDOR_FREQ_RANGE_LOW - VENDOR_FREQ_RANGE_HIGH)" << endl;
-								return (-1);
-							}
-						}
-						else
-						{
-							cout << "ERROR: The command attribute F1 is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else if (attr[0] == "F2")
-					{
-						double f2;
-						if (Sscanf(attr[1], f2,'f'))
-						{
-							// If F2 is numerical
-							if (f2 > VENDOR_FREQ_RANGE_LOW && f2 < VENDOR_FREQ_RANGE_HIGH)
-							{
-								if(g_edgeFreqDefined == 1 && f2 < FG_Channel_DS[g_moduleNum][g_channelNum].F1)
-								{
-									cout << "ERROR: The Edge Freqs F1 & F2 are crossed" << endl;
-									return (-1);
-								}
-
-								changeF2 = true;	// Signal that F2 is changed
-								prevF2 = FG_Channel_DS[g_moduleNum][g_channelNum].F2;	// save previous value of F2 to compare contract or expand later
-								FG_Channel_DS[g_moduleNum][g_channelNum].F2 = f2;
-								g_edgeFreqDefined++;	// whether user provided only F1 or F2, or both. for both == 2, for F1/F2 == 1
-
-								if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 != 0) //(changeF1 == true)	// Fill FC and BW of Fixed Grid channel
-								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
-									FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
-
-									if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW)
-									{
-										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-										return (-1);
-									}
-									else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
-									{
-										cout << "ERROR: BW range is not acceptable being greater than full waveband" << endl;
-										PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-										return (-1);
-
-									}
-
-								}
-							}
-							else
-							{
-								cout << "ERROR: The F2 is not in desired range (i.e VENDOR_FREQ_RANGE_LOW - VENDOR_FREQ_RANGE_HIGH)" << endl;
-								return (-1);
-							}
-						}
-						else
-						{
-							cout << "ERROR: The command attribute F1 is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else if (attr[0] == "FC")
-					{
-						double fc;
-						if (Sscanf(attr[1], fc,'f'))
-						{
-							// Get the float value of FC
-
-							if (fc > VENDOR_FREQ_RANGE_LOW && fc < VENDOR_FREQ_RANGE_HIGH)
-							{
-								// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
-								FG_Channel_DS[g_moduleNum][g_channelNum].FC  = fc;
-								++g_edgeFreqDefined;
-
-								if(FG_Channel_DS[g_moduleNum][g_channelNum].BW != 0)
-								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
-									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
-									//cout << "F1" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
-									//cout << "F2" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
-									if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 < VENDOR_FREQ_RANGE_LOW)
-									{
-										cout << "ERROR: The F1 is out of range" << endl;
-										return (-1);
-									}
-									else if( FG_Channel_DS[g_moduleNum][g_channelNum].F2 > VENDOR_FREQ_RANGE_HIGH)
-									{
-										cout << "ERROR: The F2 is out of range" << endl;
+										cout << "ERROR: The channel attenuation is violating slot relative attenuation rule" << endl;
 										return (-1);
 									}
 								}
 							}
 							else
 							{
-								cout << "ERROR: The Fc is out of range" << endl;
+								cout << "ERROR: The Channel Attenuation range is (0-35.0dbm +ve)" << endl;
 								return (-1);
 							}
+							FG_Channel_DS[g_moduleNum][g_channelNum].ATT = fValue;
 						}
 						else
 						{
-							cout << "ERROR: The command attribute FC is not numerical" << endl;
+							cout << "ERROR: The command attribute ATT is not numerical" << endl;
 							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 					}
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
-				}
-
-				case 'B':
-				{
-					if (attr[0] == "BW")
-					{
-						double bw;
-						if (Sscanf(attr[1], bw,'f'))
-						{
-							// Get the float value of FC
-#ifdef _DEVELOPMENT_MODE_
-							if(bw > 0)		// BW +ve
-#else
-							if(bw < WHOLE_BANDWIDTH && bw > VENDOR_MIN_BW) //drc modified to VENDOR_MIN_BW to WHOLE_BANDWIDTH
-#endif
-							{
-								// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
-								FG_Channel_DS[g_moduleNum][g_channelNum].BW = bw;
-								++g_edgeFreqDefined;
-
-								if(FG_Channel_DS[g_moduleNum][g_channelNum].FC != 0)
-								{
-									FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
-									FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
-
-									//cout << "F1 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
-									//cout << "F2 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
-									if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 < VENDOR_FREQ_RANGE_LOW)
-									{
-										cout << "ERROR: The F1 is out of range" << endl;
-										return (-1);
-									}
-									else if( FG_Channel_DS[g_moduleNum][g_channelNum].F2 > VENDOR_FREQ_RANGE_HIGH)
-									{
-										cout << "ERROR: The F2 is out of range" << endl;
-										return (-1);
-									}
-								}
-							}
-							else
-							{
-								cout << "ERROR: The BW is out of range" << endl;
-								return (-1);
-							}
-						}
-						else
-						{
-							cout << "ERROR: The command attribute FC is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
 				}
 #ifdef _DEVELOPMENT_MODE_
-
-				case 'L':
+				else if (attr[0] == "A_OP")
 				{
-					if (attr[0] == "LAMDA")
+					if (Sscanf(attr[1], fValue,'f'))
 					{
-						if (Sscanf(attr[1], fValue,'f'))
-						{
-							FG_Channel_DS[g_moduleNum][g_channelNum].LAMDA = fValue;	// g_moduleNum and g_channelNums were found in SearchObject
-						}
-						else
-						{
-							cout << "ERROR: The command attribute LAMDA is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
+						FG_Channel_DS[g_moduleNum][g_channelNum].A_OPP = fValue;
 					}
 					else
 					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						cout << "ERROR: The command attribute a_op is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 						return (-1);
 					}
-
-					break;
 				}
-				case 'S':
+				else if (attr[0] == "A_ATT")
 				{
-					if (attr[0] == "SIGMA")
+					if (Sscanf(attr[1], fValue,'f'))
 					{
-						if (Sscanf(attr[1], fValue,'f'))
-						{
-							FG_Channel_DS[g_moduleNum][g_channelNum].SIGMA = fValue;
-						}
-						else
-						{
-							cout << "ERROR: The command attribute Sigma is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
+						// Get the float value of ATT
+						FG_Channel_DS[g_moduleNum][g_channelNum].A_ATT = fValue;
 					}
 					else
 					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						cout << "ERROR: The command attribute A_ATT is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 						return (-1);
 					}
-
-					break;
-				}
-				case 'K':
-				{
-					if (attr[0] == "K_OP")
-					{
-						if (Sscanf(attr[1], fValue,'f'))
-						{
-							// Get the float value of ATT
-							FG_Channel_DS[g_moduleNum][g_channelNum].K_OPP = fValue;
-						}
-						else
-						{
-							cout << "ERROR: The command attribute K_OP is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else if (attr[0] == "K_ATT")
-					{
-						if (Sscanf(attr[1], fValue,'f'))
-						{
-							// Get the float value of ATT
-							FG_Channel_DS[g_moduleNum][g_channelNum].K_ATT = fValue;
-						}
-						else
-						{
-							cout << "ERROR: The command attribute K_ATT is not numerical" << endl;
-							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
-							return (-1);
-						}
-					}
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
 				}
 #endif
-				default:
+				else
 				{
 					cout << "ERROR: The command attribute is wrong" << endl;
 					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
+
+				break;
+			}
+			case 'C':
+			{
+				if (attr[0] == "CMP" && objVec.size() == 3)
+				{
+					if (Sscanf(attr[1], iValue, 'i'))
+					{
+						if(iValue == 1 || iValue == 2)
+						{
+							FG_Channel_DS[g_moduleNum][g_channelNum].CMP = iValue;
+						}
+						else
+						{
+							cout << "ERROR: Invalid CMP value" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
+					}
+					else
+					{
+						cout << "ERROR: The command attribute CMP is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
 				}
 
-			break;	// mains witch CH_FG
+				break;
 			}
+			case 'F':
+			{
+				if (attr[0] == "F1")
+				{
+					// We ignore if f2 or f1 is not defined at the moment, we only give bandwidth not integral error when both f1 and f2 are defined and then bandwidth not integral of slotsize
+					double f1;
+					if (Sscanf(attr[1], f1,'f'))
+					{
+						// If F1 is numerical
+						if (f1 > VENDOR_FREQ_RANGE_LOW && f1 < VENDOR_FREQ_RANGE_HIGH)
+						{
+							if(g_edgeFreqDefined == 1 && f1 > FG_Channel_DS[g_moduleNum][g_channelNum].F2)
+							{
+								cout << "ERROR: The Edge Freqs F1 & F2 are crossed" << endl;
+								return (-1);
+							}
+
+							changeF1 = true;	// Signal that F1 is changed
+							prevF1 = FG_Channel_DS[g_moduleNum][g_channelNum].F1;	// save previous value of F1 to compare contract or expand later
+							FG_Channel_DS[g_moduleNum][g_channelNum].F1 = f1;
+							//std::cout << std::setprecision(10) << " F1 = " << FG_Channel_DS[g_moduleNum][g_channelNum].F1 <<std::endl;
+							g_edgeFreqDefined++;	// whether user provided only F1 or F2, or both. for both == 2, for F1/F2 == 1
+
+							if(FG_Channel_DS[g_moduleNum][g_channelNum].F2 != 0) //(changeF2 == true)	// Fill FC and BW of Fixed Grid channel
+							{
+								FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
+								FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
+								//std::cout << std::setprecision(10) << " FC = " << FG_Channel_DS[g_moduleNum][g_channelNum].FC <<std::endl;
+
+								if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW) //drc to check minimal BW
+								{
+									cout << "ERROR: BW range is not acceptable being less than 6.25GHz" << endl;
+									PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+									return (-1);
+								}
+								else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
+								{
+									cout << "ERROR: BW range is not acceptable being greater than full waveband" << endl;
+									PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+									return (-1);
+
+								}
+							}
+						}
+						else
+						{
+							cout << "ERROR: The F1 is not in desired range (i.e VENDOR_FREQ_RANGE_LOW - VENDOR_FREQ_RANGE_HIGH)" << endl;
+							return (-1);
+						}
+					}
+					else
+					{
+						cout << "ERROR: The command attribute F1 is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else if (attr[0] == "F2")
+				{
+					double f2;
+					if (Sscanf(attr[1], f2,'f'))
+					{
+						// If F2 is numerical
+						if (f2 > VENDOR_FREQ_RANGE_LOW && f2 < VENDOR_FREQ_RANGE_HIGH)
+						{
+							if(g_edgeFreqDefined == 1 && f2 < FG_Channel_DS[g_moduleNum][g_channelNum].F1)
+							{
+								cout << "ERROR: The Edge Freqs F1 & F2 are crossed" << endl;
+								return (-1);
+							}
+
+							changeF2 = true;	// Signal that F2 is changed
+							prevF2 = FG_Channel_DS[g_moduleNum][g_channelNum].F2;	// save previous value of F2 to compare contract or expand later
+							FG_Channel_DS[g_moduleNum][g_channelNum].F2 = f2;
+							g_edgeFreqDefined++;	// whether user provided only F1 or F2, or both. for both == 2, for F1/F2 == 1
+
+							if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 != 0) //(changeF1 == true)	// Fill FC and BW of Fixed Grid channel
+							{
+								FG_Channel_DS[g_moduleNum][g_channelNum].BW = FG_Channel_DS[g_moduleNum][g_channelNum].F2 - FG_Channel_DS[g_moduleNum][g_channelNum].F1;
+								FG_Channel_DS[g_moduleNum][g_channelNum].FC = (FG_Channel_DS[g_moduleNum][g_channelNum].F2 + FG_Channel_DS[g_moduleNum][g_channelNum].F1)/2;
+
+								if(FG_Channel_DS[g_moduleNum][g_channelNum].BW < VENDOR_MIN_BW)
+								{
+									PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+									return (-1);
+								}
+								else if(FG_Channel_DS[g_moduleNum][g_channelNum].BW > WHOLE_BANDWIDTH)
+								{
+									cout << "ERROR: BW range is not acceptable being greater than full waveband" << endl;
+									PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+									return (-1);
+
+								}
+
+							}
+						}
+						else
+						{
+							cout << "ERROR: The F2 is not in desired range (i.e VENDOR_FREQ_RANGE_LOW - VENDOR_FREQ_RANGE_HIGH)" << endl;
+							return (-1);
+						}
+					}
+					else
+					{
+						cout << "ERROR: The command attribute F1 is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else if (attr[0] == "FC")
+				{
+					double fc;
+					if (Sscanf(attr[1], fc,'f'))
+					{
+						// Get the float value of FC
+
+						if (fc > VENDOR_FREQ_RANGE_LOW && fc < VENDOR_FREQ_RANGE_HIGH)
+						{
+							// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
+							FG_Channel_DS[g_moduleNum][g_channelNum].FC  = fc;
+							++g_edgeFreqDefined;
+
+							if(FG_Channel_DS[g_moduleNum][g_channelNum].BW != 0)
+							{
+								FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+								FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+								//cout << "F1" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
+								//cout << "F2" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
+								if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 < VENDOR_FREQ_RANGE_LOW)
+								{
+									cout << "ERROR: The F1 is out of range" << endl;
+									return (-1);
+								}
+								else if( FG_Channel_DS[g_moduleNum][g_channelNum].F2 > VENDOR_FREQ_RANGE_HIGH)
+								{
+									cout << "ERROR: The F2 is out of range" << endl;
+									return (-1);
+								}
+							}
+						}
+						else
+						{
+							cout << "ERROR: The Fc is out of range" << endl;
+							return (-1);
+						}
+					}
+					else
+					{
+						cout << "ERROR: The command attribute FC is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+
+				break;
+			}
+
+			case 'B':
+			{
+				if (attr[0] == "BW")
+				{
+					double bw;
+					if (Sscanf(attr[1], bw,'f'))
+					{
+						// Get the float value of FC
+#ifdef _DEVELOPMENT_MODE_
+						if(bw > 0)		// BW +ve
+#else
+						if(bw < WHOLE_BANDWIDTH && bw > VENDOR_MIN_BW) //drc modified to VENDOR_MIN_BW to WHOLE_BANDWIDTH
+#endif
+						{
+							// Make sure FC user gave is within the range of VENDOR_FREQ_RANGE_HIGH-VENDOR_FREQ_RANGE_LOW
+							FG_Channel_DS[g_moduleNum][g_channelNum].BW = bw;
+							++g_edgeFreqDefined;
+
+							if(FG_Channel_DS[g_moduleNum][g_channelNum].FC != 0)
+							{
+								FG_Channel_DS[g_moduleNum][g_channelNum].F1 = FG_Channel_DS[g_moduleNum][g_channelNum].FC - FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+								FG_Channel_DS[g_moduleNum][g_channelNum].F2 = FG_Channel_DS[g_moduleNum][g_channelNum].FC + FG_Channel_DS[g_moduleNum][g_channelNum].BW/2;
+
+								//cout << "F1 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F1 << endl;
+								//cout << "F2 BW" << FG_Channel_DS[g_moduleNum][g_channelNum].F2 << endl;
+								if(FG_Channel_DS[g_moduleNum][g_channelNum].F1 < VENDOR_FREQ_RANGE_LOW)
+								{
+									cout << "ERROR: The F1 is out of range" << endl;
+									return (-1);
+								}
+								else if( FG_Channel_DS[g_moduleNum][g_channelNum].F2 > VENDOR_FREQ_RANGE_HIGH)
+								{
+									cout << "ERROR: The F2 is out of range" << endl;
+									return (-1);
+								}
+							}
+						}
+						else
+						{
+							cout << "ERROR: The BW is out of range" << endl;
+							return (-1);
+						}
+					}
+					else
+					{
+						cout << "ERROR: The command attribute FC is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+
+				break;
+			}
+#ifdef _DEVELOPMENT_MODE_
+
+			case 'L':
+			{
+				if (attr[0] == "LAMDA")
+				{
+					if (Sscanf(attr[1], fValue,'f'))
+					{
+						FG_Channel_DS[g_moduleNum][g_channelNum].LAMDA = fValue;	// g_moduleNum and g_channelNums were found in SearchObject
+					}
+					else
+					{
+						cout << "ERROR: The command attribute LAMDA is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+
+				break;
+			}
+			case 'S':
+			{
+				if (attr[0] == "SIGMA")
+				{
+					if (Sscanf(attr[1], fValue,'f'))
+					{
+						FG_Channel_DS[g_moduleNum][g_channelNum].SIGMA = fValue;
+					}
+					else
+					{
+						cout << "ERROR: The command attribute Sigma is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+
+				break;
+			}
+			case 'K':
+			{
+				if (attr[0] == "K_OP")
+				{
+					if (Sscanf(attr[1], fValue,'f'))
+					{
+						// Get the float value of ATT
+						FG_Channel_DS[g_moduleNum][g_channelNum].K_OPP = fValue;
+					}
+					else
+					{
+						cout << "ERROR: The command attribute K_OP is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else if (attr[0] == "K_ATT")
+				{
+					if (Sscanf(attr[1], fValue,'f'))
+					{
+						// Get the float value of ATT
+						FG_Channel_DS[g_moduleNum][g_channelNum].K_ATT = fValue;
+					}
+					else
+					{
+						cout << "ERROR: The command attribute K_ATT is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+
+				break;
+			}
+#endif
+			default:
+			{
+				cout << "ERROR: The command attribute is wrong" << endl;
+				PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+				return (-1);
+			}
+			}
+
+		break;	// mains witch CH_FG
+		}
 
 		case MODULE:
 		{
-				//int value;
-				switch(attr[0][0])
-				{
+			//int value;
+			switch(attr[0][0])
+			{
 #ifdef _DEVELOPMENT_MODE_
 				case 'P':
 				{
@@ -3278,11 +3505,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						std::vector<std::string > xySplit = SplitCmd(attr[1], ",");
 						if (Sscanf(xySplit[0], i_xValue, 'i') && Sscanf(xySplit[1], i_yValue, 'i'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].xPhaseVal.push_back(i_xValue);
-//								arrModules[g_moduleNum - 1].yGrayscaleVal.push_back(i_yValue);
-//								arrModules[g_moduleNum - 1].b_NewValueSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].xPhaseVal.push_back(i_xValue);
+	//								arrModules[g_moduleNum - 1].yGrayscaleVal.push_back(i_yValue);
+	//								arrModules[g_moduleNum - 1].b_NewValueSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3296,9 +3523,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						int i_Value;
 						if (Sscanf(attr[1], i_Value, 'i'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].PortNo = i_Value;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].PortNo = i_Value;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3376,10 +3603,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if (Sscanf(attr[1], f_Value2,'f'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].fc_low = f_Value2;
-//								arrModules[g_moduleNum - 1].b_NewFreqSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].fc_low = f_Value2;
+	//								arrModules[g_moduleNum - 1].b_NewFreqSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3396,10 +3623,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if (Sscanf(attr[1], f_Value2,'f'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].fc_high = f_Value2;
-//								arrModules[g_moduleNum - 1].b_NewFreqSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].fc_high = f_Value2;
+	//								arrModules[g_moduleNum - 1].b_NewFreqSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3424,9 +3651,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if (Sscanf(attr[1], i_Value2, 'i'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].TempInterpolation = i_Value2;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].TempInterpolation = i_Value2;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3523,12 +3750,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if (Sscanf(attr[1], f_Value2,'f'))
 						{
-//								pthread_mutex_lock(&myMutexTEC);
-//								if(copy_TECVars == false){
-//									arrStructTEC.TEC2_tv = f_Value2;
-//									TECSet = true;
-//								}
-//								pthread_mutex_unlock(&myMutexTEC);
+	//								pthread_mutex_lock(&myMutexTEC);
+	//								if(copy_TECVars == false){
+	//									arrStructTEC.TEC2_tv = f_Value2;
+	//									TECSet = true;
+	//								}
+	//								pthread_mutex_unlock(&myMutexTEC);
 						}
 						else
 						{
@@ -3605,12 +3832,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 							if (Sscanf(attr[1], f_Value2,'f'))
 							{
-//									pthread_mutex_lock(&myMutexTEC);
-//									if(copy_TECVars == false){
-//										arrStructTEC.TEC1_PERIOD = f_Value2;
-//										TECSet = true;
-//									}
-//									pthread_mutex_unlock(&myMutexTEC);
+	//									pthread_mutex_lock(&myMutexTEC);
+	//									if(copy_TECVars == false){
+	//										arrStructTEC.TEC1_PERIOD = f_Value2;
+	//										TECSet = true;
+	//									}
+	//									pthread_mutex_unlock(&myMutexTEC);
 							}
 							else
 							{
@@ -3627,12 +3854,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 							if (Sscanf(attr[1], f_Value2,'f'))
 							{
-//									pthread_mutex_lock(&myMutexTEC);
-//									if(copy_TECVars == false){
-//										arrStructTEC.TEC2_PERIOD = f_Value2;
-//										TECSet = true;
-//									}
-//									pthread_mutex_unlock(&myMutexTEC);
+	//									pthread_mutex_lock(&myMutexTEC);
+	//									if(copy_TECVars == false){
+	//										arrStructTEC.TEC2_PERIOD = f_Value2;
+	//										TECSet = true;
+	//									}
+	//									pthread_mutex_unlock(&myMutexTEC);
 							}
 							else
 							{
@@ -3766,7 +3993,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							return (-1);
 						}
 					}
-#ifdef _DEVELOPMENT_MODE_
+	#ifdef _DEVELOPMENT_MODE_
 					else if (attr[0] == "SIGMAS" && eVerb == SET)	// User send sigmas values for each port.. for development  mode, to save sigmas
 					{
 						std::vector<std::string > f_SigmaSplit = SplitCmd(attr[1], ","); // 0.00881,0.001155....
@@ -3778,10 +4005,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							{
 								if(Sscanf(f_SigmaSplit[i],f_Value,'f'))
 								{
-//						    			pthread_mutex_lock(&myMutexModule);
-//						    			arrModules[g_moduleNum - 1].v_SigmaVals.push_back(f_Value);	// convert string to float and push back to vector of sigmas
-//										arrModules[g_moduleNum - 1].b_NewSigmasSet = true;
-//						    			pthread_mutex_unlock(&myMutexModule);
+	//						    			pthread_mutex_lock(&myMutexModule);
+	//						    			arrModules[g_moduleNum - 1].v_SigmaVals.push_back(f_Value);	// convert string to float and push back to vector of sigmas
+	//										arrModules[g_moduleNum - 1].b_NewSigmasSet = true;
+	//						    			pthread_mutex_unlock(&myMutexModule);
 								}
 								else
 								{
@@ -3803,10 +4030,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if(Sscanf(attr[1],f_Value,'f'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].Sigma_offset = f_Value;	// convert string to float and push back to vector of sigmas
-//								arrModules[g_moduleNum - 1].b_New_Sigma_offSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].Sigma_offset = f_Value;	// convert string to float and push back to vector of sigmas
+	//								arrModules[g_moduleNum - 1].b_New_Sigma_offSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3825,10 +4052,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							{
 								if(Sscanf(f_KattSplit[i],f_Value,'f'))
 								{
-//										pthread_mutex_lock(&myMutexModule);
-//										arrModules[g_moduleNum - 1].v_K_attVals.push_back(f_Value);	// convert string to float and push back to vector of sigmas
-//										arrModules[g_moduleNum - 1].b_New_Katt_Set = true;
-//										pthread_mutex_unlock(&myMutexModule);
+	//										pthread_mutex_lock(&myMutexModule);
+	//										arrModules[g_moduleNum - 1].v_K_attVals.push_back(f_Value);	// convert string to float and push back to vector of sigmas
+	//										arrModules[g_moduleNum - 1].b_New_Katt_Set = true;
+	//										pthread_mutex_unlock(&myMutexModule);
 								}
 								else
 								{
@@ -3855,10 +4082,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							{
 								if(Sscanf(f_AattSplit[i],f_Value,'f'))
 								{
-//										pthread_mutex_lock(&myMutexModule);
-//										arrModules[g_moduleNum - 1].v_A_attVals.push_back(f_Value);	// convert string to float and push back to vector of sigmas
-//										arrModules[g_moduleNum - 1].b_New_Aatt_Set = true;
-//										pthread_mutex_unlock(&myMutexModule);
+	//										pthread_mutex_lock(&myMutexModule);
+	//										arrModules[g_moduleNum - 1].v_A_attVals.push_back(f_Value);	// convert string to float and push back to vector of sigmas
+	//										arrModules[g_moduleNum - 1].b_New_Aatt_Set = true;
+	//										pthread_mutex_unlock(&myMutexModule);
 								}
 								else
 								{
@@ -3880,10 +4107,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if(Sscanf(attr[1],f_Value,'f'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].Aatt_offset = f_Value;	// convert string to float and push back to vector of sigmas
-//								arrModules[g_moduleNum - 1].b_New_Aatt_offSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].Aatt_offset = f_Value;	// convert string to float and push back to vector of sigmas
+	//								arrModules[g_moduleNum - 1].b_New_Aatt_offSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3897,10 +4124,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 						if(Sscanf(attr[1],f_Value,'f'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].Katt_offset = f_Value;	// convert string to float and push back to vector of sigmas
-//								arrModules[g_moduleNum - 1].b_New_Katt_offSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].Katt_offset = f_Value;	// convert string to float and push back to vector of sigmas
+	//								arrModules[g_moduleNum - 1].b_New_Katt_offSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -3953,7 +4180,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							return (-1);
 						}
 					}
-#endif
+	#endif
 					else
 					{
 						cout << "ERROR: The command attribute is wrong" << endl;
@@ -3967,16 +4194,16 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (attr[0] == "RESTORE" && eVerb == ACTION)		// differentiating user verb because MODULE object is present in SET and ACTION both
 					{
-//						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
+	//						if(actionSR->bModuleConfigStored[g_moduleNum] == true)
 						{
 							actionSR->RestoreModule(g_moduleNum);
 						}
-//						else
-//						{
-//							break;
-//						}
+	//						else
+	//						{
+	//							break;
+	//						}
 					}
-#ifdef _DEVELOPMENT_MODE_
+	#ifdef _DEVELOPMENT_MODE_
 					else if (attr[0] == "ROTATE" && eVerb == SET)
 					{
 						float f_Value;
@@ -3994,7 +4221,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							return (-1);
 						}
 					}
-#endif
+	#endif
 					else
 					{
 						cout << "ERROR: The command attribute is wrong" << endl;
@@ -4011,10 +4238,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					{
 						if (Sscanf(attr[1], iValue, 'i'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].grayValueLow = iValue;
-//								arrModules[g_moduleNum - 1].b_NewValueSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].grayValueLow = iValue;
+	//								arrModules[g_moduleNum - 1].b_NewValueSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -4026,10 +4253,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					{
 						if (Sscanf(attr[1], iValue, 'i'))
 						{
-//								pthread_mutex_lock(&myMutexModule);
-//								arrModules[g_moduleNum - 1].grayValueHigh = iValue;
-//								arrModules[g_moduleNum - 1].b_NewValueSet = true;
-//								pthread_mutex_unlock(&myMutexModule);
+	//								pthread_mutex_lock(&myMutexModule);
+	//								arrModules[g_moduleNum - 1].grayValueHigh = iValue;
+	//								arrModules[g_moduleNum - 1].b_NewValueSet = true;
+	//								pthread_mutex_unlock(&myMutexModule);
 						}
 						else
 						{
@@ -4068,7 +4295,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								// Each time developMode is switched we reset modules and channels
 								std::string chNum = "*";
 								std::string modNum = "2";   //drc to check if sth.need to be done here
-//								if(g_moduleNum == 1)
+	//								if(g_moduleNum == 1)
 								{
 									is_DeleteTFDone(modNum,chNum);	// Delete module 1 all channels
 									is_DeleteFGDone(modNum,chNum);	// Delete module 1 all channels
@@ -4220,12 +4447,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					return (-1);
 				}
 
-				}
-
-			break;		// switch MODULE main one
 			}
 
-
+				break;		// switch MODULE main one
+		}
 		case IDN:
 		{
 			std::string str_Value;
@@ -4537,32 +4762,85 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
+		case ATTM1UPGRADE:
+		{
+			switch(attr[0][0])
+			{
+				case 'P':
+				{
+					if (attr[0] == "PREPARE")
+					{
+						// START PREPARING FOR FWUPGRADE
+						int ibuffersize;
+						std::string strOldPath,strNewPath;
+						if (Sscanf(attr[1], ibuffersize,'i'))
+						{// Get the value of buffer size
+							GetDownloadFilePath(eObject, strOldPath,strNewPath);
+//							file_transfer updater(strOldPath, strNewPath);
+							file_transfer->handlePrepareCommand(ibuffersize,strOldPath,strNewPath);
+						}
+						else
+						{
+							cout << "ERROR: The command attribute is not numerical" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
+
+					}
+					else
+					{
+						cout << "ERROR: The command attribute is wrong" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+
+					break;
+				}
+				default:
+					break;
+			}
+		}
+		break;
 		case FWUPGRADE:
 		{
 			switch(attr[0][0])
 			{
-			case 'P':
-			{
-				if (attr[0] == "PREPARE")
+				case 'P':
 				{
-					// START PREPARING FOR FWUPGRADE
+					if (attr[0] == "PREPARE")
+					{
+						// START PREPARING FOR FWUPGRADE
+						int ibuffersize;
+						std::string strOldPath,strNewPath;
+						if (Sscanf(attr[1], ibuffersize,'i'))
+						{// Get the value of buffer size
+							GetDownloadFilePath(eObject, strOldPath,strNewPath);
+//							file_transfer updater(strOldPath, strNewPath);
+							file_transfer->handlePrepareCommand(ibuffersize,strOldPath,strNewPath);
+						}
+						else
+						{
+							cout << "ERROR: The command attribute is not numerical" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
 
-				}
-				else
-				{
-					cout << "ERROR: The command attribute is wrong" << endl;
-					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-					return (-1);
-				}
+					}
+					else
+					{
+						cout << "ERROR: The command attribute is wrong" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
 
-				break;
-			}
+					break;
+				}
 			case 'A':
 			{
-				if (attr[0] == "ACTIVATE")
+				if (attr[0] == "SWITCH") //or ACTIVATE?
 				{
 					// ACTIVATE FWUPGRADE
-
+					file_transfer->handleSwitchCommand();
 				}
 				else
 				{
@@ -4578,6 +4856,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				if (attr[0] == "COMMIT")
 				{
 					// COMMIT FWUPGRADE
+					file_transfer->handleCommitCommand();
 
 				}
 				else
@@ -4615,6 +4894,101 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
+		break;
+#ifdef _DEVELOPMENT_MODE_
+		case GMUPGRADE:
+		{
+			switch(attr[0][0])
+			{
+				case 'P':
+				{
+					if (attr[0] == "PREPARE")
+					{
+						// START PREPARING FOR UPGRADE
+						int ibuffersize;
+						std::string strOldPath, strNewPath;
+						if (Sscanf(attr[1], ibuffersize,'i'))
+						{// Get the value of buffer size
+							GetDownloadFilePath(eObject, strOldPath, strNewPath);
+//							FileTransfer updater("/mnt/EEPROM_LINUX_OCM.hec", "/mnt");
+							file_transfer->handlePrepareCommand(ibuffersize,strOldPath, strNewPath);
+						}
+						else
+						{
+							cout << "ERROR: The command attribute is not numerical" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
+
+					}
+					else
+					{
+						cout << "ERROR: The command attribute is wrong" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+
+					break;
+				}
+				case 'A':
+				{
+					if (attr[0] == "ACTIVATE")
+					{
+						// ACTIVATE FWUPGRADE
+
+					}
+					else
+					{
+						cout << "ERROR: The command attribute is wrong" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+
+					break;
+				}
+				case 'C':
+				{
+					if (attr[0] == "COMMIT")
+					{
+						// COMMIT FWUPGRADE
+
+					}
+					else
+					{
+						cout << "ERROR: The command attribute is wrong" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+
+					break;
+				}
+				case 'R':
+				{
+					if (attr[0] == "REVERT")
+					{
+						// REVERT FWUPGRADE
+
+					}
+					else
+					{
+						cout << "ERROR: The command attribute is wrong" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+
+					break;
+				}
+				default:
+				{
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
+				}
+			}
+			break;
+		}
+		break;
+#endif
 		default:
 		{
 			cout << "ERROR: The command object is wrong" << endl;
