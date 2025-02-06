@@ -37,6 +37,7 @@ public:
 	int UIO_DAC_OD;
 	int UIO_GRID_Temp;
 	int UIO_LCOS_Temp;
+	int UIO_LCOS_Ready;
 
 	int HisCon_OA;
 	int HisCon_OD;

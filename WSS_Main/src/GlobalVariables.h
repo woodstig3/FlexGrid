@@ -14,7 +14,8 @@
 //#define _FETCH_PATTERN_
 #define _TWIN_WSS_						// If not defined then only Module.1 will exist for user to set.
 
-//#define _OCM_SCAN_                      //added for OCM function blocks
+//#define _OCM_SCAN_                     //added for OCM function blocks
+#define _SPI_INTERFACE_
 
 const double PI = 3.141592653589793238;
 
@@ -35,8 +36,8 @@ constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI re
 constexpr int g_LCOS_Width{1952};	// compile-time constant 1952
 constexpr int g_Total_Channels{1024};	// compile-time constant 96
 
-constexpr double g_Max_Normal_Temperature{55.5}; //grating temperature
-constexpr double g_Min_Normal_Temperature{51.5}; //grating temperature
+constexpr double g_Max_Normal_Temperature{56.6}; //grating temperature
+constexpr double g_Min_Normal_Temperature{51.6}; //grating temperature
 
 
 // CmdDecoder Special
@@ -60,6 +61,7 @@ extern bool g_bNewCommandData;
 extern bool g_bTempChanged;
 
 extern bool g_ready1, g_ready2, g_ready3, g_ready4;
+
 
 
 /*

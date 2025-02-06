@@ -257,6 +257,7 @@ int EEPROMUpdate::LoadAt(const char* fileName, unsigned int address, unsigned in
 	{
 		// Print what is written
 		PrintEEPROM(HOLO_HEX_DATA_SIZE + size);		// print preivous data in eeprom and this new one also
+		return 0;
 	}
 	else
 	{

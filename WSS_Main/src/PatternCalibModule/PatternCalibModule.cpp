@@ -468,16 +468,16 @@ int PatternCalibModule::Interpolate_Aatt_Katt_Bilinear(double frequency, int por
 	double v22 = lut_Att->Katt[port][freqHigh][attHigh];
 
 	// Two interpolation along x-axis (temperature)
-//	double R1 = wT1*v11 + wT2*v21;
-//	double R2 = wT1*v12 + wT2*v22;
+	double R1 = wT1*v11 + wT2*v21;
+	double R2 = wT1*v12 + wT2*v22;
 
-	double R1 = wF1*v11 + wF2*v12;
-	double R2 = wF1*v21 + wF2*v22;   //drc modified
+//	double R1 = wF1*v11 + wF2*v12;
+//	double R2 = wF1*v21 + wF2*v22;   //drc modified
 
 	// One interpolation along y-axis (Frequency)
 
-//	result_Katt = R1*wF1 + R2*wF2;
-	result_Katt = R1*wT1 + R2*wT2;   //drc modified according to bilinear interpolation
+	result_Katt = R1*wF1 + R2*wF2;
+//	result_Katt = R1*wT1 + R2*wT2;   //drc modified according to bilinear interpolation
 
 	return (0);
 }
@@ -661,7 +661,7 @@ int PatternCalibModule::BinarySearch_LowIndex(const double *array, int size, dou
     {
         int mid = low + (high - low) / 2;
 
-        if(array[mid] <= target)
+        if(array[mid] < target)
         {
             low = mid + 1;
         }

@@ -16,16 +16,15 @@
 
 #include "GlobalVariables.h"
 #include "SerialModule.h"
-
+#include "SpiProcess.h"
 #include "PatternCalibModule.h"
 #include "TemperatureMonitor.h"
 #include "PatternGenModule.h"
-
 #include "AlarmModule/AlarmUIO.h"
 #include "InterfaceModule/MemoryMapping.h"
 #include "InterfaceModule/I2CProtocol.h"
 #include "InterfaceModule/Dlog.h"
-
+#include "SpiInterface.h"
 
 pthread_mutex_t global_mutex[NUM_OF_MUTEXES];
 pthread_mutexattr_t mutex_attribute;
@@ -51,6 +50,9 @@ void DestroyGlobalMutex(void);
  */
 
 ThreadSafeQueue<std::string> packetQueue;  //the queue used for receiving file transfer packets from serial module to file-transfer module.
+//ThreadSafeQueue<uint8_t> fwPacketQueue;
+ThreadSafeQueue<bool> ackQueue;
+
 
 int main(int argc, char* argv[])
 {
@@ -101,23 +103,57 @@ int main(int argc, char* argv[])
 //			printf("\n");
 //	}
 
+
 #ifdef _SPI_INTERFACE_
-	SPIInterface& spi = SPIInterface::getInstance(); // Create or get the singleton SPI instance
-	spi.init(500000, SPI_MODE_0, 8);
+//	SPISlave spi("/dev/spidev1.0");
+//	if (!spi.init()) {
+//		throw std::runtime_error("Failed to initialize SPI slave");
+//	}
+
 
 	ThreadManager& manager = ThreadManager::getInstance();
-	manager.startThreads(spi);
-
-	 // Run for a while then stop (for demonstration purposes)
-	    sleep(30);
-
-	 // Shutdown spi interface module
-	manager.stopThreads();
-
+	ThreadManager::initializer();
+	manager.startThreads();
 #endif
 
+//	sleep(30);
 
-	while(!serialIns->b_endMainSignal) 												// To close main loop and end application when serial thread ends
+
+
+#if 0
+	spi_transfer_data buff;
+    memset(&buff.rx_buf,0, BUFFER_SIZE);
+	memset(&buff.tx_buf,0, BUFFER_SIZE);
+	buff.len = ARRAY_SIZE(&buff.tx_buf);
+
+	try {
+		// Create SPI slave instance
+		SPISlave spiSlave("/dev/spidev1.0");
+//		g_spiSlave = &spiSlave;
+
+		// Set up signal handling
+//	        signal(SIGINT, signalHandler);
+//	        signal(SIGTERM, signalHandler);
+
+		if (!spiSlave.init()) {
+			throw std::runtime_error("Failed to initialize SPI slave");
+		}
+		printf("SPI Slave initialized. Waiting for data...\n");
+
+		spiSlave.spi_transfer(&buff);
+
+
+//		ThreadManager& manager = ThreadManager::getInstance();
+//		ThreadManager::initializer();
+//		manager.startThreads(spiSlave);
+
+		} catch (const std::exception& e) {
+			std::cerr << "Error: " << e.what() << std::endl;
+			return 1;
+	}
+#endif
+
+	while(!serialIns->b_endMainSignal) 			// To close main loop and end application when serial thread ends
 	{
 		sleep(2);
 	}
@@ -129,6 +165,9 @@ int main(int argc, char* argv[])
 	InterUIO->StopThread();
 
 	DestroyGlobalMutex();
+#ifdef _SPI_INTERFACE_
+	manager.stopThreads();  	// Shutdown spi interface module
+#endif
 
 	return 0;
 }

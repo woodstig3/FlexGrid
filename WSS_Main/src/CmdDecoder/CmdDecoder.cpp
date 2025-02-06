@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdc++.h>		// uppercase or lowercase using STL.  std::transform()
+#include <algorithm>
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
@@ -121,15 +121,54 @@ void CmdDecoder::GetDownloadFilePath(int eObj, std::string& strOldPath, std::str
 		case FWUPGRADE:
 			strNewPath = "/mnt/WSS_Backup.elf";
 			strOldPath = "/mnt/WSS_Main.elf";
-
 			break;
-		case GMUPGRADE:
+		case GMLUTWRITE:
 			strNewPath = "/mnt/EEPROM_LINUX_OCM_New.hec";
 			strOldPath = "/mnt/EEPROM_LINUX_OCM.hec";
+			break;
+		case BGUPGRADE:
+			strNewPath = "/mnt/Background_LUT_New.ini";
+			strOldPath = "/mnt/Background_LUT.ini";
 			break;
 		case ATTM1UPGRADE:
 			strNewPath = "/mnt/Att_LUT_M1_New.csv";
 			strOldPath = "/mnt/Att_LUT_M1.csv";
+			break;
+		case ATTM2UPGRADE:
+			strNewPath = "/mnt/Att_LUT_M2_New.csv";
+			strOldPath = "/mnt/Att_LUT_M2.csv";
+			break;
+		case PPM1UPGRADE:
+			strNewPath = "/mnt/PixelPos_LUT_M1_New.csv";
+			strOldPath = "/mnt/PixelPos_LUT_M1.csv";
+			break;
+		case PPM2UPGRADE:
+			strNewPath = "/mnt/PixelPos_LUT_M2_New.csv";
+			strOldPath = "/mnt/PixelPos_LUT_M2.csv";
+			break;
+		case OPTM1UPGRADE:
+			strNewPath = "/mnt/Opt_LUT_M1_New.csv";
+			strOldPath = "/mnt/Opt_LUT_M1.csv";
+			break;
+		case OPTM2UPGRADE:
+			strNewPath = "/mnt/Opt_LUT_M2_New.csv";
+			strOldPath = "/mnt/Opt_LUT_M2.csv";
+			break;
+		case SIGCM1UPGRADE:
+			strNewPath = "/mnt/Sigma_LUT_M1_New.csv";
+			strOldPath = "/mnt/Sigma_LUT_M1.csv";
+			break;
+		case SIGCM2UPGRADE:
+			strNewPath = "/mnt/Sigma_LUT_M2_New.csv";
+			strOldPath = "/mnt/Sigma_LUT_M2.csv";
+			break;
+		case SIGLM1UPGRADE:
+			strNewPath = "/mnt/SigmaL_LUT_M1_New.csv";
+			strOldPath = "/mnt/SigmaL_LUT_M1.csv";
+			break;
+		case SIGLM2UPGRADE:
+			strNewPath = "/mnt/SigmaL_LUT_M2_New.csv";
+			strOldPath = "/mnt/SigmaL_LUT_M2.csv";
 			break;
 		default:
 			return;
@@ -235,7 +274,9 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 
 	}
 	else if((searchDone != -1) && (eVerb == ACTION && (eObject == MODULE || eObject == FWUPGRADE
-			|| eObject == ATTM1UPGRADE))) //drc added for store and restore
+			|| eObject == ATTM1UPGRADE || eObject == ATTM2UPGRADE|| eObject == GMLUTWRITE || eObject == PPM1UPGRADE || eObject == PPM2UPGRADE
+			|| eObject == SIGCM1UPGRADE || eObject == SIGCM2UPGRADE || eObject == SIGLM1UPGRADE || eObject == SIGLM2UPGRADE
+			|| eObject == OPTM1UPGRADE || eObject == OPTM2UPGRADE || eObject == BGUPGRADE))) //drc added for store and restore
 	{
 		PrintResponse("\01OK\04", NO_ERROR);
 	}
@@ -359,12 +400,18 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				g_currentAttributeCount = commandItems - index;		// How many attributes are there in once command
 				g_bNoAttribute = false;	// Attribute exists
 
-				if((g_currentAttributeCount == 2) && (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE)))
+				if((g_currentAttributeCount == 2) && (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE || eObject == GMLUTWRITE
+					|| eObject == ATTM2UPGRADE|| eObject == GMLUTWRITE || eObject == PPM1UPGRADE || eObject == PPM2UPGRADE
+					|| eObject == SIGCM1UPGRADE || eObject == SIGCM2UPGRADE || eObject == SIGLM1UPGRADE || eObject == SIGLM2UPGRADE
+					|| eObject == OPTM1UPGRADE || eObject == OPTM2UPGRADE || eObject == BGUPGRADE)))
 				{//prepare:12345..
 					attribute = singleCommandVector[index]+":";
 
 				}
-				else if((g_currentAttributeCount == 1) && (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE)))
+				else if((g_currentAttributeCount == 1) && (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE || eObject == GMLUTWRITE
+						|| eObject == ATTM2UPGRADE|| eObject == GMLUTWRITE || eObject == PPM1UPGRADE || eObject == PPM2UPGRADE
+						|| eObject == SIGCM1UPGRADE || eObject == SIGCM2UPGRADE || eObject == SIGLM1UPGRADE || eObject == SIGLM2UPGRADE
+						|| eObject == OPTM1UPGRADE || eObject == OPTM2UPGRADE || eObject == BGUPGRADE)))
 				{
 					attribute += singleCommandVector[index];
 					int status = SearchAttribute(attribute);
@@ -395,7 +442,11 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				if (status == -1)		// Print_Search() function call here is only in case when no attribute exist, if attribute exists it will set the flag
 					return (-1);		// Break if error in command
 
-				if ((commandItems <= 1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) || (eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE))))
+				if ((commandItems <= 1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) ||
+						(eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE || eObject == GMLUTWRITE
+											|| eObject == ATTM2UPGRADE|| eObject == GMLUTWRITE || eObject == PPM1UPGRADE || eObject == PPM2UPGRADE
+											|| eObject == SIGCM1UPGRADE || eObject == SIGCM2UPGRADE || eObject == SIGLM1UPGRADE || eObject == SIGLM2UPGRADE
+											|| eObject == OPTM1UPGRADE || eObject == OPTM2UPGRADE || eObject == BGUPGRADE))))
 				{
 					std::cout << "ERROR: Command format is Invalid" << std::endl;
 					PrintResponse("\01MISSING_ATTRIBUTE\04", ERROR_HI_PRIORITY);
@@ -1258,28 +1309,6 @@ int CmdDecoder::SearchObject(std::string &object)
 								return (-1);
 							}
 						}
-
-						else if(objVec[0] == "GMUPGRADE")
-						{
-							// DO SOMETHING
-							if (Sscanf(objVec[1], g_moduleNum, 'i'))
-							{
-								if (g_moduleNum == 1)
-								{
-									eObject = GMUPGRADE;
-								}
-								else
-								{
-									cout << "ERROR: The Module Number is wrong" << endl;
-									return (-1);
-								}
-							}
-							else
-							{
-								cout << "ERROR: The Module Number is not a numerical value" << endl;
-								return (-1);
-							}
-						}
 						else if(objVec[0] == "BGUPGRADE")
 						{
 							// DO SOMETHING
@@ -1386,18 +1415,14 @@ int CmdDecoder::SearchObject(std::string &object)
 								return (-1);
 							}
 						}
-						else if(objVec[0] == "SIGUPGRADE")
+						else if(objVec[0] == "GMLUTWRITE")
 						{
 							// DO SOMETHING
 							if (Sscanf(objVec[1], g_moduleNum, 'i'))
 							{
 								if (g_moduleNum == 1)
 								{
-									eObject = SIGM1UPGRADE;
-								}
-								else if(g_moduleNum == 2)
-								{
-									eObject = SIGM2UPGRADE;
+									eObject = GMLUTWRITE;
 								}
 								else
 								{
@@ -1413,9 +1438,69 @@ int CmdDecoder::SearchObject(std::string &object)
 						}
 						else
 						{
-
+							cout << "ERROR: The command Object is wrong" << endl;
+							return (-1);
 						}
 
+						break;
+					}
+					case 11:
+					{
+						if(objVec[0] == "SIGCUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = SIGCM1UPGRADE;
+								}
+								else if(g_moduleNum == 2)
+								{
+									eObject = SIGCM2UPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+						else if(objVec[0] == "SIGLUPGRADE")
+						{
+							// DO SOMETHING
+							if (Sscanf(objVec[1], g_moduleNum, 'i'))
+							{
+								if (g_moduleNum == 1)
+								{
+									eObject = SIGLM1UPGRADE;
+								}
+								else if(g_moduleNum == 2)
+								{
+									eObject = SIGLM2UPGRADE;
+								}
+								else
+								{
+									cout << "ERROR: The Module Number is wrong" << endl;
+									return (-1);
+								}
+							}
+							else
+							{
+								cout << "ERROR: The Module Number is not a numerical value" << endl;
+								return (-1);
+							}
+						}
+						else
+						{
+							cout << "ERROR: The command Object is wrong" << endl;
+							return (-1);
+						}
 						break;
 					}
 					case 6:
@@ -2432,9 +2517,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 			return (-1);
 		}
 	}
-	else
+	else //ACTION
 	{
-		if(eObject != FWUPGRADE && eObject != ATTM1UPGRADE)
+		if(eObject != FWUPGRADE && eObject != ATTM1UPGRADE && eObject != GMLUTWRITE && eObject != GMLUTREAD
+		  && eObject != ATTM1UPGRADE && eObject != ATTM2UPGRADE && eObject != PPM1UPGRADE && eObject != PPM2UPGRADE
+		  && eObject != OPTM1UPGRADE && eObject != OPTM2UPGRADE && eObject != SIGCM1UPGRADE && eObject != SIGCM2UPGRADE
+		  && eObject != SIGLM1UPGRADE && eObject != SIGLM2UPGRADE && eObject != BGUPGRADE)
 		{
 			attr.push_back(attributes);	// Move the attribute to 0th index of vector i.e STORE or RESTORE to attr[0]
 			attr.push_back("0");	// EXTENDING VECTOR for safety and avoid segmentation error
@@ -4762,7 +4850,18 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
+#ifdef _DEVELOPMENT_MODE_
 		case ATTM1UPGRADE:
+		case ATTM2UPGRADE:
+		case OPTM1UPGRADE:
+		case OPTM2UPGRADE:
+		case PPM1UPGRADE:
+		case PPM2UPGRADE:
+		case SIGCM1UPGRADE:
+		case SIGCM2UPGRADE:
+		case SIGLM1UPGRADE:
+		case SIGLM2UPGRADE:
+		case BGUPGRADE:
 		{
 			switch(attr[0][0])
 			{
@@ -4801,6 +4900,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 			}
 		}
 		break;
+#endif
 		case FWUPGRADE:
 		{
 			switch(attr[0][0])
@@ -4816,7 +4916,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						{// Get the value of buffer size
 							GetDownloadFilePath(eObject, strOldPath,strNewPath);
 //							file_transfer updater(strOldPath, strNewPath);
-							file_transfer->handlePrepareCommand(ibuffersize,strOldPath,strNewPath);
+							file_transfer->handleFWPrepareCommand(ibuffersize,strOldPath,strNewPath);
 						}
 						else
 						{
@@ -4896,7 +4996,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 		}
 		break;
 #ifdef _DEVELOPMENT_MODE_
-		case GMUPGRADE:
+		case GMLUTWRITE:
 		{
 			switch(attr[0][0])
 			{
@@ -4910,8 +5010,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						if (Sscanf(attr[1], ibuffersize,'i'))
 						{// Get the value of buffer size
 							GetDownloadFilePath(eObject, strOldPath, strNewPath);
-//							FileTransfer updater("/mnt/EEPROM_LINUX_OCM.hec", "/mnt");
-							file_transfer->handlePrepareCommand(ibuffersize,strOldPath, strNewPath);
+							file_transfer->handleFWPrepareCommand(ibuffersize,strOldPath, strNewPath);
 						}
 						else
 						{
@@ -4930,43 +5029,39 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 					break;
 				}
-				case 'A':
+
+				default:
 				{
-					if (attr[0] == "ACTIVATE")
-					{
-						// ACTIVATE FWUPGRADE
-
-					}
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
+					cout << "ERROR: The command attribute is wrong" << endl;
+					PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
+					return (-1);
 				}
-				case 'C':
+			}
+			break;
+		}
+		break;
+		case GMLUTREAD:
+		{
+			switch(attr[0][0])
+			{
+				case 'P':
 				{
-					if (attr[0] == "COMMIT")
+					if (attr[0] == "PREPARE")
 					{
-						// COMMIT FWUPGRADE
-
-					}
-					else
-					{
-						cout << "ERROR: The command attribute is wrong" << endl;
-						PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
-						return (-1);
-					}
-
-					break;
-				}
-				case 'R':
-				{
-					if (attr[0] == "REVERT")
-					{
-						// REVERT FWUPGRADE
+						// START PREPARING FOR UPGRADE
+						int ibuffersize;
+						std::string strOldPath, strNewPath;
+						if (Sscanf(attr[1], ibuffersize,'i'))
+						{// Get the value of buffer size
+							GetDownloadFilePath(eObject, strOldPath, strNewPath);
+							file_transfer->handlePrepareToRead(ibuffersize,strOldPath);
+						}
+						else
+						{
+							cout << "ERROR: The command attribute is not numerical" << endl;
+							PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+							return (-1);
+						}
 
 					}
 					else
@@ -4987,7 +5082,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 			}
 			break;
 		}
-		break;
 #endif
 		default:
 		{

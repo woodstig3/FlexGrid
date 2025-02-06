@@ -49,7 +49,8 @@ OCMTransfer::~OCMTransfer()
 }
 
 int OCMTransfer::SendPatternData(uint8_t *pattern)
-{	std::cout << "SendPatternData..." << ocm << std::endl;
+{
+//	std::cout << "SendPatternData..." << ocm << std::endl;
 
 	int pixel_count;
 	int required_size = 1952*1080;
@@ -116,7 +117,7 @@ int OCMTransfer::SendPatternData(uint8_t *pattern)
 	mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);
 
 #ifdef _DEVELOPMENT_MODE_
-	printf("Pattern send finished....\n");
+//	printf("Pattern send finished....\n");
 #endif
 
 //	clock_t tstart = clock();

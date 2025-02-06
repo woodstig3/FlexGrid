@@ -181,6 +181,7 @@ int Replace_log(char *buf,FaultName lineIndex)
 	out.flush();
 	out<<strFileData;
 	out.close();
+	return 0;
 }
 
 string CharToStr(char * contentChar)

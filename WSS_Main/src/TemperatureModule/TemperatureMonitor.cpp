@@ -708,6 +708,8 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 		*temp = ConvertToCelsius(LUT_MAX_HEX);
 		return(ConversionStatus::ABOVE_LUT_RANGE);
 	}
+	else
+		return -1;
 
 
 }
@@ -959,7 +961,7 @@ double TemperatureMonitor::GetLCOSTemperature(void)
 bool TemperatureMonitor::Check_Need_For_TEC_Data_Transfer_To_PC()
 {
 #ifdef _DEVELOPMENT_MODE_
-	int status;
+	int status = false;
 
 	if (pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]) != 0)	// locking and checking the result, if lock was successful and no deadlock happened
 		std::cout << "global_mutex[LOCK_DEVMODE_VARS] lock unsuccessful" << std::endl;

@@ -16,12 +16,11 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "FileTransfer.h"
-#include "DataStructures.h"		//All structures defined here
 
+#include "DataStructures.h"		//All structures defined here
 #include "InterfaceModule/LCOSDisplayTest.h"
 #include "InterfaceModule/EEPROMUpdate.h"
-
+#include "FileTransfer/FileTransfer.h"
 
 struct ChannelModules
 {
@@ -52,7 +51,7 @@ public:
 	enum 			Verbs { NONE, SET, GET, ADD, DELETE, ACTION};				//Global Verbs FLAG
 	Verbs 			eVerb;
 
-	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR, BGUPGRADE, PPM1UPGRADE, PPM2UPGRADE, GMUPGRADE, ATTM1UPGRADE, ATTM2UPGRADE, OPTM1UPGRADE, OPTM2UPGRADE, SIGM1UPGRADE, SIGM2UPGRADE};	//Global Object FLAG
+	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR, BGUPGRADE, PPM1UPGRADE, PPM2UPGRADE, GMLUTREAD, GMLUTWRITE, ATTM1UPGRADE, ATTM2UPGRADE, OPTM1UPGRADE, OPTM2UPGRADE, SIGCM1UPGRADE, SIGCM2UPGRADE, SIGLM1UPGRADE, SIGLM2UPGRADE};	//Global Object FLAG
 	Objects 		eObject;
 																			// ALL_ATTR_OF_CH =  // user want certain channel info and their attributes and slots
 	enum 			Getall {SOME_ATTR = 50, ALL_MODULE_ALL_ATTR, ALL_CH_ALL_ATTR, ALL_ATTR_OF_CH, ALL_SLOTS_OF_CH};				// When user want to GET attributes, we want to know if he requested all channels or all slots (all channles include slots info if FIXED GRID module)

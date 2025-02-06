@@ -11,6 +11,7 @@
 #include <string>
 #include <pthread.h>
 #include <time.h>
+#include <termios.h>
 
 #include "CmdDecoder.h"
 #include "InterfaceModule/MemoryMapping.h"
@@ -44,7 +45,7 @@ public:
     static SerialModule *GetInstance();
 
 
-	enum 			DelimiterStatus {INVALID, MISSING, FOUND};
+	enum 			DelimiterStatus {INVALID, MISSING, FOUND, OK}; //OK is only for gamma file transfer ack
 	enum 			OperationMode{NORMAL,RESTART};
 
 	CmdDecoder 		cmd_decoder;
@@ -79,6 +80,8 @@ private:
 	std::string 	sendMsg{""};
 	bool 			b_DuplicateError= false;
 
+	struct termios  savetty;
+
 private:
 
 	int 			Serial_Initialize(void);
@@ -95,6 +98,8 @@ private:
 	int 			Serial_OpenFileDescriptor();
 	int 			Serial_SetSerialAttributes();
 	int 			Serial_LockFileDescriptor();
+
+	int 			SetSerialAttribsForBinaryData();// drc added for raw mode for binary data transfer
 
 	int 			Serial_ExtractSingleCommand(std::string& dest, std::string& scr);
 	int             Serial_ExtractFilePacket(std::string& dest, std::string& scr);  //drc added for file packets parsing

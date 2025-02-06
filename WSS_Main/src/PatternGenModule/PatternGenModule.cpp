@@ -1001,32 +1001,32 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 					return (-1);
 
 				Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
-				std::cout << "***Product Mode Channel Sigma:"<< outputs.sigma << " K_Att:" << outputs.Katt << std::endl;
+//				std::cout << "***Product Mode Channel Sigma:"<< outputs.sigma << " K_Att:" << outputs.Katt << std::endl;
 
 				//to calculate for left edge attenuated value
 				channel_Att = inputs.ch_att;
 
 				edge_Att = 1- (outputs.F1_PixelPos - floor(outputs.F1_PixelPos)); //edge attenuation according to covered area
-				std::cout << "Left Edge Position:" << outputs.F1_PixelPos << std::endl;
+//				std::cout << "Left Edge Position:" << outputs.F1_PixelPos << std::endl;
 				edge_Att = 1- (outputs.F1_PixelPos - floor(outputs.F1_PixelPos));
 				edge_Att = (channel_Att + abs(10*log10(edge_Att)) > MAX_ATT_BLOCK? MAX_ATT_BLOCK: channel_Att + abs(10*log10(edge_Att)));     //10*log10() changes edge_Att from percentage to dB value
 				inputs.ch_att = edge_Att;
 
 				status = Find_Parameters_By_Interpolation(inputs, outputs, false, false, true, false);		// Interpolate K_Att parameters for edge
 				edgeK_Att = outputs.Katt;
-				std::cout << "Product Mode Left Edge K_Att:" << outputs.Katt << std::endl;
+//				std::cout << "Product Mode Left Edge K_Att:" << outputs.Katt << std::endl;
 				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 0); //0:left edge //2* is because experiments show this will help improve fc accuracy
 //				Fill_Channel_ColumnData(channelNo-1);
 
 				//to calculate for right edge attenuated value
 				edge_Att = outputs.F2_PixelPos - floor(outputs.F2_PixelPos);   //attenuation according to covered area
-				std::cout << "Right Edge Position:" << outputs.F2_PixelPos << std::endl;
+//				std::cout << "Right Edge Position:" << outputs.F2_PixelPos << std::endl;
 				edge_Att = outputs.F2_PixelPos - floor(outputs.F2_PixelPos);
 				edge_Att = (channel_Att + abs(10*log10(edge_Att)) > MAX_ATT_BLOCK? MAX_ATT_BLOCK: channel_Att + abs(10*log10(edge_Att)));
 				inputs.ch_att = edge_Att;
 				status = Find_Parameters_By_Interpolation(inputs, outputs, false, false, true, false);		// Interpolate K_Att parameters for edge
 				edgeK_Att = outputs.Katt;
-				std::cout << "Product Mode Right Edge K_Att:" << outputs.Katt << std::endl;
+//				std::cout << "Product Mode Right Edge K_Att:" << outputs.Katt << std::endl;
 				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, 6.0, edgeK_Att, 2); //2: right edge
 				Fill_Channel_ColumnData(channelNo-1);
 
@@ -1716,9 +1716,9 @@ void PatternGenModule::RelocateChannelTF(unsigned int chNum, double f1_PixelPos,
 	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0, ocmscanned = 0;
 
 	int ch_start_pixelLocation = floor(f1_PixelPos); //left side should be floored to be included in coverage by calculated pattern
-	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
+//	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
 	int ch_end_pixelLocation = floor(f2_PixelPos);   //right side should be ceilinged to be covered by calculated pattern
-	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
+//	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
 
 	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 because width max should be 1920/1952
 
@@ -1990,9 +1990,9 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 	int i = 0;
 	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 	int ch_start_pixelLocation = floor(f1_PixelPos);
-	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
+//	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
 	int ch_end_pixelLocation = floor(f2_PixelPos);
-	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
+//	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
 
 	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919/1951, width should be 1920/1952
 

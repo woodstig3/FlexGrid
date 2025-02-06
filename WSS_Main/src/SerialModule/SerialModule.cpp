@@ -14,8 +14,8 @@
 // Linux headers
 #include <fcntl.h> 														// Contains file controls like O_RDWR
 #include <errno.h> 														// Error integer and strerror() function
-#include <termios.h> 													// Contains POSIX terminal control definitions
-#include <cstring>														// For memset and strerror
+													// Contains POSIX terminal control definitions
+#include <string>														// For memset and strerror
 #include <unistd.h> 													// Write(), read(), close()
 #include <sys/file.h>  													// Use of flock() to block other process accessing serial port
 #include <algorithm>
@@ -26,6 +26,8 @@
 SerialModule* SerialModule::pinstance_{nullptr};
 
 extern ThreadSafeQueue<std::string> packetQueue;   //for file packets transfer between serial and file transfer thread
+//extern ThreadSafeQueue<uint8_t> fwPacketQueue;
+extern ThreadSafeQueue<bool> ackQueue;
 
 SerialModule::SerialModule()
 {
@@ -110,7 +112,7 @@ void SerialModule::ProcessReadWrite(void)
 
 	while(b_LoopOn)														// Serial loop running on a thread.
 	{
-		usleep(1000);
+		usleep(100);
 
 		do																// Read from user until all data from serial line are received...
 		{
@@ -123,19 +125,23 @@ void SerialModule::ProcessReadWrite(void)
 			else if(num_bytes > 0)
 			{
 
-				std::cout << "Cmd Received = " << temp_search_Str << std::endl;
+				std::cout << "Cmd Received = " << temp_search_Str<< std::endl;
 				if(temp_search_Str.size() > MAX_BUFFER_LENGTH)	// If data received is more than 50,000 bytes we reset and give overflow error
 				{
 					temp_search_Str.clear();
 					Serial_WritePort("\01MESSAGE_QUEUE_FULL\04\n");
-
 					sleep(2); //required to make flush work, for some reason
 				    tcflush(iSerialFD, TCIFLUSH);
 					break;
 				}
 			}
+			else
+			{
+				//nothing happened
 
-			usleep(6000);		// 5000 > delay is necessary otherwise serial read wont have much time to add all data to the buffer and you might miss \04 delimiter
+			}
+
+			usleep(6000);		// 5000 > delay is necessary otherwise serial read wont have much time to add all data to the buffer and you might miss \04 delimiter10
 
 		}while(num_bytes != 0 && b_LoopOn);
 
@@ -148,6 +154,7 @@ void SerialModule::ProcessReadWrite(void)
 //			std::cout << "First clock = " << tstart << std::endl;
 
 			//extract download file packets into queue
+
 			int status = Serial_ExtractFilePacket(strPacket, temp_search_Str);
 
 			if (status == DelimiterStatus::FOUND)
@@ -174,18 +181,24 @@ void SerialModule::ProcessReadWrite(void)
 
 				cmd_decoder.file_transfer->processFirmwarePackets(strPacket,cmd_decoder.file_transfer->file_num_bytes);
 #endif
-				continue;
+				num_bytes = 0;
+				break;
 			}
-
 			status = Serial_ExtractSingleCommand(finalCommand, temp_search_Str);	// Extract commands one after another if multiple commands are there with delimiters \01..\04\01...\04\01...\04.
 
 			if (status == DelimiterStatus::INVALID)
 			{
 				Serial_WritePort("\01INVALID_DELIMITER\04\n");
+				continue;
 			}
 			else if (status == DelimiterStatus::MISSING)
 			{
 				Serial_WritePort("\01MISSING_DELIMITER\04\n");
+				continue;
+			}
+			else if(status == DelimiterStatus::OK)
+			{//ack to upload gamma file packets
+		        continue;
 			}
 
 			//std::cout << "FINAL COMMAND = " << finalCommand << "Size = " << finalCommand.size() << std::endl;
@@ -222,7 +235,7 @@ void SerialModule::ProcessReadWrite(void)
 #endif
 				 //std::cout << "finalCommand: "  << finalCommand << std::endl;
 
-				 sendMsg = Serial_InitiateCommandDecoding(finalCommand);
+				 sendMsg = Serial_InitiateCommandDecoding(finalCommand.data());
 
 				 int status = CheckOperationFromCommandDecoder();
 
@@ -308,6 +321,7 @@ void SerialModule::StopThread()
 
 }
 
+
 int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& temp_search_Str)
 {
 	std::size_t delimiter04_pos = 0;
@@ -317,23 +331,21 @@ int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& 
 	bool b_invalidDelim = false;
 	bool issue = false;
 
-//	if(cmd_decoder.file_transfer->b_Start_Download == true)
+	if(cmd_decoder.file_transfer->b_Start_Download == true)
 	{
 		delimiter03_pos = temp_search_Str.find(START_DOWNLOAD_DELIMITER, 0);
 		if( delimiter03_pos == std::string::npos)	// Not Found at all-
 		{
 			// file packets delimited by '\03\' Not found at all
-//			temp_search_Str.clear();
 			b_missingDelim = true;
 			issue = true;
 		}
 		else
 		{
-			delimiter04_pos = temp_search_Str.rfind(END_DELIMITER);
+			delimiter04_pos = temp_search_Str.rfind(END_DELIMITER); //last occurrance of END_DELIMITER
 			if( delimiter04_pos == std::string::npos)	// END_DELIMITER Not Found at all
 			{
 				b_missingDelim = true;
-//				temp_search_Str.clear();
 				issue = true;
 			}
 			else
@@ -342,8 +354,29 @@ int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& 
 				if(delimiter04_pos < delimiter03_pos)
 				{// For case \04....\03..
 					b_invalidDelim = true;
-//						temp_search_Str.clear();
 					issue = true;
+				}
+				else if(delimiter04_pos - delimiter03_pos +1 > 2052)
+				{
+					std::cout << strPacket << " wrong file packet ending: " << delimiter04_pos <<std::endl;
+					delimiter04_pos = temp_search_Str.rfind(END_DELIMITER,delimiter04_pos-1);
+					if( delimiter04_pos == std::string::npos)	// END_DELIMITER Not Found at all
+					{
+						b_missingDelim = true;
+						issue = true;
+					}
+				}
+				else if(delimiter04_pos - delimiter03_pos +1 < 2052)
+				{
+					if(delimiter04_pos - delimiter03_pos +1 != temp_search_Str.length())
+					{
+						b_invalidDelim = true;
+						issue = true;
+					}
+					else
+					{
+						//last packet or small files less than 2048 bytes
+					}
 				}
 				else
 				{
@@ -355,11 +388,11 @@ int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& 
 		//Extract file packets
 		if(issue == false)
 		{
-			strPacket = temp_search_Str.substr(delimiter03_pos,delimiter04_pos+1);
+			strPacket = temp_search_Str.substr(delimiter03_pos,delimiter04_pos+1); // '\03' and '\04' should be extracted too
 			//push packet into queue
 			packetQueue.push(strPacket);
 			temp_search_Str.erase(delimiter03_pos, delimiter04_pos+1);
-			std::cout << strPacket << " size = "<< strPacket.size() <<std::endl;
+			std::cout << strPacket << " file packet size = "<< strPacket.size() <<std::endl;
 			return (DelimiterStatus::FOUND);
 		}
 		else
@@ -379,14 +412,84 @@ int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& 
 		}
 
 	}
-//	else
+	else
 	{
 		//if no packet download, nothing else happened
 	}
 	return (0);
 }
+
+/*
+int SerialModule::Serial_ExtractFilePacket(std::string& strPacket, std::string& temp_search_Str)
+{
+
+	bool b_missingDelim = false;
+	bool b_invalidDelim = false;
+	bool issue = false;
+
+	if(cmd_decoder.file_transfer->b_Start_Download == true) {
+		std::vector<size_t> delimiter04_pos; // Vector to store positions of char1
+		std::vector<size_t> delimiter03_pos; // Vector to store positions of char2
+
+		// First loop to find positions of both characters
+		for (size_t i = 0; i < temp_search_Str.length(); ++i) {
+			if (temp_search_Str[i] == END_DELIMITER) {
+				delimiter04_pos.push_back(i); // Store position of char1
+			} else if (temp_search_Str[i] == START_DOWNLOAD_DELIMITER) {
+				delimiter03_pos.push_back(i); // Store position of char2
+			}
+		}
+		if(delimiter04_pos.size() == 0 || delimiter03_pos.size() == 0)
+		{
+			b_missingDelim = true;
+			issue = true;
+//			temp_search_Str.clear();
+
+		}
+		// Check for pairs of positions
+		int count = 0;
+		for (size_t pos1 : delimiter04_pos) {
+			for (size_t pos2 : delimiter03_pos) {
+				if (std::abs(static_cast<int>(pos1 - pos2 + 1)) != 2052) {
+//					count++; // Increment count for each valid pair
+					b_invalidDelim = true;
+					issue = true;
+					continue;
+				}
+				else
+				{
+					b_missingDelim = false;
+					b_invalidDelim = false;
+					issue = false;
+					//Extract
+					strPacket = temp_search_Str.substr(pos2,pos1+1); // '\03' and '\04' should be extracted too
+					//push packet into queue
+					packetQueue.push(strPacket);
+	//				temp_search_Str.erase(pos2, pos1+1);
+					temp_search_Str.clear();
+					std::cout << strPacket << " file packet size = "<< strPacket.size() <<std::endl;
+					return (DelimiterStatus::FOUND);
+				}
+			}
+		}
+		if(b_invalidDelim)
+		{
+//			temp_search_Str.clear();
+			return (DelimiterStatus::INVALID);
+		}
+		else if(b_missingDelim)
+		{
+			return (DelimiterStatus::MISSING);
+		}
+	}
+
+	return (0);
+
+}
+*/
 int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::string& temp_search_Str)
 {
+
 	/*Following commands were tested and the following results were found:
 	 * Hello					- Missing delimiter
 	 * \01 Hellow 				- Missing delimiter
@@ -398,8 +501,6 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 	 * \01Hello\01maybe\04		- Missing delimiter
 	 * \04Hellow\01Maybe\04		- Second command ok, first delimiter missing
 	 */
-
-	/*for file downloading, [0x3]<packet_num><FW_bytes>[0x4] format is also correct*/
 
 	std::size_t delimiter04_pos = 0;
 	std::size_t delimiter01_pos = 0;
@@ -427,8 +528,6 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 		}
 		else
 		{
-			//For case \03
-
 			std::size_t temp_delimiter_01 = 0;
 
 			temp_delimiter_01 = temp_search_Str.find(START_DELIMITER, delimiter01_pos+1);	// Find \01 other than previous one
@@ -468,8 +567,15 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 	if(issue == false)
 	{
 		finalCommand = temp_search_Str.substr(delimiter01_pos+1, delimiter04_pos-1);
-		temp_search_Str.erase(delimiter01_pos, delimiter04_pos+1);
-		//std::cout << finalCommand << " size = "<< finalCommand.size() <<std::endl;
+//		temp_search_Str.erase(delimiter01_pos, delimiter04_pos+1);
+		temp_search_Str.clear();
+		std::cout << finalCommand << " size = "<< finalCommand.size() <<std::endl;
+		std::transform(finalCommand.begin(), finalCommand.end(), finalCommand.begin(), ::toupper);
+		if(finalCommand == "OK") {//ack to gamma file upload
+			ackQueue.push(true);
+			return (DelimiterStatus::OK);
+		}
+
 	}
 	else
 	{
@@ -483,9 +589,11 @@ int SerialModule::Serial_ExtractSingleCommand(std::string& finalCommand, std::st
 		}
 	}
 
-	issue = false;
+//	issue = false;
+	temp_search_Str.clear();
 
 	return (DelimiterStatus::FOUND);
+
 }
 
 void SerialModule::Serial_RefineCommand(std::string& finalCommand)
@@ -569,22 +677,42 @@ int SerialModule::Serial_LockFileDescriptor(void)
 	return (0);
 }
 
+
 int SerialModule::Serial_ReadPort(std::string& temp_search_Str)
 {
 	int num_bytes{0};
-	char temp_read_buf [SERIAL_READ_LENGTH]{0};					// This buffer hold temporary data upon each read function.
+	bool bBin = false;
+	char temp_read_buf1 [SERIAL_READ_LENGTH]{0};
+	std::vector<uint8_t>temp_read_buf2(2052);
 
-	memset(&temp_read_buf, '\0', sizeof(temp_read_buf));				// Reset temp_read_buf all values with \0
 
-	num_bytes = read(iSerialFD, &temp_read_buf, sizeof(temp_read_buf)-1);
+	if(cmd_decoder.file_transfer->b_Start_Download == true) {
+		num_bytes = read(iSerialFD, temp_read_buf2.data(), temp_read_buf2.size());
+		bBin = true;
 
-	if(num_bytes >= 0)
+	} else {
+		bBin = false;
+		// This buffer hold temporary data upon each read function.
+		memset(&temp_read_buf1, '\0', sizeof(temp_read_buf1));				// Reset temp_read_buf all values with \0
+		num_bytes = read(iSerialFD, &temp_read_buf1, sizeof(temp_read_buf1)-1);
+	}
+
+	if(num_bytes > 0)
 	{
-		temp_search_Str += temp_read_buf;
+		if (bBin == false)
+			temp_search_Str += temp_read_buf1;
+		else
+//			memcpy(&temp_search_Str[0],temp_read_buf2.data(),temp_read_buf2.size());
+			temp_search_Str.append(reinterpret_cast<char*>(temp_read_buf2.data()),num_bytes);
+
+//			temp_search_Str.append(temp_read_buf2.begin(),temp_read_buf2.end());
 	}
 
 	return (num_bytes);
 }
+
+
+
 
 int SerialModule::Serial_WritePort(const std::string& sendMsg)
 {
@@ -593,7 +721,7 @@ int SerialModule::Serial_WritePort(const std::string& sendMsg)
 		std::cout << "global_mutex[LOCK_SERIAL_WRITE] lock unsuccessful" << std::endl;
 	else
 	{
-		const char *pSendBuff;									/* Below is important this char pointer will hold string sendMsg data and use write() function to send to user*/
+		const char *pSendBuff;
 		int num_bytes = 0;
 
 		//writeMsg 1 when command is received, b_SendString 1 when command is successfully decoded
@@ -616,7 +744,6 @@ int SerialModule::Serial_WritePort(const std::string& sendMsg)
 	mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x1);usleep(1000);
 	return (0);
 }
-
 
 int SerialModule::CheckOperationFromCommandDecoder(void)
 {
@@ -665,6 +792,9 @@ int SerialModule::SetSerialAttribs(int iSerialFD, int speed, int parity)
 		return (-1);
 	}
 
+	cfsetispeed(&tty, speed);											// Set In baudrate
+	cfsetospeed(&tty, speed);											// Set Out baudrate
+
 	tty.c_cflag &= ~PARENB;												// Clear parity bit, disabling parity (most common)
 	tty.c_cflag &= ~CSTOPB;												// Clear stop field, only one stop bit used in communication (most common)
 	tty.c_cflag &= ~CSIZE;												// Clear all bits that set the data size
@@ -683,8 +813,9 @@ int SerialModule::SetSerialAttribs(int iSerialFD, int speed, int parity)
 					| IGNCR | ICRNL);									// Disable any special handling of received bytes
 
 	tty.c_oflag &= ~OPOST;												// Prevent special interpretation of output bytes (e.g. newline chars)
-	tty.c_oflag &= ~ONLCR;												// Prevent conversion of newline to carriage return/line feed
+//	tty.c_oflag &= ~ONLCR;												// Prevent conversion of newline to carriage return/line feed
 
+	cfmakeraw(&tty);
 
 	/* NO USING THEM so initialize to 0
 	 * http://www.iitk.ac.in/LDP/HOWTO/text/Serial-Programming-HOWTO */
@@ -696,8 +827,30 @@ int SerialModule::SetSerialAttribs(int iSerialFD, int speed, int parity)
 	tty.c_cc[VERASE] = 0; 												/*del */
 	tty.c_cc[VKILL] = 0; 												/*@ */
 
-	cfsetispeed(&tty, speed);											// Set In baudrate
-	cfsetospeed(&tty, speed);											// Set Out baudrate
+	if (tcsetattr(iSerialFD, TCSANOW, &tty) != 0)						// Save tty settings, also checking for error
+	{
+		printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
+		return (-1);
+	}
+	savetty = tty;
+	return (0);
+}
+
+/*
+int SerialModule::SetSerialAttribsForBinaryData()// raw mode for binary data transfer
+{
+	struct termios tty;													// Create new termios struc, we call it 'tty' for convention
+
+	if (tcgetattr(iSerialFD, &tty) != 0)								// Read in existing settings, and handle any error
+	{
+		printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+		return (-1);
+	}
+
+	cfmakeraw(&tty);
+
+	tty.c_cc[VMIN] = 0; //03 00 00 01 04
+	tty.c_cc[VTIME] = 1;
 
 	if (tcsetattr(iSerialFD, TCSANOW, &tty) != 0)						// Save tty settings, also checking for error
 	{
@@ -707,3 +860,4 @@ int SerialModule::SetSerialAttribs(int iSerialFD, int speed, int parity)
 
 	return (0);
 }
+*/
