@@ -9,6 +9,7 @@
 #define SRC_SPIMODULE_SPISTRUCTS_H_
 
 #include <vector>
+#include "DataStructures.h"
 
 // Define packet structures
 struct SPICommandPacket {
@@ -30,7 +31,6 @@ struct SPIReplyPacket {
     uint16_t crc1;
     uint16_t crc2;
 };
-
 
 
 #endif /* SRC_SPIMODULE_SPISTRUCTS_H_ */

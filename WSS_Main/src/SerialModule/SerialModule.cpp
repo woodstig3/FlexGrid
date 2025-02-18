@@ -125,7 +125,7 @@ void SerialModule::ProcessReadWrite(void)
 			else if(num_bytes > 0)
 			{
 
-				std::cout << "Cmd Received = " << temp_search_Str<< std::endl;
+//				std::cout << "Cmd Received = " << temp_search_Str<< std::endl;
 				if(temp_search_Str.size() > MAX_BUFFER_LENGTH)	// If data received is more than 50,000 bytes we reset and give overflow error
 				{
 					temp_search_Str.clear();
@@ -149,6 +149,9 @@ void SerialModule::ProcessReadWrite(void)
 		{
 		   // Start the clock
 			auto start = std::chrono::high_resolution_clock::now();
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 
 //			clock_t tstart = clock();
 //			std::cout << "First clock = " << tstart << std::endl;

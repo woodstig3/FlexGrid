@@ -68,13 +68,14 @@ public:
 //    }
 //    void processFirmwarePackets(std::string& strPacket, int num_bytes);
     void handlePrepareCommand(int numBytesToReceive, std::string strOldPath, std::string strNewPath);
-    void handleFWPrepareCommand(int numBytesToReceive, std::string strOldPath, std::string strNewPath);
+    void handleBinPrepareCommand(int numBytesToReceive, std::string strOldPath, std::string strNewPath);
     void handleSwitchCommand();
     void handleCommitCommand();
     void handleRevertCommand();
     void handlePrepareToRead(int numBytesToRead, std::string strPath);
     int  file_num_bytes;
 	bool b_Start_Download = false;
+	bool b_Bin_Download = false;
 	bool b_Start_Read = false;
 //    char intToHexChar(uint8_t value);
 
@@ -107,7 +108,7 @@ private:
     void sendHECFile(const std::string& filename);
 
     uint16_t hexCharToUint16(char high, char low);
-
+//    uint16_t hexCharToUint16(const std::string &hexStr);
 //    void handleDataPacket(const std::string& packet);
     uint8_t hexToInt(char c);
     // ... [rest of the member functions]

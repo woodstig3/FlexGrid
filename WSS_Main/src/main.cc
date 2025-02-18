@@ -25,6 +25,7 @@
 #include "InterfaceModule/I2CProtocol.h"
 #include "InterfaceModule/Dlog.h"
 #include "SpiInterface.h"
+#include "wdt.h"
 
 pthread_mutex_t global_mutex[NUM_OF_MUTEXES];
 pthread_mutexattr_t mutex_attribute;
@@ -116,11 +117,24 @@ int main(int argc, char* argv[])
 	manager.startThreads();
 #endif
 
-//	sleep(30);
+#ifdef _WATCHDOG_SOFTRESET_
+    const char *watchdog_device = "/dev/watchdog0";
+    int timeout = 3; // Default timeout in seconds
+    // Initialize the watchdog
+	if (watchdog_init(watchdog_device, timeout) < 0) {
+		fprintf(stderr, "Failed to initialize watchdog\n");
+		return 1;
+	}
+
+	// Register signal handlers for graceful shutdown
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
 
 
+#endif
 
-#if 0
+
+#if 0   //just for spi interface testing
 	spi_transfer_data buff;
     memset(&buff.rx_buf,0, BUFFER_SIZE);
 	memset(&buff.tx_buf,0, BUFFER_SIZE);
@@ -165,10 +179,15 @@ int main(int argc, char* argv[])
 	InterUIO->StopThread();
 
 	DestroyGlobalMutex();
+
 #ifdef _SPI_INTERFACE_
 	manager.stopThreads();  	// Shutdown spi interface module
 #endif
 
+#ifdef _WATCHDOG_SOFTRESET_
+	// Disable the watchdog before exiting
+	watchdog_disable();
+#endif
 	return 0;
 }
 

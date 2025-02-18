@@ -30,7 +30,9 @@ extern ThreadSafeQueue<bool> ackQueue;
 
 // Function to convert two hexadecimal characters to an integer
 uint16_t FileTransfer::hexCharToUint16(char high, char low) {
-    return (hexToInt(high) << 4) | hexToInt(low);
+//    	return (hexToInt(high) << 4) | hexToInt(low);
+//	return(static_cast<uint16_t>(strtoul(hexStr.c_str(), nullptr, 16)));
+	return((high << 8) | low);
 }
 
 // Helper function to convert a single hexadecimal character to an integer
@@ -327,7 +329,9 @@ void FileTransfer::processFirmwarePackets(int num_bytes ) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
         packetQueue.pop(packet);
         std::cerr << "Firmware Packet received: " << packet.size() << std::endl;
 
@@ -384,8 +388,8 @@ void FileTransfer::processFirmwarePackets(int num_bytes ) {
     // Perform the integrity check and rename/reboot if successful
 //    int expectedHash = num_bytes; // Normally should be provided,but here only to compare file size before and after.
 //    if (check_integrity(m_newFirmwarePath, expectedHash)) {
-    	if(!replaceFile(m_oldFirmwarePath, m_newFirmwarePath))
-    		std::cerr << "Error replacing file: " << m_oldFirmwarePath << std::endl;
+//    	if(!replaceFile(m_oldFirmwarePath, m_newFirmwarePath))
+//    		std::cerr << "Error replacing file: " << m_oldFirmwarePath << std::endl;
 //        reboot_system();
 //    } else {
 //        std::cerr << "Firmware integrity check failed." << std::endl;
@@ -413,7 +417,9 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
         packetQueue.pop(packet);
         std::cerr << "LUT File Packet received: " << packet.size() << std::endl;
 
@@ -423,13 +429,14 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 
 			// Extract the packet number
 			uint16_t packet_num = hexCharToUint16(packet[1], packet[2]);
+//        	uint16_t packet_num = hexCharToUint16(packet.substr(1,4));
 			if (packet_num != currentPacketNumber) {
 				std::cerr << "Unexpected packet number received. Expected: " << currentPacketNumber
 						  << ", Received: " << packet_num << std::endl;
 				continue;
 			}
 
-			// Extract the firmware bytes
+			// Extract the lut file ascii code bytes
 			std::vector<uint8_t> firmware_bytes;
 			firmware_bytes.reserve(packet.size() - 4); // Reserve space to avoid reallocations
 			std::copy(packet.begin() + 3, packet.end() - 1, std::back_inserter(firmware_bytes));
@@ -446,7 +453,7 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 			// Check if this is the last packet
 			else if (currentPacketNumber == totalPackets-1) {
 				firmwareComplete = true;
-				std::cerr << "LUT File download successfully completed." << std::endl;
+				std::cerr << "LUT File download successfully completed in " << totalPackets << " packets" << std::endl;
 			}
 			else {
 				// Increment the packet number for the next packet
@@ -464,8 +471,8 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
     // Perform the integrity check and rename/reboot if successful
 //    int expectedHash = num_bytes; // Normally should be provided,but here only to compare file size before and after.
 //    if (check_integrity(m_newFirmwarePath, expectedHash)) {
-    	if(!replaceFile(m_oldFirmwarePath, m_newFirmwarePath))
-    		std::cerr << "Error replacing file: " << m_oldFirmwarePath << std::endl;
+//    	if(!replaceFile(m_oldFirmwarePath, m_newFirmwarePath))
+//    		std::cerr << "Error replacing file: " << m_oldFirmwarePath << std::endl;
 //        reboot_system();
 //    } else {
 //        std::cerr << "Firmware integrity check failed." << std::endl;
@@ -529,11 +536,12 @@ void FileTransfer::handlePrepareCommand(int numBytesToReceive, std::string strOl
 	m_newFirmwarePath = strNewPath;
 
 	b_Start_Download = true;
+	b_Bin_Download = false;
 
 	startLUTFileUpgrade(numBytesToReceive,strNewPath);
 }
 
-void FileTransfer::handleFWPrepareCommand(int numBytesToReceive, std::string strOldPath, std::string strNewPath)
+void FileTransfer::handleBinPrepareCommand(int numBytesToReceive, std::string strOldPath, std::string strNewPath)
 {
    // Extract the firmware size
 //	packetQueue = std::make_unique<ThreadSafeQueue<std::string>>();
@@ -543,6 +551,7 @@ void FileTransfer::handleFWPrepareCommand(int numBytesToReceive, std::string str
 	m_newFirmwarePath = strNewPath;
 
 	b_Start_Download = true;
+	b_Bin_Download = true;
 
 	startFirmwareUpgrade(numBytesToReceive,strNewPath);
 }

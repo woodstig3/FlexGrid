@@ -6,7 +6,7 @@ const char *uiod0 = "/dev/uio0";
 const char *uiod1 = "/dev/uio1";
 const char *uiod2 = "/dev/uio2";
 const char *uiod3 = "/dev/uio3";
-const char *uiod4 = "/dev/uio4";
+//const char *uiod4 = "/dev/uio4";
 
 AlarmModule *AlarmModule::pinstance_{nullptr};
 
@@ -38,11 +38,11 @@ AlarmModule::AlarmModule()
     {
         printf("Invalid UIO device file : %s.\n",uiod3);
     }
-    UIO_LCOS_Ready = open(uiod4, O_RDWR | O_NONBLOCK);
-    if (UIO_LCOS_Ready < 1)
-    {
-        printf("Invalid UIO device file : %s.\n",uiod4);
-    }
+//    UIO_LCOS_Ready = open(uiod4, O_RDWR | O_NONBLOCK);
+//    if (UIO_LCOS_Ready < 1)
+//    {
+//        printf("Invalid UIO device file : %s.\n",uiod4);
+//    }
 
     //For GPIO
     GPIO_exportfd = open("/sys/class/gpio/export", O_WRONLY);

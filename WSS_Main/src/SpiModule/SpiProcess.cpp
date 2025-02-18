@@ -44,6 +44,9 @@ void* ThreadManager::spiListener(void* arg) {
     		continue;
     	}
 */
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
     	memset(transfer.rx_buf, 0, BUFFER_SIZE);
     	int ret = spiSlave->spi_transfer(transfer);
 		if (ret >= 0 ) {
@@ -77,7 +80,9 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 	std::vector<uint8_t> replyPacketData;
 //    SPISlave* spi = static_cast<SPISlave*>(arg);
     while (receiving) {
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
         pthread_mutex_lock(&spiQueueMutex);
         while (spiPacketQueue.empty()) {
             pthread_cond_wait(&cv, &spiQueueMutex); // Wait for a packet
@@ -129,7 +134,6 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             // Formulate a reply based on the processed packet
             memset(transfer.tx_buf, 0, BUFFER_SIZE);
             memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size()*sizeof(uint8_t));
-
 
             pthread_mutex_lock(&spiQueueMutex); // Lock again before checking the queue
         }

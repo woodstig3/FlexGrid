@@ -50,9 +50,9 @@ CmdDecoder::~CmdDecoder()
 	delete[] TF_Channel_DS_For_Pattern;
 	delete[] FG_Channel_DS;
 	delete[] FG_Channel_DS_For_Pattern;
-
+#ifdef _OCM_SCAN_
 	delete[] TF_Channel_DS_For_OCM;
-
+#endif
 	delete actionSR;
 	delete file_transfer;
 
@@ -85,7 +85,7 @@ void CmdDecoder::WaitPatternTransfer(void)
 
 bool CmdDecoder::GetPatternTransferFlag(void)
 {
-	bool flag;
+	bool flag = false;
 
 	if (pthread_mutex_lock(&global_mutex[LOCK_TEMP_CHANGED_FLAG]) != 0)
 		std::cout << "global_mutex[LOCK_TEMP_CHANGED_FLAG] lock unsuccessful" << std::endl;
@@ -388,7 +388,7 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				}
 				else if((commandItems > 2) && (eVerb == ACTION && eObject == FWUPGRADE))
 				{
-//					b_Start_Download = true;
+
 				}
 			}
 			else
@@ -1295,7 +1295,6 @@ int CmdDecoder::SearchObject(std::string &object)
 								if (g_moduleNum == 1)
 								{
 									eObject = FWUPGRADE;
-//									b_Start_Download = true;  //when file is downloading, '\03\' is valid
 								}
 								else
 								{
@@ -4876,7 +4875,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						{// Get the value of buffer size
 							GetDownloadFilePath(eObject, strOldPath,strNewPath);
 //							file_transfer updater(strOldPath, strNewPath);
-							file_transfer->handlePrepareCommand(ibuffersize,strOldPath,strNewPath);
+							file_transfer->handleBinPrepareCommand(ibuffersize,strOldPath,strNewPath);
 						}
 						else
 						{
@@ -4916,7 +4915,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						{// Get the value of buffer size
 							GetDownloadFilePath(eObject, strOldPath,strNewPath);
 //							file_transfer updater(strOldPath, strNewPath);
-							file_transfer->handleFWPrepareCommand(ibuffersize,strOldPath,strNewPath);
+							file_transfer->handlePrepareCommand(ibuffersize,strOldPath,strNewPath);
 						}
 						else
 						{
@@ -5010,7 +5009,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						if (Sscanf(attr[1], ibuffersize,'i'))
 						{// Get the value of buffer size
 							GetDownloadFilePath(eObject, strOldPath, strNewPath);
-							file_transfer->handleFWPrepareCommand(ibuffersize,strOldPath, strNewPath);
+							file_transfer->handleBinPrepareCommand(ibuffersize,strOldPath, strNewPath);
 						}
 						else
 						{
@@ -6459,7 +6458,6 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][i].A_ATT_R = 0;
 
 #endif
-
 				int targetChan = i;
 				int targetMod = g_moduleNum;
 				activeChannels.remove_if([targetMod, targetChan](const ChannelModules& point) {

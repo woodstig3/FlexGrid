@@ -21,6 +21,7 @@
 #include "TemperatureMonitor.h"
 
 #include "InterfaceModule/OCMTransfer.h"
+#include "SpiCmdDecoder.h"
 
 struct inputParameters{
 	float 			ch_att;
@@ -50,12 +51,12 @@ struct Background_DS_For_Pattern{  //drc added for background pattern data struc
 	float PD=2.2;   //default 2.2;
 	float A_OPP=0.5; //default 0.5;
 	float K_OPP;
-	float A_ATT;
+	float A_ATT=6.0;
 	float K_ATT;
 	float LAMDA = 1.55;  //default = 1.55;
-	float FC_PixelPos; //default = 9760.0;
-	float F1_PixelPos; //default = 191125.0;
-	float F2_PixelPos; //default = 196275.0;
+	float FC_PixelPos = 976.00;
+	float F1_PixelPos = 0.00;
+	float F2_PixelPos = 1952.00;
 };
 
 
@@ -102,6 +103,7 @@ public:
 	SerialModule 	   *g_serialMod{nullptr};  // create an instance of CmdDecoder so that we can access its member and data via singleton method
 	PatternCalibModule *g_patternCalib{nullptr};
 	TemperatureMonitor *g_tempMonitor{nullptr};
+	SPASlicePortAttenuationCommand *g_spaCmd{nullptr};
 
 	int 				MoveToThread();
 	void 				StopThread();
@@ -146,7 +148,7 @@ private:
 
 	const double 	g_wavelength{1.55};
 	const int 		g_pixelSize{8};
-	double 			g_phaseDepth{2.2};
+	double 			g_phaseDepth[3]{2.2};  //drc modified it to array[3] to support independent PD for 2 modules
 	int				m_backColor{0};
 	int				m_customLCOS_Height{g_LCOS_Height};
 
