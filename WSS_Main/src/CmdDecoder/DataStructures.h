@@ -95,6 +95,11 @@
 
 		int 			n_ch_1 = 0;		// Each gap pattern carries information of 2 channel numbers which give its position
 		int 			n_ch_2 = 0;		// Each gap pattern carries information of 2 channel numbers which give its position
+
+		//added for 120 wl
+		float 			ATT_C = 0;
+		double 			BW_C = 0;
+		float           EDG_FACTOR = 1;
 	};
 
 
@@ -247,6 +252,11 @@
 		float			OCM_P1=0;
 		float			OCM_P2=1952.0;
 #endif
+
+		//added for 120 wl
+		float 			ATT_C = 0;
+		double 			BW_C = 0;
+		float           EDG_FACTOR = 1;
 	};
 
 	struct ModulesInfo
@@ -298,6 +308,10 @@
 			slotsATTEN(source.slotsATTEN),
 			slotBlockedOrNot(source.slotBlockedOrNot){}
 */
+		//added for 120 wl
+		float 			ATT_C = 0;
+		double 			BW_C = 0;
+		float           EDG_FACTOR = 1;
 	};
 
 	struct Panel

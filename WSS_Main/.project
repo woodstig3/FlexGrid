@@ -3,6 +3,7 @@
 	<name>WSS_Main</name>
 	<comment>Created by SDK v2018.2</comment>
 	<projects>
+		<project>WSS_Main</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

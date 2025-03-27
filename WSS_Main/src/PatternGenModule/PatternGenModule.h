@@ -190,7 +190,6 @@ private:
 
 	int 			Check_Need_For_GlobalParameterUpdate();
 	int 			Calculate_Every_ChannelPattern();
-	int 			Calculate_Every_ChannelPattern_SPI();
 	int 			Calculate_Every_ChannelPattern_DevelopMode();
 	void 			Find_LinearPixelPos_DevelopMode(double &freq, double &pixelPos);
 

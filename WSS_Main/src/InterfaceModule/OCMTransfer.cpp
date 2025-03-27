@@ -128,6 +128,82 @@ int OCMTransfer::SendPatternData(uint8_t *pattern)
 	return 0;
 }
 
+/*
+constexpr uint32_t OCM_SIZE = 256 * 1024; // 256KB
+constexpr uint32_t HALF_OCM = OCM_SIZE / 2;
+constexpr uint32_t MEM_STEP = 1024; // Assuming 1KB step based on context
+
+int OCMTransfer::SendPatternData(uint8_t *pattern) {
+
+    // Initialize
+    uint32_t pixel_count = 0;
+
+    int required_size = 1952*1080;
+    int RP=0;
+    int WP=0;
+    
+    // Initial bulk transfer
+    MemcpyLoop((uint8_t*)ocm + HALF_OCM, pattern, HALF_OCM);
+    pixel_count = HALF_OCM;
+    mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, HALF_OCM);
+    
+    // Main transfer loop
+    while (pixel_count < required_size) {
+        // Read both pointers with minimal delay between
+        mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP);
+        mmapOCM->ReadRegister_OCM32(HEC7020_OCM_WRITEPTR, &WP);
+        
+        // Calculate available space
+        uint32_t available;
+        if (WP == OCM_SIZE) {
+            available = (RP != 0) ? RP : 0;
+            WP = 0;
+        } else if (RP > WP) {
+            available = RP - WP;
+        } else {
+            available = OCM_SIZE - WP;
+        }
+        
+        // Limit transfer size to what's needed
+        uint32_t transfer_size = std::min(available, required_size - pixel_count);
+        if (transfer_size == 0) continue;
+        
+        // Perform transfer
+        MemcpyLoop((uint8_t*)ocm + HALF_OCM + WP, pattern + pixel_count, transfer_size);
+        pixel_count += transfer_size;
+        WP += transfer_size;
+        
+        // Handle wrap-around
+        if (WP == OCM_SIZE) WP = 0;
+        
+        // Update write pointer
+        mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, WP);usleep(50);
+    }
+    
+    // Wait for completion with adaptive polling
+    //const auto start = std::chrono::steady_clock::now();
+    do {
+        mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP);
+        // Add small delay if needed based on hardware requirements
+        //std::this_thread::yield();
+        
+        // Timeout after 1 second
+        //if (std::chrono::steady_clock::now() - start > std::chrono::seconds(1)) {
+        //    break;
+        //}
+    } while (RP != WP);
+    
+    // Reset write pointer
+    mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);
+    
+    #ifdef _DEVELOPMENT_MODE_
+    printf("Pattern send finished....\n");
+    #endif
+    
+    return 0;
+}
+*/
+
 int OCMTransfer::SetOutputToOCM(void)
 {
 	int status;
@@ -275,7 +351,8 @@ int OCMTransfer::VsyncSelectExt()
 	int status;
 	uint8_t value;
 
-	status = mmapReg2->ReadRegister_Reg2(0x17, &value);usleep(200);
+	status = mmapReg2->ReadRegister_Reg2(0x17, &value); 
+	//usleep(200);
 	//printf("hec7020_vsyncSelectExt = %04x\n\r", value);
 	value = 0x0;
 	status |= mmapReg2->WriteRegister_Reg2(0x17, value);usleep(200);
@@ -288,7 +365,7 @@ int OCMTransfer::VsyncSelectInt()
 	int status;
 	uint8_t value;
 
-	status = mmapReg2->ReadRegister_Reg2(0x17, &value);usleep(200);
+	status = mmapReg2->ReadRegister_Reg2(0x17, &value);//usleep(500);
 	//printf("hec7020_vsyncSelectExt = %04x\n\r", value);
 	value = 0x08;
 	status |= mmapReg2->WriteRegister_Reg2(0x17, value);usleep(200);
@@ -299,7 +376,8 @@ int OCMTransfer::VsyncSelectInt()
 int OCMTransfer::SetARMInputActive(unsigned char value)
 {
 	uint8_t regval;
-	mmapReg2->ReadRegister_Reg2(0xB4, &regval);usleep(100);
+	mmapReg2->ReadRegister_Reg2(0xB4, &regval);//usleep(100);
+//	printf("SetARMInputActive 0xB4 Read finished: %04x\n\r", regval);
 
 	if (value == 1)
 	{
@@ -387,7 +465,7 @@ int OCMTransfer::GetARMInputActive(unsigned char *value)
 	}
 
 
-	mmapOCM->ReadRegister_OCM(0x0, &regval);usleep(100);
+	mmapOCM->ReadRegister_OCM(0x0, &regval);//usleep(500);
 	*value = regval & 0x1;
 
 
