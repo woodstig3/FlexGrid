@@ -9,6 +9,7 @@
 
 #include "GlobalVariables.h"
 #include "PatternCalibModule.h"
+#include "wdt.h"
 
 /*
  * Pattern Calibration Module
@@ -35,6 +36,8 @@
  */
 PatternCalibModule *PatternCalibModule::pinstance_{nullptr};
 
+bool g_Calib_File_Failure = false;
+
 PatternCalibModule::PatternCalibModule()
 {
 	g_serialMod = SerialModule::GetInstance();
@@ -53,11 +56,13 @@ PatternCalibModule::PatternCalibModule()
 	{
 		printf("Driver<PATTERN_CALIB>: Pattern Calib. Module Load LUTs Failed.\n");
 		g_serialMod->Serial_WritePort("\01INTERNAL_ERROR\04\n");
+		g_Calib_File_Failure = true;
 		m_bCalibDataOk = false;
 	}
 	else
 	{
 		m_bCalibDataOk = true;
+		g_Calib_File_Failure = false;
 	}
 
 }
@@ -217,6 +222,9 @@ void PatternCalibModule::Calculation_Aopt_Kopt()
 			break;
 		}
 
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 		usleep(100);
 
 		//std::cout << "Calculation_Aopt_Kopt LOOPING.." << std::endl;
@@ -263,7 +271,9 @@ void PatternCalibModule::Calculation_Aatt_Katt()
 		{
 			break;
 		}
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 		usleep(100);
 
 		//std::cout << "Calculation_Aatt_Katt LOOPING.." << std::endl;
@@ -310,7 +320,9 @@ void PatternCalibModule::Calculation_Sigma()
 		{
 			break;
 		}
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 		usleep(100);
 
 		//std::cout << "Calculation_Sigma LOOPING.." << std::endl;
@@ -358,7 +370,9 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 		{
 			break;
 		}
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 		usleep(100);
 
 		//std::cout << "Calculation_Sigma LOOPING.." << std::endl;
@@ -905,7 +919,7 @@ int PatternCalibModule::Load_Att_LUT(Att& lut, const std::string& path)
           ++attIndex;
       }
 
-      if(rowNumber > 11)
+      if(rowNumber > LUT_ATT_ATT_NUM+5)
       {
     	  ++portIndex;
 		  rowNumber = 1;
@@ -989,7 +1003,6 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 	  std::istringstream iss(row);
 	  std::string column;
 
-
 	  int columnNumber = 1;
 	  int portIndex = 0;
 	  int tempIndex =0;
@@ -997,7 +1010,7 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 
 	  while (std::getline(iss, column, ',')) {
 
-		  if(rowNumber == 3 && (columnNumber > 1 && columnNumber <=6))       // Temperature readings, only 3 readings from first 3 columns, rest are same
+		  if(rowNumber == 3 && (columnNumber > 1 && columnNumber <=7))       // Temperature readings, only 6 readings from first 7 columns, rest are same
 		  {
 			  std::istringstream(column) >> value;
 			  lut.Temp[tempIndex] = value;
@@ -1017,7 +1030,7 @@ int PatternCalibModule::Load_Sigma_LUT(Sigma& lut, const std::string& path)
 		  {
 			  ++tempIndex;
 
-			  if(tempIndex >= 5)                       // Only 3 temperature values per port
+			  if(tempIndex >= 6)                       // Only 6 temperature values per port
 			  {
 				  tempIndex = 0;
 				  ++portIndex;

@@ -137,6 +137,7 @@ private:
 	unsigned int 	endOffsetLUT{0};								// These offsets can modify the range of LUT available to compare
 
 	bool 			m_bCalibDataOk = true;							// If calibration data has no issue then pattern will perform calculations otherwise no calculations
+	bool			g_b120WL = false;
 
 #ifdef _TWIN_WSS_
 	int 		 	g_moduleNum{2};
@@ -189,6 +190,7 @@ private:
 
 	int 			Check_Need_For_GlobalParameterUpdate();
 	int 			Calculate_Every_ChannelPattern();
+	int 			Calculate_Every_ChannelPattern_SPI();
 	int 			Calculate_Every_ChannelPattern_DevelopMode();
 	void 			Find_LinearPixelPos_DevelopMode(double &freq, double &pixelPos);
 
@@ -200,8 +202,10 @@ private:
 	void 			Fill_Channel_ColumnData(unsigned int ch);
 	void 			RelocateChannelTF(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos);
 	void 			RelocateChannelFG(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos);
-	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, double f1_PixelPos, double f2_PixelPos);
+	void 			RelocateChannelFG_SPI(unsigned int chNum, double f1_PixelPos, double f2_PixelPos, double fc_PixelPos);
 
+	void 			RelocateSlot(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, double f1_PixelPos, double f2_PixelPos);
+	void 			RelocateSlot_SPI(unsigned int chNum, unsigned int slotNum, unsigned int totalSlots, double f1_PixelPos, double f2_PixelPos);
 	void 			RotateChannel(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, double angleRad, int centerX, int centerY);
 	bool 			isInsideRectangle(double x, double y, double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4);
 	void 			rotateArray(double angle, int width, int height);

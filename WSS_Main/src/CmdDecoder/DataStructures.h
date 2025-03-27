@@ -47,6 +47,11 @@
 		float 			K_ATT_R=0;  //Right edge k value
 		float 			A_ATT_R=0;	//Right edge a value
 
+		//added for 120 wl
+		float 			ATT_C = 0;
+		double 			BW_C = 0;
+		float           EDG_FACTOR = 1;
+
 #ifdef _OCM_SCAN_
 		float 			OCM_SIGMA=-0.014;
 		float 			OCM_K_OPP=0.0;
@@ -214,6 +219,7 @@
 
 		int 			ocm_top_M2 = 40;
 		int 			ocm_bottom_M2 = 140;
+
 	};
 
 #else
@@ -313,6 +319,9 @@
 
 		int 			ocm_top_M2 = 600;
 		int 			ocm_bottom_M2 = 700;
+
+		std::string     current; //drc added for BIST
+		std::string     last;
 	};
 #endif
 

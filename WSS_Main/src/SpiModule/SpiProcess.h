@@ -17,7 +17,7 @@
 #include <atomic>
 #include <cstring>
 
-#include "SPIInterface.h"
+#include "SpiInterface.h"
 #include "SpiCmdDecoder.h"
 
 struct Packet {
@@ -35,7 +35,6 @@ public:
     static std::unique_ptr<SpiCmdDecoder> spiDec;
     static std::unique_ptr<SPISlave> spiSlave;
     static void initializer();
-
 
     void startThreads();
     void stopThreads();
@@ -73,7 +72,11 @@ private:
     static uint32_t bytesToInt32BigEndian(const std::vector<uint8_t>& bytes, size_t offset);
     static uint16_t bytesToInt16BigEndian(const std::vector<uint8_t>& bytes, size_t offset);
 
-    static uint32_t calculateCRC(const std::vector<uint8_t>& packet);        // Implement your CRC logic based on the IEEE 802.3 standard
+    static std::vector<uint8_t> constructSPIReplyPacketHeader(const SPIReplyPacket& replyPacket);
+
+    // static uint32_t calculateCRC(const uint8_t* data, size_t length);        // Implement your CRC logic based on the IEEE 802.3 standard
+    
+
 };
 
 

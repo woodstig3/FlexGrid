@@ -1,4 +1,4 @@
-#include "SPIInterface.h"
+#include "SpiInterface.h"
 #include <fcntl.h>
 
 #include <sys/ioctl.h>
@@ -6,6 +6,7 @@
 #include <system_error>
 #include <iostream>
 #include <cstring>
+#include <fstream>
 
 
 SPISlave::SPISlave(const std::string& device)
@@ -26,6 +27,16 @@ bool SPISlave::init()
     m_fd = open(m_devicePath.c_str(), O_RDWR);
     if (m_fd < 0) {
         std::cerr << "Error opening SPI device: " << strerror(errno) << std::endl;
+        // Mode
+		std::ofstream enable_file("/mnt/enable_flag");
+		if (enable_file) {
+			enable_file << "UART";
+			enable_file.close();
+		} else {
+			std::cerr << "ERROR: Cannot write to enable_flag" << std::endl;
+		}
+		//
+		std::cout << "UART Mode" << std::endl;
         return false;
     }
 

@@ -14,27 +14,33 @@
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
-//#include <sys/reboot.h>
+#include "Dlog.h"
 
-#include "InterfaceModule/OCMTransfer.h"
-#include "InterfaceModule/Dlog.h"
+#include "OCMTransfer.h"
 #include "CmdDecoder.h"
-
+#include "LCOSDisplayTest.h"
+#include "SpiCmdDecoder.h"
 
 extern double g_direct_LCOS_Temp;
 extern double g_direct_Hearter2_Temp;
 
 extern ThreadSafeQueue<std::string> packetQueue;
 
+FixedGrid CmdDecoder::FG_Channel_DS_For_Pattern[3][g_Total_Channels]{ 0 }; // new FixedGrid[3][g_Total_Channels]();
 std::string out;
 using namespace std;
 
 CmdDecoder::CmdDecoder() {
 	//Initial Module definition, user can changed this
+
+#ifdef _SPI_INTERFACE_
+	eModule1 = FIXEDGRID;
+	arrModules[0].slotSize = "625";
+#else
 	eModule1 = TF;
-//	eModule2 = FIXEDGRID;
-	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "TF";
+#endif
+	eModule2 = FIXEDGRID;
 	arrModules[1].slotSize = "625";
 //	arrModules[1].slotSize = "TF";
 
@@ -49,7 +55,7 @@ CmdDecoder::~CmdDecoder()
 	delete[] TF_Channel_DS;
 	delete[] TF_Channel_DS_For_Pattern;
 	delete[] FG_Channel_DS;
-	delete[] FG_Channel_DS_For_Pattern;
+//	delete[] FG_Channel_DS_For_Pattern;
 #ifdef _OCM_SCAN_
 	delete[] TF_Channel_DS_For_OCM;
 #endif
@@ -219,7 +225,8 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 			}
 			else
 			{
-				cout << "\01ERROR: Missing ':' in the command\04" << endl;
+				//cout << "\01ERROR: Missing ':' in the command\04" << endl;
+				PrintResponse("\01MISSING_DELIMITER\04", NO_ERROR);
 				searchDone = -1;
 				break;			// Immediately break the loop and don't process any commands
 			}
@@ -231,6 +238,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	{
 		//PrintResponse("\01WARNING: Invalid Command Format\04", ERROR_MSG);
 		cout << "WARNING: Invalid Command Format" <<endl;
+		PrintResponse("\01INVALID_COMMAND_ACTION\04", NO_ERROR);
 	}
 
 	/************************************************************************/
@@ -388,7 +396,7 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				}
 				else if((commandItems > 2) && (eVerb == ACTION && eObject == FWUPGRADE))
 				{
-
+//					b_Start_Download = true;
 				}
 			}
 			else
@@ -439,9 +447,10 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 
 				int status = SearchObject(singleCommandVector[index]);
 
-				if (status == -1)		// Print_Search() function call here is only in case when no attribute exist, if attribute exists it will set the flag
+				if (status == -1) {		// Print_Search() function call here is only in case when no attribute exist, if attribute exists it will set the flag
+					PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 					return (-1);		// Break if error in command
-
+				}
 				if ((commandItems <= 1) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) ||
 						(eVerb == ACTION && (eObject == FWUPGRADE || eObject == ATTM1UPGRADE || eObject == GMLUTWRITE
 											|| eObject == ATTM2UPGRADE|| eObject == GMLUTWRITE || eObject == PPM1UPGRADE || eObject == PPM2UPGRADE
@@ -466,8 +475,10 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 
 				int status = SearchAttribute(singleCommandVector[index]);
 
-				if(status == -1)
+				if(status == -1) {
+					PrintResponse("\01MISSING_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 					return (-1);
+				}
 			}
 		}
 	}
@@ -533,6 +544,7 @@ void CmdDecoder::postProcessSingleCommandResult(int* searchDone)
 			{
 				*searchDone = -1;
 				printf("ADD -- Define all mandatory attributes\n");
+				PrintResponse("\01MISSING_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 			}
 		}
 #ifdef _DEVELOPMENT_MODE_
@@ -544,7 +556,8 @@ void CmdDecoder::postProcessSingleCommandResult(int* searchDone)
 	if ((*searchDone != -1) && (g_moduleNum == 2))	// If its not twin wss then we dont allow module number 2 command
 	{
 		*searchDone = -1;
-		PrintResponse("\01Module 2 doesn't exist on Single WSS\04", ERROR_HI_PRIORITY);
+		PrintResponse("\01INVALID_MODULE_INSTANCE\04", ERROR_HI_PRIORITY);
+
 	}
 #endif
 
@@ -967,6 +980,7 @@ int CmdDecoder::ChannelsOverlapTest(void)
 					if(status == -1)
 					{
 						cout << "ERROR: The channel BW is overlapping with channel:" << ch_compared_with.channelNo << endl;
+						PrintResponse("\01OVERLAPS_EXISTING_CHANNEL\04", ERROR_HI_PRIORITY);
 						return (-1);
 					}
 /*
@@ -1020,6 +1034,7 @@ int CmdDecoder::ChannelsOverlapTest(void)
 					if(status == -1)
 					{
 						cout << "ERROR: The channel BW is overlapping with channel:" << ch_compared_with.channelNo << endl;
+						PrintResponse("\01OVERLAPS_EXISTING_CHANNEL\04", ERROR_HI_PRIORITY);
 						return (-1);
 					}
 /*
@@ -1225,6 +1240,7 @@ int CmdDecoder::SearchObject(std::string &object)
 	if (objVec[0] == "-1")
 	{
 		cout << "ERROR: Invalid Object Format" << endl;
+		PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 		return (-1);
 	}
 	else
@@ -1763,7 +1779,7 @@ int CmdDecoder::SearchObject(std::string &object)
 									else
 									{
 										cout << "ERROR: Module Number is wrong" << endl;
-										return (-1);
+										return (-2);
 									}
 
 								}
@@ -1788,7 +1804,7 @@ int CmdDecoder::SearchObject(std::string &object)
 									else
 									{
 										cout << "ERROR: Module Number is wrong" << endl;
-										return (-1);
+										return (-2);
 									}
 								}
 								else if (objVec[1] == "*" && eModule1 == TF)	// Read Module Number
@@ -2374,13 +2390,15 @@ int CmdDecoder::SearchObject(std::string &object)
 							if ((objVec[1] == "1" && eModule1 == TF) || (objVec[1] == "2" && eModule2 == TF))
 							{
 								// Read Module Number
-								if (is_DeleteTFDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
-									return (-1);
+								//if (is_DeleteTFDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
+									//return (-1);
+								return (is_DeleteTFDone(objVec[1],objVec[2]));
 							}
 							else if ((objVec[1] == "1" && eModule1 == FIXEDGRID) || (objVec[1] == "2" && eModule2 == FIXEDGRID))
 							{
-								if (is_DeleteFGDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
-									return (-1);
+								//if (is_DeleteFGDone(objVec[1],objVec[2]) == -1)	// Check if Channel numbers, module number is correct and then set channel active to false
+									//return (-1);
+								return (is_DeleteFGDone(objVec[1],objVec[2]));
 							}
 							else if(objVec[1] == "*" ) //drc added to delete all channels on both modules as required by running test at BAIAN
 							{
@@ -2507,6 +2525,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 		if (attr[0] == "-1" || attr.size() > 2)
 		{
 			cout << "ERROR: Invalid Attribute Format"<< endl;
+			PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 			return (-1);
 		}
 
@@ -2526,6 +2545,11 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 			attr.push_back(attributes);	// Move the attribute to 0th index of vector i.e STORE or RESTORE to attr[0]
 			attr.push_back("0");	// EXTENDING VECTOR for safety and avoid segmentation error
 		}
+		else if (attributes == "COMMIT" || attributes == "SWITCH" || attributes == "REVERT") {
+				// COMMIT/SWITCH/REVERT
+				attr.push_back(attributes);
+				attr.push_back("0");
+		}
 		else
 		{
 			attr = SplitCmd(attributes, ":");
@@ -2538,6 +2562,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 			if (attr[0] == "-1" || attr.size() > 2)
 			{
 				cout << "ERROR: Invalid Attribute Format"<< endl;
+				PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 				return (-1);
 			}
 
@@ -2605,6 +2630,21 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						return (-1);
 					}
 				}
+				else if(attr[0] == "ATT_C")  //added for 120 wl
+				{
+					if (Sscanf(attr[1], fValue, 'f'))
+					{
+						TF_Channel_DS[g_moduleNum][g_channelNum].ATT_C = fValue;
+					}
+					else
+					{
+						cout << "ERROR: The command attribute att_c is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+
+				}
+
 #ifdef _DEVELOPMENT_MODE_
 				else if (attr[0] == "A_OP")
 				{
@@ -2728,6 +2768,24 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 				break;
 			}
+			case 'E':
+			{
+
+				if(attr[0] == "EDG_FACTOR")  //added for 120 wl)
+				{
+					if (Sscanf(attr[1], fValue, 'f'))
+					{
+						TF_Channel_DS[g_moduleNum][g_channelNum].EDG_FACTOR = fValue;
+					}
+					else
+					{
+						cout << "ERROR: The command attribute edg_factor is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				break;
+			}
 			case 'F':
 			{
 				if (attr[0] == "FC")
@@ -2751,6 +2809,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										(fValue - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2) < VENDOR_FREQ_RANGE_LOW)
 								{
 									cout << "ERROR: The channel is out of range" << endl;
+									PrintResponse("\01INVALID_FREQUENCY_CHANGE\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 								TF_Channel_DS[g_moduleNum][g_channelNum].FC = fValue;
@@ -2768,6 +2827,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						else
 						{
 							cout << "ERROR: The Fc is out of range" << endl;
+							PrintResponse("\01INVALID_FREQUENCY_CHANGE\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 					}
@@ -2791,6 +2851,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								if(fValue > TF_Channel_DS[g_moduleNum][g_channelNum].F2)
 								{
 									cout << "ERROR: The f1 is crossing of f2" << endl;
+									PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 #ifndef _DEVELOPMENT_MODE_
@@ -2800,6 +2861,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 #endif
 								{
 									cout << "ERROR: The channel bandwidth is out of range" << endl;
+									PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 								/*if(fmod((TF_Channel_DS[g_moduleNum][g_channelNum].F2 - fValue),0.5) != 0)
@@ -2820,6 +2882,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						else
 						{
 							cout << "ERROR: The F1 is out of range" << endl;
+							PrintResponse("\01INVALID_FREQUENCY_CHANGE\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 					}
@@ -2844,6 +2907,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								if(fValue < TF_Channel_DS[g_moduleNum][g_channelNum].F1)
 								{
 									cout << "ERROR: The f2 is crossing of f1" << endl;
+									PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 #ifndef _DEVELOPMENT_MODE_
@@ -2853,6 +2917,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 #endif
 								{
 									cout << "ERROR: The channel bandwidth is out of range" << endl;
+									PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 								/*if(fmod((fValue - TF_Channel_DS[g_moduleNum][g_channelNum].F1),0.5) != 0)
@@ -2873,6 +2938,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						else
 						{
 							cout << "ERROR: The F2 is out of range" << endl;
+							PrintResponse("\01INVALID_FREQUENCY_CHANGE\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 					}
@@ -2917,6 +2983,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 										(TF_Channel_DS[g_moduleNum][g_channelNum].FC - fValue/2) < VENDOR_FREQ_RANGE_LOW)
 								{
 									cout << "ERROR: The BW Range is unacceptable" << endl;
+									PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 								TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue;
@@ -2931,6 +2998,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						else
 						{
 							cout << "ERROR: The BW Range is unacceptable" << endl;
+							PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 
@@ -2938,6 +3006,19 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					else
 					{
 						cout << "ERROR: The command attribute BW is not numerical" << endl;
+						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
+						return (-1);
+					}
+				}
+				else if(attr[0] == "BW_C")  //added for 120 wl)
+				{
+					if (Sscanf(attr[1], fValue, 'f'))
+					{
+						TF_Channel_DS[g_moduleNum][g_channelNum].BW_C = fValue;
+					}
+					else
+					{
+						cout << "ERROR: The command attribute bw_c is not numerical" << endl;
 						PrintResponse("\01INVALID_ATTRIBUTE_DATA\04", ERROR_HI_PRIORITY);
 						return (-1);
 					}
@@ -4004,6 +4085,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									else	// Some channels are active and we must tell user can't change mode
 									{
 										cout << "ERROR: Can't Change Slotsize: Channels currently provisioned on the module" << endl;
+										PrintResponse("\01GRID_CHANGE_PROHIBITED\04", ERROR_HI_PRIORITY);
 										return (-1);
 									}
 								}
@@ -4025,6 +4107,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									else	// Some channels are active and we must tell user can't change mode
 									{
 										cout << "ERROR: Can't Change Slotsize: Channels currently provisioned on the module" << endl;
+										PrintResponse("\01GRID_CHANGE_PROHIBITED\04", ERROR_HI_PRIORITY);
 										return (-1);
 									}
 								}
@@ -4050,6 +4133,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									else	// Some channels are active and we must tell user can't change mode
 									{
 										cout << "ERROR: Can't Change Slotsize: Channels currently provisioned on the module" << endl;
+										PrintResponse("\01GRID_CHANGE_PROHIBITED\04", ERROR_HI_PRIORITY);
 										return (-1);
 									}
 								}
@@ -4068,6 +4152,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									else	// Some channels are active and we must tell user can't change mode
 									{
 										cout << "ERROR: Can't Change Slotsize: Channels currently provisioned on the module" << endl;
+										PrintResponse("\01GRID_CHANGE_PROHIBITED\04", ERROR_HI_PRIORITY);
 										return (-1);
 									}
 								}
@@ -4554,11 +4639,17 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 			break;
 		}
-#ifdef _DEVELOPMENT_MODE_
+
 
 		case PANEL:
 		{
-			if (attr[0] == "BGAP"	&& eVerb == SET)
+			if(attr[0] == "CURRENT" && eVerb == SET)  //added for BIST
+			{
+				std::string str_Value;
+				strcpy(bist_current, attr[1].c_str());
+			}
+#ifdef _DEVELOPMENT_MODE_
+			else if (attr[0] == "BGAP" && eVerb == SET)
 			{
 				unsigned int ui_Value;
 
@@ -4934,9 +5025,9 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 					break;
 				}
-			case 'A':
+			case 'S':
 			{
-				if (attr[0] == "SWITCH") //or ACTIVATE?
+				if (attr[0] == "SWITCH" || attr[0] == "ACTIVATE") //or ACTIVATE?
 				{
 					// ACTIVATE FWUPGRADE
 					file_transfer->handleSwitchCommand();
@@ -4972,7 +5063,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				if (attr[0] == "REVERT")
 				{
 					// REVERT FWUPGRADE
-
+					file_transfer->handleRevertCommand();
 				}
 				else
 				{
@@ -5658,6 +5749,10 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 					}
 
 				}
+				else if (attributes == "LAST") //added for BIST
+				{
+					buffLenTemp += sprintf(&buff[buffLenTemp], "LAST:%s ", bist_current); // equals current
+				}
 				else
 				{
 					cout << "ERROR: Invalid Attribute" << endl;
@@ -5672,11 +5767,12 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "CALFILE\t%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "type\t\t=\t%s\nsequence\t\t=\t%s\nmajorVersion\t=\t%s\n"
-															"minorVersion\t=\t%s\nserialNumber\t=\t%s\nproductCode\t=\t%s\n"
-															"sequenceNumber\t=\t%s\ndate\t\t=\t%s\n",
-															"channels", "1-2-3", "v3", "v1", "2020-01", "9999","3","6th June 2021");
+				buffLenTemp += sprintf(&buff[buffLenTemp], "CALFILE%d:\n", g_moduleNum);	//Fill this string and get the length filled.
+				buffLenTemp += sprintf(&buff[buffLenTemp], "type=%s\nsequence\n=%s\nmajorVersion=%d\n"
+															"minorVersion=%d\nserialNumber=%s\nproductCode=%s\n"
+															"sequenceNumber=%s\ndate=%s\n",
+															SpiCmdDecoder::conf_spi.mid.c_str(), SpiCmdDecoder::conf_spi.lbl.c_str(), SpiCmdDecoder::conf_spi.hwr, SpiCmdDecoder::conf_spi.fwr,
+															 SpiCmdDecoder::conf_spi.lbl.c_str(),  SpiCmdDecoder::conf_spi.mid.c_str(),SpiCmdDecoder::conf_spi.sno.c_str(),SpiCmdDecoder::conf_spi.mfd.c_str());
 
 				g_bNoAttribute = false;
 			}
@@ -5684,35 +5780,35 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "TYPE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  Type\t\t=\t%s", "  Type\t\t=\t%s", true, "channels");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  Type=%s", "  Type=%s", true, SpiCmdDecoder::conf_spi.mid);
 				}
 				else if (attributes == "SEQUENCE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  Sequence\t\t=\t%s", "  Sequence\t\t=\t%s", true, "1-2-3");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  Sequence=%s", "  Sequence=%s", true, SpiCmdDecoder::conf_spi.lbl);
 				}
 				else if (attributes == "MAJORVERSION")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  nmajorVersion\t=\t%s", "  majorVersion\t=\t%s", true, "v3");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  nmajorVersion=%l", "  majorVersion=%l", true, SpiCmdDecoder::conf_spi.hwr);
 				}
 				else if (attributes == "MINORVERSION")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  minorVersion\t=\t%s", "  minorVersion\t=\t%s", true, "v1");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  minorVersion=%l", "  minorVersion=%l", true, SpiCmdDecoder::conf_spi.fwr);
 				}
 				else if (attributes == "SERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  serialNumber\t=\t%s", "  serialNumber\t=\t%s", true, "2020-01");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  serialNumber=%s", "  serialNumber=%s", true, SpiCmdDecoder::conf_spi.sno.c_str());
 				}
 				else if (attributes == "PRODUCTCODE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  productCode\t=\t%s", "  productCode\t=\t%s", true, "9999");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  productCode\t=%s", "  productCode=%s", true, SpiCmdDecoder::conf_spi.mid.c_str());
 				}
 				else if (attributes == "SEQUENCENUMBER")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  sequenceNumber\t=\t%s", "  sequenceNumber\t=\t%s", true, "3");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  sequenceNumber=%s", "  sequenceNumber=%s", true, SpiCmdDecoder::conf_spi.lbl.c_str());
 				}
 				else if (attributes == "DATE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  date\t\t=\t%s", "  date\t\t=\t%s", true, "6th June 2021");
+					FillBuffer_ConcatAttributes("CALFILE.%d:  date=%s", "  date=%s", true, SpiCmdDecoder::conf_spi.mfd.c_str());
 				}
 				else
 				{
@@ -5731,7 +5827,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				buffLenTemp += sprintf(&buff[buffLenTemp], "FWUPGRADE\t%d:\n", g_moduleNum);	//Fill this string and get the length filled.
 				buffLenTemp += sprintf(&buff[buffLenTemp], "state\t\t=\t%s\nactiveBank\t\t=\t%s\npermanentFlag\t=\t%s\n"
 															"temporaryFlag\t=\t%s\nfirmwareBankA\t=\t%s\nfirmwareBankB\t=\t%s\n",
-															"Running", "BANK A", "TRUE", "FALSE", "2020-01", "2021-02");
+															"Running", "BANK A", "TRUE", "FALSE", "2025-01", "2021-02");
 
 				g_bNoAttribute = false;
 			}
@@ -5739,27 +5835,27 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "STATE")
 				{
-					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  state\t\t=\t%s", "  state\t\t=\t%s", true, "Running");
+					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  state=%s", "  state=%s", true, "Running");
 				}
 				else if (attributes == "ACTIVEBANK")
 				{
-					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  activeBank\t\t=\t%s", "  activeBank\t\t=\t%s", true, "BANK A");
+					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  activeBank=%s", "  activeBank=%s", true, "BANK A");
 				}
 				else if (attributes == "PERMANENTFLAG")
 				{
-					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  permanentFlag\t=\t%s", "  permanentFlag\t=\t%s", true, "TRUE");
+					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  permanentFlag=%s", "  permanentFlag=%s", true, "TRUE");
 				}
 				else if (attributes == "TEMPORARYFLAG")
 				{
-					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  temporaryFlag\t=\t%s", "  temporaryFlag\t=\t%s", true, "FALSE");
+					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  temporaryFlag=%s", "  temporaryFlag=%s", true, "FALSE");
 				}
 				else if (attributes == "FIRMWAREBANKA")
 				{
-					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  firmwareBankA\t=\t%s", "  firmwareBankA\t=\t%s", true, "2020-01");
+					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  firmwareBankA=%s", "  firmwareBankA=%s", true, "2025-01");
 				}
 				else if (attributes == "FIRMWAREBANKB")
 				{
-					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  firmwareBankB\t=\t%s", "  firmwareBankB\t=\t%s", true, "2021-02");
+					FillBuffer_ConcatAttributes("FWUPGRADE.%d:  firmwareBankB\t=\t%s", "  firmwareBankB=%s", true, "2021-02");
 				}
 				else
 				{
@@ -5774,17 +5870,18 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 		{
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
-				MessDis Messtemp = {0};
-				Get_logitem(g_faultNum,&Messtemp);
-//				std::cout<< "g_faultNum FAULT Why:" << g_faultNum <<endl;
-				// \01 delimiter added
-				//buffLenTemp += sprintf(&buff[buffLenTemp], "FAULT\t%d:\n", g_faultNum);	//Fill this string and get the length filled.
-				/*buffLenTemp += sprintf(&buff[buffLenTemp], "Name\t\t=\t%s\nTimestamp\t\t=\t%s\nDegraded\t\t=\t%s\n"
+				std::string strFaultInfo = FaultMonitor::getFaultInfo(g_faultNum);
+				buffLenTemp += sprintf(&buff[buffLenTemp], strFaultInfo.c_str());
+/*				Get_logitem(g_faultNum,&Messtemp);
+///				std::cout<< "g_faultNum FAULT Why:" << g_faultNum <<endl;
+				/// \01 delimiter added
+				///buffLenTemp += sprintf(&buff[buffLenTemp], "FAULT\t%d:\n", g_faultNum);	//Fill this string and get the length filled.
+				//buffLenTemp += sprintf(&buff[buffLenTemp], "Name\t\t=\t%s\nTimestamp\t\t=\t%s\nDegraded\t\t=\t%s\n"
 															"DegradedCount\t=\t%s\nRaised\t\t=\t%s\nRaisedCount\t=\t%s\n"
 															"Debounce\t\t=\t%s\nFailCondition\t=\t%s\nDegradeCondition\t=\t%s\n",
 															"Dummy ERROR DMA", "10:09:11 2nd July", "false", "01", "LOW", "0",
-															"01","Dummy DMA failed","SEVERE");*/
-				//buffLenTemp += sprintf(&buff[buffLenTemp], "\04\n");	// \04 delimiter added
+															"01","Dummy DMA failed","SEVERE");//
+				///buffLenTemp += sprintf(&buff[buffLenTemp], "\04\n");	/// \04 delimiter added
 				buffLenTemp += sprintf(&buff[buffLenTemp], "FAULT\t%d:\n", 4);
 				buffLenTemp += sprintf(&buff[buffLenTemp], "Name\t\t=\t%s\nDegraded\t\t=\t%s\n"
 														   "DegradedCount\t=\t%s\nRaised\t\t=\t%s\nRaisedCount\t=\t%s\n",
@@ -5806,45 +5903,46 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 														   "DegradedCount\t=\t%s\nRaised\t\t=\t%s\nRaisedCount\t=\t%s\n",
 														   Messtemp.name, Messtemp.Degraded, Messtemp.DegradedCount,
 														   Messtemp.Raised, Messtemp.RaisedCount );
+*/
 				g_bNoAttribute = false;
 			}
 			else if ((eGet == SOME_ATTR) && (attributes != " "))	// Attributes are provided get:heatermonitor:tempactual
 			{
 				if (attributes == "NAME")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  Name\t\t=\t%s", "  Name\t\t=\t%s", true, "Dummy ERROR DMA");
+					FillBuffer_ConcatAttributes("FAULT.%d:  Name=%s", "  Name=%s", true, "Dummy ERROR DMA");
 				}
 				else if (attributes == "TIMESTAMP")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  Timestamp\t\t=\t%s", "  Timestamp\t\t=\t%s", true, "10:09:11 2nd July");
+					FillBuffer_ConcatAttributes("FAULT.%d:  Timestamp=%s", "  Timestamp=%s", true, "10:09:11 2nd July");
 				}
 				else if (attributes == "DEGRADED")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  Degraded\t\t=\t%s", "  Degraded\t\t=\t%s", true, "false");
+					FillBuffer_ConcatAttributes("FAULT.%d:  Degraded=%s", "  Degraded=%s", true, "false");
 				}
 				else if (attributes == "DEGRADEDCOUNT")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  DegradedCount\t=\t%s", "  DegradedCount\t=\t%s", true, "01");
+					FillBuffer_ConcatAttributes("FAULT.%d:  DegradedCount=%s", "  DegradedCount\t=\t%s", true, "01");
 				}
 				else if (attributes == "RAISED")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  Raised\t\t=\t%s", "  Raised\t\t=\t%s", true, "LOW");
+					FillBuffer_ConcatAttributes("FAULT.%d:  Raised=%s", "  Raised=%s", true, "LOW");
 				}
 				else if (attributes == "RAISEDCOUNT")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  RaisedCount\t=\t%s", "  RaisedCount\t=\t%s", true, "0");
+					FillBuffer_ConcatAttributes("FAULT.%d:  RaisedCount=%s", "  RaisedCount=%s", true, "0");
 				}
 				else if (attributes == "DEBOUNCE")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  Debounce\t\t=\t%s", "  Debounce\t\t=\t%s", true, "01");
+					FillBuffer_ConcatAttributes("FAULT.%d:  Debounce=%s", "  Debounce=%s", true, "01");
 				}
 				else if (attributes == "FAILCONDITION")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  FailCondition\t=\t%s", "  FailCondition\t=\t%s", true, "Dummy DMA failed");
+					FillBuffer_ConcatAttributes("FAULT.%d:  FailCondition=%s", "  FailCondition=%s", true, "Dummy DMA failed");
 				}
 				else if (attributes == "DEGRADEDCONDITION")
 				{
-					FillBuffer_ConcatAttributes("FAULT.%d:  DegradeCondition\t=\t%s", "  DegradeCondition\t=\t%s", true, "Severe");
+					FillBuffer_ConcatAttributes("FAULT.%d:  DegradeCondition=%s", "  DegradeCondition=%s", true, "Severe");
 				}
 				else
 				{
@@ -5978,13 +6076,13 @@ int CmdDecoder::is_SetTFDone(void)
 			{
 				// If channel of TF wasn't active, we can't set it.
 				cout << "ERROR: The Channel is Inactive-(ADD channel first)" << endl;
-				return (-1);
+				return (-2);
 			}
 		}
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
-			return (-1);
+			return (-2);
 		}
 	}
 	else
@@ -6008,7 +6106,7 @@ int CmdDecoder::is_SetNoSlotFGDone(void)
 			if (FG_Channel_DS[g_moduleNum][g_channelNum].active == false)
 			{
 				cout << "ERROR: The Channel is Inactive-(ADD channel first)" << endl;
-				return (-1);
+				return (-2);
 			}
 			else
 			{
@@ -6052,7 +6150,7 @@ int CmdDecoder::is_SetSlotFGDone(void)
 			if (FG_Channel_DS[g_moduleNum][g_channelNum].active == false)
 			{
 				cout << "ERROR: The Channel is Inactive-(ADD channel first)" << endl;
-				return (-1);
+				return (-2);
 			}
 			else
 			{
@@ -6077,7 +6175,7 @@ int CmdDecoder::is_SetSlotFGDone(void)
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
-			return (-1);
+			return (-2);
 		}
 	}
 	else
@@ -6113,13 +6211,13 @@ int CmdDecoder::is_GetTFDone(void)
 			else
 			{
 				cout << "ERROR: The Channel numbers doesn't exist. Please ADD channel first" << endl;
-				return (-1);
+				return (-2);
 			}
 		}
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
-			return (-1);
+			return (-2);
 		}
 	}
 	else
@@ -6174,14 +6272,14 @@ int CmdDecoder::is_GetNoSlotFGDone(void)
 				else
 				{
 					cout << "ERROR: The Channel numbers doesn't exist. Please ADD channel first" << endl;
-					return (-1);
+					return (-2);
 				}
 
 		}
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
-			return (-1);
+			return (-2);
 		}
 	}
 	else if (objVec[2] == "*")
@@ -6241,7 +6339,7 @@ int CmdDecoder::is_GetSlotFGDone(void)
 				else
 				{
 					cout << "ERROR: The Channel numbers doesn't exist. Please ADD channel first" << endl;
-					return (-1);
+					return (-2);
 				}
 			}
 			else
@@ -6253,7 +6351,7 @@ int CmdDecoder::is_GetSlotFGDone(void)
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
-			return (-1);
+			return (-2);
 		}
 	}
 	else if ((Sscanf(objVec[2], g_channelNum, 'i')) && objVec[3] == "*")
@@ -6306,12 +6404,14 @@ int CmdDecoder::is_AddTFDone(void)
 			{
 				// Channel already exist, give error to use SET
 				cout << "ERROR: The Channel Already Exists; Use 'SET' " << endl;
-				return (-1);
+				PrintResponse("\01OBJECT_INSTANCE_ALREADY_EXISTS\04", ERROR_HI_PRIORITY);
+				return (-2);
 			}
 		}
 		else
 		{
 			cout << "ERROR: The Channel number is out-of-range" << endl;
+			PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 			return (-1);
 		}
 		activeChannels.push_back({g_moduleNum, g_channelNum});
@@ -6319,6 +6419,7 @@ int CmdDecoder::is_AddTFDone(void)
 	else
 	{
 		cout << "ERROR: The Channel numbers is not numeric" << endl;
+		PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 		return (-1);
 	}
 
@@ -6344,19 +6445,22 @@ int CmdDecoder::is_AddFGDone(void)
 			{
 				// Channel already exist, give error to use SET
 				cout << "ERROR: The Channel Already Exists; Use 'SET' " << endl;
-				return (-1);
+				PrintResponse("\01OBJECT_INSTANCE_ALREADY_EXISTS\04", ERROR_HI_PRIORITY);
+				return (-2);
 			}
 			activeChannels.push_back({g_moduleNum, g_channelNum});
 		}
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
+			PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 			return (-1);
 		}
 	}
 	else
 	{
 		cout << "ERROR: The Channel numbers is not numeric" << endl;
+		PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 		return (-1);
 	}
 
@@ -6388,6 +6492,10 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][g_channelNum].F1ContiguousOrNot = 0;
 				TF_Channel_DS[g_moduleNum][g_channelNum].F2ContiguousOrNot = 0;
 
+				TF_Channel_DS[g_moduleNum][g_channelNum].ATT_C = 0;   //added for 120 wl
+				TF_Channel_DS[g_moduleNum][g_channelNum].BW_C = 0;
+				TF_Channel_DS[g_moduleNum][g_channelNum].EDG_FACTOR = 1;
+
 #ifdef _DEVELOPMENT_MODE_
 				TF_Channel_DS[g_moduleNum][g_channelNum].LAMDA =1.55;
 				TF_Channel_DS[g_moduleNum][g_channelNum].SIGMA =0;
@@ -6411,14 +6519,16 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 			}
 			else
 			{
-				cout << "ERROR: The Channel numbers is not active" << endl;
-				return (-1);
+				cout << "ERROR: The Channel number is not active" << endl;
+				PrintResponse("\01OBJECT_INSTANCE_DOESNT_EXIST\04", ERROR_HI_PRIORITY);
+				return (-2);
 			}
 
 		}
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
+			PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 			return (-1);
 		}
 	}
@@ -6443,6 +6553,10 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 				TF_Channel_DS[g_moduleNum][i].F1ContiguousOrNot = 0;
 				TF_Channel_DS[g_moduleNum][i].F2ContiguousOrNot = 0;
 
+				TF_Channel_DS[g_moduleNum][i].ATT_C = 0;    //added for 120 wl
+				TF_Channel_DS[g_moduleNum][i].BW_C = 0;
+				TF_Channel_DS[g_moduleNum][i].EDG_FACTOR = 1;
+
 #ifdef _DEVELOPMENT_MODE_
 				TF_Channel_DS[g_moduleNum][i].LAMDA =1.55;
 				TF_Channel_DS[g_moduleNum][i].SIGMA =0;
@@ -6464,14 +6578,13 @@ int CmdDecoder::is_DeleteTFDone(std::string &moduleNum, std::string &chNum)
 					return point.moduleNo == targetMod && point.channelNo == targetChan;
 				});
 			}
-
-
 		}
 	}
 
 	else
 	{
 		cout << "ERROR: The Channel numbers is not numeric" << endl;
+		PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 		return (-1);
 	}
 
@@ -6530,7 +6643,8 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 			else
 			{
 				cout << "ERROR: The Channel numbers is not active" << endl;
-				return (-1);
+				PrintResponse("\01OBJECT_INSTANCE_DOESNT_EXIST\04", ERROR_HI_PRIORITY);
+				return (-2);
 			}
 
 
@@ -6538,6 +6652,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 		else
 		{
 			cout << "ERROR: The Channel numbers are exceeding" << endl;
+			PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 			return (-1);
 		}
 	}
@@ -6592,6 +6707,7 @@ int CmdDecoder::is_DeleteFGDone(std::string &moduleNum, std::string &chNum)
 	else
 	{
 		cout << "ERROR: The Channel numbers is not numeric" << endl;
+		PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 		return (-1);
 	}
 
@@ -6779,7 +6895,7 @@ bool CmdDecoder::ActionVrb::StoreModule(int moduleNum)
 		}
 	}
 
-	return true;
+	return (true);
 }
 
 bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
@@ -6882,7 +6998,7 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 		}
 		else
 		{
-			std::cerr << "Error opening the SavedModule2Config file for reading." << std::endl;
+			std::cerr << "Error opening the Module2 Pattern file." << std::endl;
 			return false;
 		}
 	}
@@ -6985,7 +7101,7 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 		}
 		else
 		{
-			std::cerr << "Error opening the SavedModule1Config file for reading." << std::endl;
+			std::cerr << "Error opening the Module1 Pattern file." << std::endl;
 			return false;
 		}
 	}

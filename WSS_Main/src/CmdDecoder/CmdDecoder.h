@@ -18,9 +18,9 @@
 #include <unistd.h>
 
 #include "DataStructures.h"		//All structures defined here
-#include "InterfaceModule/LCOSDisplayTest.h"
-#include "InterfaceModule/EEPROMUpdate.h"
-#include "FileTransfer/FileTransfer.h"
+#include "EEPROMUpdate.h"
+#include "FileTransfer.h"
+
 
 struct ChannelModules
 {
@@ -51,7 +51,7 @@ public:
 	enum 			Verbs { NONE, SET, GET, ADD, DELETE, ACTION};				//Global Verbs FLAG
 	Verbs 			eVerb;
 
-	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR, BGUPGRADE, PPM1UPGRADE, PPM2UPGRADE, GMLUTREAD, GMLUTWRITE, ATTM1UPGRADE, ATTM2UPGRADE, OPTM1UPGRADE, OPTM2UPGRADE, SIGCM1UPGRADE, SIGCM2UPGRADE, SIGLM1UPGRADE, SIGLM2UPGRADE};	//Global Object FLAG
+	enum 			Objects {NONE_O = 7, CH_TF, CH_FG , MODULE, TEMP, RESTART, CALFILE, FAULT, PANEL, IDN, HEATERMONITOR, FWUPGRADE, TECMONITOR, BGUPGRADE, PPM1UPGRADE, PPM2UPGRADE, GMLUTREAD, GMLUTWRITE, ATTM1UPGRADE, ATTM2UPGRADE, OPTM1UPGRADE, OPTM2UPGRADE, SIGCM1UPGRADE, SIGCM2UPGRADE, SIGLM1UPGRADE, SIGLM2UPGRADE, BIST};	//Global Object FLAG
 	Objects 		eObject;
 																			// ALL_ATTR_OF_CH =  // user want certain channel info and their attributes and slots
 	enum 			Getall {SOME_ATTR = 50, ALL_MODULE_ALL_ATTR, ALL_CH_ALL_ATTR, ALL_ATTR_OF_CH, ALL_SLOTS_OF_CH};				// When user want to GET attributes, we want to know if he requested all channels or all slots (all channles include slots info if FIXED GRID module)
@@ -68,7 +68,8 @@ public:
 	TrueFlex 		(*TF_Channel_DS_For_Pattern)[g_Total_Channels] = new TrueFlex[3][g_Total_Channels]();		//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
 
 	FixedGrid 		(*FG_Channel_DS)[g_Total_Channels]= new FixedGrid[3][g_Total_Channels]();			//() brackets are very important. inialize them to default values
-	FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+	//static FixedGrid 		(*FG_Channel_DS_For_Pattern)[g_Total_Channels] = new FixedGrid[3][g_Total_Channels]();	//array holding temporary data from arrStructTF that pattern class will read. This array of structure will be locked while pattern class is reading it
+static FixedGrid    FG_Channel_DS_For_Pattern[3][g_Total_Channels];
 
 	TrueFlex		(*TF_Channel_DS_For_OCM)[VENDOR_MAX_PORT] = new TrueFlex[3][VENDOR_MAX_PORT]();
 
@@ -100,7 +101,12 @@ public:
 	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
 	std::list<ChannelModules> activeChannels;
 	char           customerInfo[100] = " ";
+	char           bist_current[64] = " ";
 
+	void 			CopyDataStructures(void);									//Function to copy structures data from Command Decoder to Pattern Generator
+	void 			ResetDataStructures(void);									// Reset to last known correct values
+	void 			ResetGlobalVariables(void);
+	void 			WaitPatternTransfer(void);									// This wait is needed to acquire errors from other modules if any happens
 
 private:
 
@@ -126,13 +132,6 @@ private:
 	int 			g_currentAttributeCount = 0;
 	int 			g_totalAttributes = 0;
 	bool 			g_bPrevAttrDisplayed = false;
-
-private:
-
-	void 			CopyDataStructures(void);									//Function to copy structures data from Command Decoder to Pattern Generator
-	void 			ResetDataStructures(void);									// Reset to last known correct values
-	void 			ResetGlobalVariables(void);
-	void 			WaitPatternTransfer(void);									// This wait is needed to acquire errors from other modules if any happens
 
 	int 			SearchVerb(std::string &);									// return enum flag number
 	int 			SearchObject(std::string &);
@@ -205,6 +204,7 @@ public:
 	ActionVrb *actionSR = new ActionVrb(*this);
 
 	FileTransfer  *file_transfer;
+
 };
 
 

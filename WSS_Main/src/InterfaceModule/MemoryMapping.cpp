@@ -678,7 +678,9 @@ int MemoryMapping::MMAP_OCMRegister(int fd)
 	else
 	{
 		ocmBase = ((volatile unsigned char *)ocm_mappedBase + (OCM_TRANS_BASEADDR & MAP_MASK));
-		ocmBase32 = ((volatile unsigned long *)ocm_mappedBase + (OCM_TRANS_BASEADDR & MAP_MASK));
+		
+		//ocmBase32 = ((volatile unsigned long *)ocm_mappedBase + (OCM_TRANS_BASEADDR & MAP_MASK));
+		ocmBase32 = ((volatile uint32_t  *)ocm_mappedBase + (OCM_TRANS_BASEADDR & MAP_MASK));
 	}
 
 	return (0);
@@ -695,7 +697,7 @@ int MemoryMapping::MMAP_TECRegister(int fd)
 	}
 	else
 	{
-		tecBase = ((volatile unsigned long *)tec_mappedBase + (TEC_BASEADDR & MAP_MASK));
+		tecBase = ((volatile uint32_t  *)tec_mappedBase + (TEC_BASEADDR & MAP_MASK));
 	}
 
 	return (0);
@@ -713,7 +715,7 @@ int MemoryMapping::MMAP_GPIO(int fd)
 	}
 	else
 	{
-		gpioBase = ((volatile unsigned long *)gpio_mappedBase + (GPIO_BASEADDR & MAP_MASK));
+		gpioBase = ((volatile uint32_t  *)gpio_mappedBase + (GPIO_BASEADDR & MAP_MASK));
 	}
 
 	return (0);

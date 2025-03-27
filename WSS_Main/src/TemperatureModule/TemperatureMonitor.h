@@ -21,7 +21,7 @@
 
 #include "GlobalVariables.h"
 #include "SerialModule.h"
-#include "InterfaceModule/MemoryMapping.h"
+#include "MemoryMapping.h"
 
 constexpr int WINDOW_SIZE = 5;					// Define the window size for the SMA moving average filter
 constexpr int LCOS_MIN_TEMP_HEX = 0xC4C;		// Hex is based on LUT table defined by us
@@ -31,10 +31,10 @@ constexpr int HEATER_MIN_TEMP_HEX = 0xA1B;		// Hex is based on LUT table < 40C m
 constexpr int LUT_MIN_HEX = 0xC;				// Hex is based on LUT table
 constexpr int LUT_MAX_HEX = 0x6A5;				// Hex is based on LUT table
 
-#define LCOS_OPERATING_TEMP_MIN 60
-#define LCOS_OPERATING_TEMP_MAX 67
-#define HEATER_OPERATING_TEMP_MIN 50
-#define HEATER_OPERATING_TEMP_MAX 56
+#define LCOS_OPERATING_TEMP_MIN 50   //60
+#define LCOS_OPERATING_TEMP_MAX 70   //67
+#define HEATER_OPERATING_TEMP_MIN 45  //50
+#define HEATER_OPERATING_TEMP_MAX 75  //56
 
 constexpr int TEC1_PERIOD_ADDR = 0x00d8;
 constexpr int TEC2_PERIOD_ADDR = 0x00E4;
@@ -83,12 +83,12 @@ public:
     /**
      * Singletons should not be cloneable.
      */
-					TemperatureMonitor(TemperatureMonitor &other) = delete;
+	TemperatureMonitor(TemperatureMonitor &other) = delete;
 
 	/**
      * Singletons should not be assignable.
      */
-    void 			operator=(const TemperatureMonitor &) = delete;
+    void 	operator=(const TemperatureMonitor &) = delete;
 
     /**
      * This is the static method that controls the access to the singleton

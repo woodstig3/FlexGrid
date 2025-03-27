@@ -13,14 +13,23 @@
 #define _DEVELOPMENT_MODE_				// <---------- Uncomment it during production mode, Comment if when launching to customer
 //#define _FETCH_PATTERN_
 #define _TWIN_WSS_						// If not defined then only Module.1 will exist for user to set.
+#define _XILINX_
 
 //#define _OCM_SCAN_                     //added for OCM function blocks
-#define _SPI_INTERFACE_
+//#define _SPI_INTERFACE_
+//#define _WATCHDOG_SOFTRESET_
 
 const double PI = 3.141592653589793238;
 
+#ifdef _120_WL_
 #define VENDOR_FREQ_RANGE_LOW  191124.999999
 #define VENDOR_FREQ_RANGE_HIGH	 196275.000001
+#define WHOLE_BANDWIDTH 5150
+#else
+#define VENDOR_FREQ_RANGE_LOW  190574.999999
+#define VENDOR_FREQ_RANGE_HIGH	 196725.000001
+#define WHOLE_BANDWIDTH 6150
+#endif
 
 #define VENDOR_BW_RANGE_LOW 37.49
 #define VENDOR_BW_RANGE_HIGH 500.01
@@ -28,15 +37,13 @@ const double PI = 3.141592653589793238;
 #define VENDOR_MAX_PORT 23
 #define VENDOR_MIN_BW 6.249
 
-#define WHOLE_BANDWIDTH 5150
-
 #define MAX_ATT_BLOCK   15
 
 constexpr int g_LCOS_Height{1080};	// compile-time constant 1080 (change HDMI resolution too)
 constexpr int g_LCOS_Width{1952};	// compile-time constant 1952
 constexpr int g_Total_Channels{1024};	// compile-time constant 96
 
-constexpr double g_Max_Normal_Temperature{56.6}; //grating temperature
+constexpr double g_Max_Normal_Temperature{72.6}; //grating temperature
 constexpr double g_Min_Normal_Temperature{51.6}; //grating temperature
 
 

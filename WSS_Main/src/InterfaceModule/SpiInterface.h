@@ -10,7 +10,7 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-#define  BUFFER_SIZE  64
+#define  BUFFER_SIZE  1500  //64
 
 // Structure to hold SPI transfer data
 struct spi_transfer_data {

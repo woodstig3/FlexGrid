@@ -4,16 +4,18 @@
  *  Created on: Mar 9, 2023
  *      Author: Administrator
  */
-
-#include "TemperatureMonitor.h"
 #include <cassert>
 
+#include "TemperatureMonitor.h"
+#include "SpiCmdDecoder.h"
+#include "Dlog.h"
+#include "wdt.h"
 long PRIMARK = 0.0;
-double g_direct_LCOS_Temp = 0x0;
-double g_direct_Hearter2_Temp = 0x0;
+double g_direct_LCOS_Temp = 0x36;
+double g_direct_Hearter2_Temp = 0x36;
 
-#define TEC_STRCHEECK_LOW 50.0
-#define TEC_STRCHEECK_HIGH 58.0
+#define TEC_STRCHEECK_LOW 45.0
+#define TEC_STRCHEECK_HIGH 75.0
 
 /*
  * When delta Temp change is more than +- 0.2 we calculate pattern
@@ -164,6 +166,9 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 
 	while(true)
 	{
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 		usleep(500000);
 
 		if(BreakThreadLoop() == 0)
@@ -225,11 +230,12 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 
         		if(b_isTECStable)
         			g_serialMod->cmd_decoder.SetPanelInfo(true);
+
         	}
 #endif
 //begin add by jihongwang on 20240722
-   		    if((m_direct_Heater2_Temp > TEC_STRCHEECK_LOW)  && ( m_direct_Heater2_Temp < TEC_STRCHEECK_HIGH))
-   		    {
+//   		    if((m_direct_Heater2_Temp > TEC_STRCHEECK_LOW)  && ( m_direct_Heater2_Temp < TEC_STRCHEECK_HIGH))
+//   		    {
    		           if(isTECStableInFPGA())
    		           {
    		                b_isTECStable = true;
@@ -241,12 +247,14 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 
                    //g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
    		           //std::cout << "TEC STABLE = " << b_isTECStable << std::endl;
-   		     }
-   	         else
-   		     {
-   			      b_isTECStable = false;
-   		     }
+//  		     }
+//   	         else
+//   		     {
+//   			      b_isTECStable = false;
+//   		     }
    		     g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
+   		     SpiCmdDecoder::oss.isOpticsNotReady = b_isTECStable; //added for spi cmd
+
 //end add by jihongwang on 20240722
         }
 
@@ -679,11 +687,13 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 			//}
 			*temp = ConvertToOldCelsius(hexValue & 0x0FFF);
 			
-			PRIMARK ++;
+			//PRIMARK ++;
 			//*temp = 0;  // end for debug
 			return(ConversionStatus::NORMAL_LUT_RANGE);
-			break;
+			//break;
 		}
+		default:
+			break;
 	}
 
 	// hexValue is in format 0xABCD. We need to extract 0xBCD that is actual temperature value from ADC,
@@ -701,11 +711,27 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 	else if (hexValue < LUT_MIN_HEX)
 	{
 		*temp = ConvertToCelsius(LUT_MIN_HEX);
+		//zte cmd get:fault.N
+		FaultsAttr attr{0};
+		attr.Raised = true;
+		attr.RaisedCount += 1;
+		attr.Degraded = true;
+		attr.DegradedCount = attr.RaisedCount;
+		FaultMonitor::logFault(TRANSFER_FAILURE,attr);
+
 		return(ConversionStatus::BELOW_LUT_RANGE);
 	}
 	else if (hexValue > LUT_MAX_HEX)
 	{
 		*temp = ConvertToCelsius(LUT_MAX_HEX);
+		//zte cmd get:fault.N
+		FaultsAttr attr{0};
+		attr.Raised = true;
+		attr.RaisedCount += 1;
+		attr.Degraded = true;
+		attr.DegradedCount = attr.RaisedCount;
+		FaultMonitor::logFault(TRANSFER_FAILURE,attr);
+
 		return(ConversionStatus::ABOVE_LUT_RANGE);
 	}
 	else
@@ -876,7 +902,7 @@ int TemperatureMonitor::Config_FPGA_TEC(void)
 	status |= mmapTEC->WriteRegister_TEC32(SAMPLING_TIMER_ADDR/0x4, 0x001E);usleep(1000);			// ADDR_SAMPLING_TIMER 30ms 0x001E
 
 	// Set Target Temperature
-	status |= SetTargetTemp(LCOS_TEMP_TARGET);			//1770														// ADDR_PID1_TARGET Default 65.43c; 0x199C = 6556
+	status |= SetTargetTemp(LCOS_TEMP_TARGET);			//1770					// ADDR_PID1_TARGET Default 65.43c; 0x199C = 6556
 
 	// Set PID1
 	status |= SetPID1_Kp(KP_PID1_VAL);
@@ -955,7 +981,8 @@ int TemperatureMonitor::BreakThreadLoop(void)
 double TemperatureMonitor::GetLCOSTemperature(void)
 {
 	//return (previousTemp_LCOS);		// is the the stable temperature
-	return (previousTemp_GRID);
+	//return (previousTemp_GRID);
+	return (g_direct_Hearter2_Temp);
 }
 
 bool TemperatureMonitor::Check_Need_For_TEC_Data_Transfer_To_PC()

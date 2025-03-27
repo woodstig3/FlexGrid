@@ -24,15 +24,26 @@
 #define MAP_SIZE 4096UL			// Mapping size of register for AHB LITE register virtual to physical mapping
 #define MAP_MASK (MAP_SIZE -1)
 
+#ifdef _XILINX_
 #define OCM_TRANS_BASEADDR 0x43C00000
 #define REGISTER2_BASEADDR 0x43C10000
 #define CLUT_BASEADDR 0x43C20000
 #define SEQ_BASEADDR 0x43C30000
 #define TEC_BASEADDR 0x43C40000
 #define GPIO_BASEADDR 0x41200000
+#define HEC7020_OCM_LOC 	0xFFFC0000			//0xe0880000//
+#else
+#define OCM_TRANS_BASEADDR 0x80300000     //0x43C00000
+#define REGISTER2_BASEADDR 0x80000000     //0x43C10000
+#define CLUT_BASEADDR 0x80100000          //0x43C20000
+#define SEQ_BASEADDR 0x80200000           //0x43C30000
+#define TEC_BASEADDR 0x80500000           //0x43C40000
+#define GPIO_BASEADDR 0x80400000          //0x41200000
+#define HEC7020_OCM_LOC 	0x61000000			//0xe0880000//
+#endif
 
 #define HEC7020_OCM_TRANS_SIZE 	256*1024
-#define HEC7020_OCM_LOC 	0xFFFC0000			//0xe0880000//
+
 
 class MemoryMapping {
 public:
@@ -85,7 +96,8 @@ public:
 private:
 
 	using vUChar = 	volatile unsigned char;
-	using vULong = 	volatile unsigned long;
+	//using vULong = 	volatile unsigned long;
+	using vULong = 	volatile uint32_t;
 
 	int 			fd;
 

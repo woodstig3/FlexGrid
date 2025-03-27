@@ -11,14 +11,15 @@
 #include <stdint.h>
 #include <string.h>
 #include <sstream>
-#include "InterfaceModule/MemoryMapping.h"
+#include "MemoryMapping.h"
+
 
 class LCOSDisplayTest {
 public:
 					LCOSDisplayTest();
 	virtual 		~LCOSDisplayTest();
 
-	int 			RunTest();
+	static int		RunTest();
 	void 			GetResult(std::string &output);
 
 private:

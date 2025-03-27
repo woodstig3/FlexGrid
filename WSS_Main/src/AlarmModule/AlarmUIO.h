@@ -15,6 +15,7 @@
 #include <sstream>
 
 #include "GlobalVariables.h"
+#include "Dlog.h"
 
 #define UIO_0 66
 #define UIO_1 67
@@ -61,6 +62,7 @@ public:
 	int 			MoveToThread();
 	void 			StopThread();
 	static void 	*ThreadHandle(void *);
+	void            ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName);
 	void 			ProcessUIOAlarmMonitoring(void);
 	void            GpioWrite(int fd, char level);
 };

@@ -114,6 +114,7 @@ private:
     // ... [rest of the member functions]
     bool check_integrity(const std::string &path, const int expected_size); //const std::string &expected_hash);
     bool replaceFile(const std::string& oldFilename, const std::string& newFilename);
+    void reboot_system();
 };
 
 

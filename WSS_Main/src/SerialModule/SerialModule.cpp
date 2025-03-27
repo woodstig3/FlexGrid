@@ -19,9 +19,9 @@
 #include <unistd.h> 													// Write(), read(), close()
 #include <sys/file.h>  													// Use of flock() to block other process accessing serial port
 #include <algorithm>
-#include <sys/reboot.h>
-
 #include <chrono>
+
+#include "wdt.h"
 
 SerialModule* SerialModule::pinstance_{nullptr};
 
@@ -36,6 +36,17 @@ SerialModule::SerialModule()
 	if(status != 0)
 	{
 		printf("Driver<RS232>: Serial Module Initialization Failed.\n");
+		// Mode drc checked this is not right when no serial at all
+		std::ofstream enable_file("/mnt/enable_flag");
+		if (enable_file) {
+			enable_file << "SPI";
+			enable_file.close();
+		} else {
+			std::cerr << "ERROR: Cannot write to enable_flag" << std::endl;
+			return;
+		}
+		//
+		std::cout << "SPI Mode" << std::endl;
 		Serial_Closure();
 	}
 
@@ -113,11 +124,14 @@ void SerialModule::ProcessReadWrite(void)
 	while(b_LoopOn)														// Serial loop running on a thread.
 	{
 		usleep(100);
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
 		do																// Read from user until all data from serial line are received...
 		{
+#ifndef _SPI_INTERFACE_
 			num_bytes = Serial_ReadPort(temp_search_Str);				// Keep reading serial port until command stop arriving
-
+#endif
 			if(num_bytes < 0)
 			{
 				printf("Error reading: %s", strerror(errno));	// If board is not logged in

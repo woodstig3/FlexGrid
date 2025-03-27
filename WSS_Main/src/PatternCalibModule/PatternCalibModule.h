@@ -23,12 +23,12 @@ extern bool b_LoopOn;												// Loop running on threads
 
 #define LUT_OPT_FREQ_NUM 8
 #define LUT_ATT_FREQ_NUM  8
-#define LUT_SIGMA_FREQ_NUM 14    //drc modified from 8 according to calibration lut size
+#define LUT_SIGMA_FREQ_NUM 14
 #define LUT_PIXELPOS_FREQ_NUM 27
-#define LUT_ATT_ATT_NUM 7       //so when load att_lut, rownumber > 11 is the start of next port
-#define LUT_SIGMA_TEMP_NUM 5  //from 3
-#define LUT_PIXELPOS_TEMP_NUM 6  // from 9
-#define PORT_NUM 23
+#define LUT_ATT_ATT_NUM 7       //so accordingly when loading att_lut,rownumber need to be modified > 12 which is the start of next port
+#define LUT_SIGMA_TEMP_NUM 6    //so accordingly when loading sigma_lut, columnnumber needs to be modified <=7
+#define LUT_PIXELPOS_TEMP_NUM 6
+#define PORT_NUM 22
 
 struct Opt{
 	// Optimized Aopt/Kopt vs Freq vs Port

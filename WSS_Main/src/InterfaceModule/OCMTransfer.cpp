@@ -212,7 +212,7 @@ int OCMTransfer::GetRegister(int addr,unsigned char *vsyncProps)
 int OCMTransfer::GetInternalVsyncFrequency (double *vsyncFrequencyHz)
 {
 	unsigned char value;
-	unsigned long vsyncRatio;
+	uint32_t vsyncRatio;  //drc modified from unsigned long to uint32_t
 	int status;
 
 	status = mmapReg2->ReadRegister_Reg2(VSyncTimerHH, &value);usleep(200);
@@ -236,7 +236,7 @@ int OCMTransfer::GetInternalVsyncFrequency (double *vsyncFrequencyHz)
 
 int OCMTransfer::SetInternalVsyncFrequency(double vsyncFrequencyHz)
 {
-	unsigned long vsyncRatio = HEC7020_PLL_BASE/vsyncFrequencyHz;
+	uint32_t vsyncRatio = HEC7020_PLL_BASE/vsyncFrequencyHz;  //drc modified from unsigned long to uint32_t
 	int error;
 
 	if (HEC7020_PLL_BASE - vsyncRatio * vsyncFrequencyHz  > 32.5 )
@@ -246,26 +246,26 @@ int OCMTransfer::SetInternalVsyncFrequency(double vsyncFrequencyHz)
 
 	uint8_t data = (uint8_t)(vsyncRatio & 0xFF);	// VLL = 0xA8
 	error = mmapReg2->WriteRegister_Reg2(VSyncTimerLL, data);
-	usleep(200);
-	//printf("A8 = %02x\n\r", data);
+	usleep(100);
+//	printf("A8 = %02x\n\r", data);
 
 	vsyncRatio >>= 8;
 	data = (uint8_t)(vsyncRatio & 0xFF);			// VL = 0xA7
 	if(!error) mmapReg2->WriteRegister_Reg2(VSyncTimerL, data);
-	usleep(200);
-	//printf("A7 = %02x\n\r", data);
+	usleep(100);
+//	printf("A7 = %02x\n\r", data);
 
 	vsyncRatio >>= 8;
 	data = (uint8_t)(vsyncRatio & 0xFF);			// VH = 0xA6
 	if(!error) mmapReg2->WriteRegister_Reg2(VSyncTimerH, data);
-	usleep(200);
-	//printf("A6 = %02x\n\r", data);
+	usleep(100);
+//	printf("A6 = %02x\n\r", data);
 
 	vsyncRatio >>= 8;
 	data = (uint8_t)(vsyncRatio & 0xFF);			// VHH = 0xA5
 	if(!error) mmapReg2->WriteRegister_Reg2(VSyncTimerHH, data);
-	usleep(200);
-	//printf("A5 = %02x\n\r", data);
+	//usleep(200);
+//	printf("A5 = %02x\n\r", data);
 
 	return error;
 }

@@ -6,7 +6,7 @@
  */
 
 #include "SpiProcess.h"
-
+#include "wdt.h"
 
 /** Global variables for thread synchronization
 std::queue<Packet> spiPacketQueue;
@@ -62,6 +62,7 @@ void* ThreadManager::spiListener(void* arg) {
 
 			std::vector<uint8_t> buffer(std::begin(transfer.rx_buf), std::end(transfer.rx_buf));
 			std::cout << "Read data from spi rx buffer of size: " << buffer.size() << std::endl;
+
 			Packet packet{buffer};
 			spiPacketQueue.push(packet);
 
@@ -70,7 +71,7 @@ void* ThreadManager::spiListener(void* arg) {
 
 		}
         // Sleep for a short duration to prevent busy-waiting
-        usleep(5000000); // Sleep for 1ms
+        usleep(50000); // Sleep for 1ms
     }
     return nullptr;
 }
@@ -94,6 +95,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             pthread_mutex_unlock(&spiQueueMutex); // Unlock while processing
 
             // Process the packet
+            // Print spi packet data
             std::cout << "Received spi packet: ";
             for (auto byte : packet.data) {
                 std::cout << std::hex << static_cast<int>(byte) << " ";
@@ -111,16 +113,38 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 				replyPacket.length = commandPacket.length; // Example length
 				replyPacket.seqNo = commandPacket.seqNo;
 				replyPacket.comres = -1; // PENDING COMRES
-				replyPacket.crc1 = 0;   // Example CRC1
+                // component header: 16 bytes
+                std::vector<uint8_t> headerData = spiDec->constructSPIReplyPacketHeader(replyPacket);
+                // caculate CRC1
+                replyPacket.crc1 = spiDec->calculateCRC1(headerData.data());
+                if (replyPacket.length > 0x0014 ) {
+                    replyPacket.data.clear();
+                    replyPacket.data.reserve(commandPacket.data.size());
+                    for (signed char c : commandPacket.data) {
+                        replyPacket.data.push_back(static_cast<uint8_t>(c));
+                    }
+                    // Calculate CRC2 based on the entire packet (excluding CRC2 itself)
+                    std::vector<uint8_t> packetWithoutCRC2 = spiDec->constructSPIReplyPacketWithoutCRC2(replyPacket);
+                    replyPacket.crc2 = spiDec->calculateCRC2(packetWithoutCRC2.data(), packetWithoutCRC2.size());
+                }
 
 				replyPacketData = constructSPIReplyPacket(replyPacket);
+                
+                if (replyPacketData.size() > BUFFER_SIZE) {
+                    std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
+                    return nullptr;
+                }
+				// Formulate a reply based on the processed packet
+				memset(transfer.tx_buf, 0, BUFFER_SIZE);
+				memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size()*sizeof(uint8_t));
+
+				spiDec->oss.isPending = true;
 
         		//then pass data content to spiCmdDecoder to extract opcode and arguments to calculate shape
         		if(spiDec) {
-
         		    replyPacketData = spiDec->processSPIPacket(commandPacket);
-
-        		} else {
+        		}
+        		else {
         			std::cout << "Command decoder not in work." << std::endl;
         		}
 				std::cout << "Reply packet constructed successfully." << std::endl;
@@ -129,11 +153,20 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 			{
 				std::cout << "Command packet format is not correct." << std::endl;
 	            busy = false;
+	            //Send back Default reply packet first before further parsing and processing
+				SPIReplyPacket replyPacket;
+				replyPacketData = constructDefaultPacket();
 			}
 
             // Formulate a reply based on the processed packet
             memset(transfer.tx_buf, 0, BUFFER_SIZE);
-            memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size()*sizeof(uint8_t));
+            memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
+
+            std::cout << "Content of transfer.tx_buf: ";
+            for (int i = 0; i < replyPacketData.size(); i++) {
+                std::cout << std::hex << static_cast<int>(transfer.tx_buf[i]) << " ";
+            }
+            std::cout << std::endl;
 
             pthread_mutex_lock(&spiQueueMutex); // Lock again before checking the queue
         }
@@ -165,7 +198,7 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
 
     // Copy the fixed-size fields
     commandPacket.spiMagic = bytesToInt32BigEndian(packet.data, 0);
-    std::cout << "SPI MAGIC" << commandPacket.spiMagic <<std::endl;
+    std::cout << "SPI MAGIC: 0x" << std::hex << commandPacket.spiMagic <<std::endl;
     // Validate SPIMAGIC
     if (commandPacket.spiMagic != SPIMAGIC) {
     	std::cout << "Wrong SPI MAGIC" << commandPacket.spiMagic <<std::endl;
@@ -173,7 +206,7 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
     }
 
     commandPacket.length = bytesToInt32BigEndian(packet.data, 4);
-    std::cout << "Packet Length" << commandPacket.length <<std::endl;
+    std::cout << "Packet Length:" << std::dec << commandPacket.length <<std::endl;
     // Check if the entire packet size is valid against the specified length
    if (packet.data.size() < commandPacket.length) {
 	   std::cout << "Packet length mismatch: expected " << commandPacket.length
@@ -181,9 +214,9 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
 	   return 2; // Length mismatch, invalid packet
    }
     commandPacket.seqNo = bytesToInt32BigEndian(packet.data, 8);
-    std::cout << "Packet SeqNo" << commandPacket.seqNo <<std::endl;
+    std::cout << "Packet SeqNo:" << commandPacket.seqNo <<std::endl;
     commandPacket.opcode = bytesToInt32BigEndian(packet.data, 12);
-    std::cout << "Command OpCode" << commandPacket.opcode <<std::endl;
+    std::cout << "Command OpCode:" << commandPacket.opcode <<std::endl;
     // Corrected OPCODE range check
     if (commandPacket.opcode < 0x0001 || commandPacket.opcode > 0x001B) {
     	std::cout << "Wrong OPcode:" << commandPacket.opcode <<std::endl;
@@ -191,6 +224,7 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
     }
 
     commandPacket.crc1 = bytesToInt32BigEndian(packet.data, 16);
+    std::cout << "CRC1: 0x" << std::hex << commandPacket.crc1 << std::endl;
     //check if crc1 is correct or return 3 and set seqno =0
     // Check if CRC1 is correct. Implementation for CRC1 validation should be added here.
     // if (!isCRC1Valid(commandPacket.crc1)) {
@@ -199,9 +233,21 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
 
     // Copy the variable-size data field if present
     if (commandPacket.length > 20) {
-        commandPacket.data.assign(packet.data.begin() + 20, packet.data.begin() + commandPacket.length - 4);
-        commandPacket.crc2 = bytesToInt32BigEndian(packet.data, commandPacket.length - 4); // CRC2 is before the last 2 bytes
-        //check if crc2 is correct or return 0 and seqno as the same as incoming packet
+        // Ensure length includes DATA and CRC2
+        if (commandPacket.length < 24) {
+            std::cout << "Invalid length for DATA and CRC2: " << commandPacket.length << std::endl;
+            return 2; // Length too short for DATA and CRC2
+        }
+        // Extract DATA field (from byte 20 to LENGTH - 5)
+        size_t dataLength = commandPacket.length - 24; // Subtract header (20 bytes) and CRC2 (4 bytes)
+        commandPacket.data.assign(packet.data.begin() + 20, packet.data.begin() + 20 + dataLength);
+        // Parse CRC2 (last 4 bytes)
+        commandPacket.crc2 = bytesToInt32BigEndian(packet.data, commandPacket.length - 4);
+        std::cout << "CRC2: 0x" << std::hex << commandPacket.crc2 << std::endl;
+    } else {
+        // No DATA field, clear data and set CRC2 to 0
+        commandPacket.data.clear();
+        commandPacket.crc2 = 0;
     }
 
     return 0; // Successfully parsed
@@ -209,7 +255,24 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
 
 std::vector<uint8_t> ThreadManager::constructSPIReplyPacket(const SPIReplyPacket& replyPacket) {
     std::vector<uint8_t> packet;
-    packet.resize(replyPacket.length);
+    packet.reserve(replyPacket.length);
+/*
+    // Print reply packet fields
+    std::cout << "Constructing SPI Reply Packet:" << std::endl;
+    std::cout << "  SPIMAGIC: 0x" << std::hex << replyPacket.spiMagic << std::endl;
+    std::cout << "  LENGTH: " << std::dec << replyPacket.length << std::endl;
+    std::cout << "  SEQNO: " << replyPacket.seqNo << std::endl;
+    std::cout << "  COMRES: " << replyPacket.comres << std::endl;
+    std::cout << "  CRC1: 0x" << std::hex << replyPacket.crc1 << std::endl;
+    if (replyPacket.length > 0x0014) {
+        std::cout << "  DATA: ";
+        for (auto byte : replyPacket.data) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "  CRC2: 0x" << std::hex << replyPacket.crc2 << std::endl;
+    }
+    */
 
     // Add SPIMAGIC (4 bytes)
     packet.push_back((replyPacket.spiMagic >> 24) & 0xFF);
@@ -235,32 +298,59 @@ std::vector<uint8_t> ThreadManager::constructSPIReplyPacket(const SPIReplyPacket
     packet.push_back((replyPacket.comres >> 8) & 0xFF);
     packet.push_back(replyPacket.comres & 0xFF);
 
-    // Copy the variable-size data field if present
-    if (replyPacket.length > 0x0014) {
-        std::memcpy(packet.data() + 0x0014, replyPacket.data.data(), replyPacket.data.size());
-    }
-
     // Add CRC1 (4 bytes)
     packet.push_back((replyPacket.crc1 >> 24) & 0xFF);
     packet.push_back((replyPacket.crc1 >> 16) & 0xFF);
     packet.push_back((replyPacket.crc1 >> 8) & 0xFF);
     packet.push_back(replyPacket.crc1 & 0xFF);
 
-    // Add CRC2 if present
+    // Add DATA and CRC2 if present
     if (replyPacket.length > 0x0014) {
+        // Add DATA
+        packet.insert(packet.end(), replyPacket.data.begin(), replyPacket.data.end());
+        // Add CRC2 (4 bytes)
     	packet.push_back((replyPacket.crc2 >> 24) & 0xFF);
     	packet.push_back((replyPacket.crc2 >> 16) & 0xFF);
     	packet.push_back((replyPacket.crc2 >> 8) & 0xFF);
         packet.push_back(replyPacket.crc2 & 0xFF);
     }
 
+    if (packet.size() != replyPacket.length) {
+        std::cerr << "Error: Packet size does not match the specified length." << std::endl;
+        std::cerr << "  Packet size: " << std::dec << packet.size() << std::endl;
+        for (auto byte : packet) {
+            std::cerr << std::hex << static_cast<int>(byte) << " ";
+        }
+        std::cerr << std::endl;
+        // Print replyPacket content
+        std::cerr << "  ReplyPacket content (hex): ";
+        std::cerr << "SPIMAGIC: 0x" << std::hex << replyPacket.spiMagic << " ";
+        std::cerr << "LENGTH: 0x" << replyPacket.length << " ";
+        std::cerr << "SEQNO: 0x" << replyPacket.seqNo << " ";
+        std::cerr << "COMRES: 0x" << replyPacket.comres << " ";
+        std::cerr << "CRC1: 0x" << replyPacket.crc1 << " ";
+        if (replyPacket.length > 0x0014) {
+            std::cerr << "DATA: ";
+            for (auto byte : replyPacket.data) {
+                std::cerr << std::hex << static_cast<int>(byte) << " ";
+            }
+            std::cerr << "CRC2: 0x" << replyPacket.crc2 << " ";
+        }
+        std::cerr << std::endl;
+    }
+    // Print the constructed packet
+    std::cout << "Constructed SPI Reply Packet (raw bytes): ";
+    for (auto byte : packet) {
+        std::cout << std::hex << static_cast<int>(byte) << " ";
+    }
+    std::cout << std::endl;
     return packet;
 }
 
 
 std::vector<uint8_t> ThreadManager::constructDefaultPacket() {
     // Fixed field values
-    const uint32_t HWR = 1000;
+    const uint32_t HWR = 1000;  //spiDec
     const uint32_t FWR = 1000;
     const char* SNO = "SN000000";
     const char* MFD = "20241231";
@@ -308,7 +398,7 @@ std::vector<uint8_t> ThreadManager::constructDefaultPacket() {
     packet.push_back(SPIMAGIC & 0xFF);          // 0x3C
 
     // LENGTH (4 bytes) - calculated after DATA construction
-    uint32_t length = 16 + data.size(); // SPIMAGIC+LENGTH+SEQNO+COMRES+DATA
+    uint32_t length = 16 + data.size() + 4; // SPIMAGIC+LENGTH+SEQNO+COMRES+DATA
     packet.push_back((length >> 24) & 0xFF);
     packet.push_back((length >> 16) & 0xFF);
     packet.push_back((length >> 8) & 0xFF);
@@ -329,12 +419,26 @@ std::vector<uint8_t> ThreadManager::constructDefaultPacket() {
     // Append DATA
     packet.insert(packet.end(), data.begin(), data.end());
 
-    // Add CRC (4 bytes)
-    uint32_t crc = calculateCRC(packet);
-    packet.push_back((crc >> 24) & 0xFF);
-    packet.push_back((crc >> 16) & 0xFF);
-    packet.push_back((crc >> 8) & 0xFF);
-    packet.push_back(crc & 0xFF);
+    // Calculate CRC1 (from 0x00 to 0x0F)
+    uint32_t crc1 = spiDec->calculateCRC1(packet.data());
+    // Add CRC1 (4 bytes)
+    packet.push_back((crc1 >> 24) & 0xFF);
+    packet.push_back((crc1 >> 16) & 0xFF);
+    packet.push_back((crc1 >> 8) & 0xFF);
+    packet.push_back(crc1 & 0xFF);
+    // Calculate CRC2 (from 0x00 to (LENGTH-0x05))
+    uint32_t crc2 = spiDec->calculateCRC2(packet.data(), packet.size());
+    // Add CRC2 (4 bytes)
+    packet.push_back((crc2 >> 24) & 0xFF);
+    packet.push_back((crc2 >> 16) & 0xFF);
+    packet.push_back((crc2 >> 8) & 0xFF);
+    packet.push_back(crc2 & 0xFF);
+    // Print the constructed packet
+    std::cout << "Constructed Default SPI Reply Packet (raw bytes): ";
+    for (auto byte : packet) {
+        std::cout << std::hex << static_cast<int>(byte) << " ";
+    }
+    std::cout << std::endl;
 
     return packet;
 }
@@ -398,11 +502,30 @@ uint32_t ThreadManager::bytesToInt32LittleEndian(const std::vector<uint8_t>& byt
     return result;
 }
 */
-
-// Sample CRC calculation (to be implemented based on your specification)
-uint32_t  ThreadManager::calculateCRC(const std::vector<uint8_t>& packet) {
-     // Implement your CRC logic based on the IEEE 802.3 standard
-     return 0; // Placeholder for actual CRC calculation
+std::vector<uint8_t> ThreadManager::constructSPIReplyPacketHeader(const SPIReplyPacket& replyPacket) {
+	std::vector<uint8_t> header;
+	header.reserve(16); 
+	// Add SPIMAGIC (4 bytes)
+	header.push_back((replyPacket.spiMagic >> 24) & 0xFF);
+	header.push_back((replyPacket.spiMagic >> 16) & 0xFF);
+	header.push_back((replyPacket.spiMagic >> 8) & 0xFF);
+	header.push_back(replyPacket.spiMagic & 0xFF);
+	// Add LENGTH (4 bytes)
+	header.push_back((replyPacket.length >> 24) & 0xFF);
+	header.push_back((replyPacket.length >> 16) & 0xFF);
+	header.push_back((replyPacket.length >> 8) & 0xFF);
+	header.push_back(replyPacket.length & 0xFF);
+	// Add SEQNO (4 bytes)
+	header.push_back((replyPacket.seqNo >> 24) & 0xFF);
+	header.push_back((replyPacket.seqNo >> 16) & 0xFF);
+	header.push_back((replyPacket.seqNo >> 8) & 0xFF);
+	header.push_back(replyPacket.seqNo & 0xFF);
+	// Add COMRES (4 bytes)
+	header.push_back((replyPacket.comres >> 24) & 0xFF);
+	header.push_back((replyPacket.comres >> 16) & 0xFF);
+	header.push_back((replyPacket.comres >> 8) & 0xFF);
+	header.push_back(replyPacket.comres & 0xFF);
+	return header;
 }
 
 

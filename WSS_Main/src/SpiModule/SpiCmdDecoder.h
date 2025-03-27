@@ -20,6 +20,7 @@
 #include "SpiStructs.h"
 #include "CmdDecoder.h"
 
+
 // Define constants for SPI interface packet start delimiter
 const uint32_t SPIMAGIC = 0x0F1E2D3C;
 
@@ -28,23 +29,55 @@ class BaseCommand {
 public:
     virtual ~BaseCommand() = default;
     virtual bool parse(const SPICommandPacket& commandPacket) = 0; // Modify to use SPICommandPacket
-    virtual std::vector<uint8_t> process() = 0; // Command-specific processing
+    virtual std::vector<uint8_t> process(uint32_t seqNo) = 0; // Command-specific processing
 
 };
 /*****************************************************************
  * define SPI commands and corresponding processes handlers class.
  *****************************************************************/
+struct WareVersion {
+    int year1;            // Major version (1-99)
+    int year2;            // Minor version (1-99)
+    int month1;   // Implementation version (0-99)
+    int month2; // Release Candidate version (0-99)
+};
+
 struct Config_For_Prod {
 
-	uint8_t sus;
-	uint32_t hwr;
-	uint32_t fwr;
-	std::string sno;
-	std::string mfd;
-	std::string lbl;
-	std::string mid;
+	int sus;
+    WareVersion hwr; // Hardware version
+	WareVersion fwr; // Firmware version
+	std::string sno; // len: 8
+	std::string mfd;  //len:11
+	std::string lbl;  //len:255
+	std::string mid;  //len:255
 
 };
+
+struct Operational_Status {
+	 bool isReady;
+	 bool isHardwareError;
+	 bool isLatchedError;
+	 bool isModuleRestarted;
+	 bool isStartUpActive;
+	 bool isOpticsNotReady;
+	 bool isOpticsDisabled;
+	 bool isPending;
+ };
+
+struct Hardware_Status {
+	bool caseTempError;
+	bool internalTempError;
+	bool tempControlShutdown;
+	bool thermalShutdown;
+	bool opticalControlFailure;
+	bool powerSupplyError;
+	bool powerRailError;
+	bool internalFailure;
+	bool calibrationError;
+	bool singleEventUpset;
+};
+
 class SpiCmdDecoder {
 public:
     // Constructor
@@ -59,14 +92,25 @@ public:
     std::vector<uint8_t> constructErrorReply(uint8_t errorCode);
 
     // Sample CRC calculation (to be implemented based on your specification)
-    uint32_t calculateCRC(const SPIReplyPacket& packet);        // Implement your CRC logic based on the IEEE 802.3 standard
-
+    //(const SPIReplyPacket& packet);        // Implement your CRC logic based on the IEEE 802.3 standard
+    // 计算包头 CRC1（0x00~0x0F）
+    uint32_t calculateCRC1(const uint8_t* data) ;
+    // 计算全包 CRC2（0x00~[LENGTH-5]）
+    uint32_t calculateCRC2(const uint8_t* data, size_t length) ;
+    uint32_t calculateCRC(const uint8_t* data, size_t length);
+    std::vector<uint8_t> constructSPIReplyPacketHeader(const SPIReplyPacket& replyPacket);
+    std::vector<uint8_t> constructSPIReplyPacketWithoutCRC2(const SPIReplyPacket& replyPacket);
     uint16_t bytesToInt16BigEndian(const std::vector<uint8_t>& bytes, size_t offset);
 
-    Config_For_Prod conf_spi;
+    void appendUint32BigEndian(std::vector<uint8_t>& buf, uint32_t value) ;
+    static Config_For_Prod conf_spi;
+    static Operational_Status oss;
+    static Hardware_Status hss;
+
     int loadProdIniConf(void);
     int modifyIniValue(const std::string& section, const std::string& key, const std::string& newValue);
-
+    uint16_t constructOSSReplyData();
+    uint16_t constructHSSReplyData();
 
 private:
 //    using CommandHandler = std::vector<uint8_t> (SpiCmdDecoder::*)(const std::vector<uint8_t>&);
@@ -142,7 +186,7 @@ public:
 	SpiCmdDecoder* spiCmd;
     // Function to parse No Operation command data for SPI, e.g.: 0x0001
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x0002 command: Reset command processing
@@ -152,7 +196,7 @@ public:
 	SpiCmdDecoder* spiCmd;
     // Function to parse Reset command data for SPI, e.g.: 0x0002
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x0003 command: Store command processing
@@ -162,19 +206,19 @@ public:
 	SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0003
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
     static std::unique_ptr<CmdDecoder> g_cmdDecoder;
 };
 
 //0x0004 command: Start-up State command processing
-class SpiSUSCmdCommand: public BaseCommand {
+class SpiSUSQueryCommand: public BaseCommand {
 public:
-    SpiSUSCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiSUSQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
 	SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0004
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
@@ -185,7 +229,7 @@ public:
 	SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0005
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
@@ -196,138 +240,115 @@ public:
 	SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0006
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x0007 command: Hardware Release command processing
-class SpiHWRCmdCommand: public BaseCommand {
+class SpiHWRQueryCommand: public BaseCommand {
 public:
-    SpiHWRCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiHWRQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
 	SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0007
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    uint32_t hwr=00000000;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x0008 command: Firmware Release command processing
-class SpiFWRCmdCommand: public BaseCommand {
+class SpiFWRQueryCommand: public BaseCommand {
 public:
-    SpiFWRCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiFWRQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0008
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    uint32_t fwr=00000000;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x0009 command: Serial Number command processing
-class SpiSNOCmdCommand: public BaseCommand {
+class SpiSNOQueryCommand: public BaseCommand {
 public:
-    SpiSNOCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiSNOQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0009
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    std::string sno="SN000001";
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x000A command: ManuFacturing Date command processing
-class SpiMFDCmdCommand: public BaseCommand {
+class SpiMFDQueryCommand: public BaseCommand {
 public:
-    SpiMFDCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiMFDQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x000A
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    std::string mfd="31122024";
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x000B command: Label Query command processing
-class SpiLBLCmdCommand: public BaseCommand {
+class SpiLBLQueryCommand: public BaseCommand {
 public:
-    SpiLBLCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiLBLQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x000B
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    std::string lbl="Device's Part Number";
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x000C commands: Module Modification Set and Query command processing
-class SpiMIDACmdCommand: public BaseCommand {
+class SpiMIDAssignCmdCommand: public BaseCommand {
 public:
-    SpiMIDACmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiMIDAssignCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x000C
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
-    std::string lbl="CustomerDefinedString";  //255 characters in ascii code
-
+    std::string mid="CustomerDefinedString";  //255 characters in ascii code
 };
 
 //0x000D commands: Module Modification Query command processing
-class SpiMIDQCmdCommand: public BaseCommand {
+class SpiMIDQueryCommand: public BaseCommand {
 public:
-    SpiMIDQCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiMIDQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x000C
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    std::string lbl="CustomerDefinedString";
-
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x000F command: Operational Status command processing
-class SpiOSSCmdCommand: public BaseCommand {
+class SpiOSSQueryCommand: public BaseCommand {
 public:
-    SpiOSSCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiOSSQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x000F
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    uint16_t oss = 0xAABB;
-
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x0010 command: Hardware Status command processing
-class SpiHSSCmdCommand: public BaseCommand {
+class SpiHSSQueryCommand: public BaseCommand {
 public:
-    SpiHSSCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiHSSQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0010
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    uint16_t hss = 0xAABB;
-
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x0011 command: Hardware LAtched Status command processing
-class SpiLSSCmdCommand: public BaseCommand {
+class SpiLSSQueryCommand: public BaseCommand {
 public:
-    SpiLSSCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiLSSQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0011
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    uint16_t hss = 0xAABB;
-
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x0012 command: Clear Latched Error(oss? and lss?) command processing
@@ -337,42 +358,36 @@ public:
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0012
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
     uint16_t hss = 0xAABB;
 
 };
 
 //0x0013 command: Case Temperature Status command processing
-class SpiCSSCmdCommand: public BaseCommand {
+class SpiCSSQueryCommand: public BaseCommand {
 public:
-    SpiCSSCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiCSSQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0013
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    int16_t hss;
-
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 //0x0014 command: Internal Temperature Status command processing
-class SpiISSCmdCommand: public BaseCommand {
+class SpiISSQueryCommand: public BaseCommand {
 public:
-    SpiISSCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiISSQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0014
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
-    int16_t hss;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
 //0x0015 command SPA processing, e.g.:0x0015 1, 1:8 1:1
-struct SPACommandStruct {
-    uint32_t opcode;                    // 0x0015
-    uint8_t w;                          // WSS module number [1|2]
+struct SPAConfigStruct {
+//    uint8_t w;                          // WSS module number [1|2]
     std::vector<std::pair<uint16_t, uint16_t>> sliceRanges; // Slice ranges
     std::vector<uint8_t> commonPorts;  // Common ports
     std::vector<uint8_t> switchingPorts; // Switching ports
@@ -381,21 +396,51 @@ struct SPACommandStruct {
 
 class SPASlicePortAttenuationCommand : public BaseCommand {
 public:
-    SPASlicePortAttenuationCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SPASlicePortAttenuationCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {
+    	if(!g_cmdDecoder) {
+    		g_cmdDecoder = std::make_unique<CmdDecoder>();
+    	}
+    };
+
 	SpiCmdDecoder* spiCmd;
     static std::unique_ptr<CmdDecoder> g_cmdDecoder;
-	uint8_t w; // WSS module number
-    std::vector<std::pair<uint16_t, uint16_t>> sliceRanges;
-    std::vector<uint8_t> commonPorts;
-    std::vector<uint8_t> switchingPorts;
-    std::vector<int16_t> attenuations;
 
     // Function to parse SPA command data for SPI, e.g.: 0x0015 1, 1:8 1:1
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
+
+    static SPAConfigStruct spaConfStruct[3]; //store slice configuration for each module
 
 private:
     float sliceSize = 3.125; //6.25/12.5GHz
+    uint8_t w; // WSS module number
+	std::vector<std::pair<uint16_t, uint16_t>> sliceRanges;
+	std::vector<uint8_t> commonPorts;
+	std::vector<uint8_t> switchingPorts;
+	std::vector<int16_t> attenuations;
+
+    double freqBySlice(uint16_t sliceNo) {
+    	return((sliceNo-1)*sliceSize);
+    };
+};
+
+//0x0016 command SPA processing, e.g.:0x0016 1/2
+class SPAQuerySlicePortAttenuationCommand : public BaseCommand {
+public:
+    SPAQuerySlicePortAttenuationCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+	SpiCmdDecoder* spiCmd;
+
+	uint8_t w; // WSS module number
+
+    // Function to parse SPA command data for SPI, e.g.: 0x0015 1, 1:8 1:1
+    virtual bool parse(const SPICommandPacket& packetData) override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
+
+    std::vector<uint8_t> fwData; // 
+    bool isFullTransfer = false;
+
+private:
+    float sliceSize = 6.25; //6.25/12.5GHz
     double freqBySlice(uint16_t sliceNo) {
     	return((sliceNo-1)*sliceSize);
     };
@@ -403,12 +448,29 @@ private:
 
 //0x0017 command: Firmware Transfer command processing
 class SpiFWTCmdCommand: public BaseCommand {
-public:
-    SpiFWTCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
-    SpiCmdDecoder* spiCmd;
-    // Function to parse Store command data for SPI, e.g.: 0x0014
-    virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    public:
+        SpiFWTCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+        SpiCmdDecoder* spiCmd;
+        
+        // Parses Store command data for SPI (e.g., command 0x0014)
+        virtual bool parse(const SPICommandPacket& packetData) override;
+        virtual std::vector<uint8_t> process(uint32_t seqNo) override;
+
+        // Static member variables
+        static uint32_t totalReceivedBytes;   // Total received bytes
+        static uint32_t firmwareTotalSize;    // Firmware total size (to be obtained from firmware header)
+        static std::fstream elfFile;          // Firmware file stream
+        static bool transferActive;           // Transfer active flag
+        
+        // Non-static member variables
+        uint32_t offset;                      // Offset of current data block
+        std::vector<uint8_t> blockData;       // Content of current data block
+        
+        // methods
+        static void initFileTransfer();       // Initialize file transfer
+        static void writeToFile(uint32_t offset, const std::vector<uint8_t>& data); // Write data to file
+        static void finalizeTransfer();       // Finalize transfer and cleanup
+        static void resetTransfer();          // Reset transfer state
 
 };
 
@@ -419,9 +481,9 @@ public:
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0018<O><File>
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
-    uint8_t fwPosition = 0; // 0/1/2
+    uint8_t storagePosition = 0; // 0/1/2
 
 };
 
@@ -432,20 +494,20 @@ public:
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0018<O><File>
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
-    uint8_t fwPosition = 0; // 0/1/2
+    uint8_t loadPosition = 0; // 0/1/2
 
 };
 
 //0x001A command: Firmware Postion Query command processing
-class SpiFWPCmdCommand: public BaseCommand {
+class SpiFWPQueryCommand: public BaseCommand {
 public:
-    SpiFWPCmdCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SpiFWPQueryCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0018
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
 };
 
@@ -457,8 +519,7 @@ public:
     SpiCmdDecoder* spiCmd;
     // Function to parse Store command data for SPI, e.g.: 0x0018
     virtual bool parse(const SPICommandPacket& packetData) override;
-    virtual std::vector<uint8_t> process() override;
-
+    virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 };
 
 

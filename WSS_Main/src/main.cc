@@ -20,10 +20,9 @@
 #include "PatternCalibModule.h"
 #include "TemperatureMonitor.h"
 #include "PatternGenModule.h"
-#include "AlarmModule/AlarmUIO.h"
-#include "InterfaceModule/MemoryMapping.h"
-#include "InterfaceModule/I2CProtocol.h"
-#include "InterfaceModule/Dlog.h"
+#include "AlarmUIO.h"
+#include "MemoryMapping.h"
+#include "I2CProtocol.h"
 #include "SpiInterface.h"
 #include "wdt.h"
 

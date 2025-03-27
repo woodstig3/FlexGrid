@@ -1,19 +1,21 @@
+#include <poll.h>
+
 #include "AlarmUIO.h"
-#include "InterfaceModule/Dlog.h"
+#include "SpiCmdDecoder.h"
 
 
-const char *uiod0 = "/dev/uio0";
-const char *uiod1 = "/dev/uio1";
-const char *uiod2 = "/dev/uio2";
-const char *uiod3 = "/dev/uio3";
-//const char *uiod4 = "/dev/uio4";
+const char *uiod0 = "/dev/uio0";    // LCos panel voltage exceeding: Optics failure
+const char *uiod1 = "/dev/uio1";	// Lcos panel voltage exceeding: Optics failure
+const char *uiod2 = "/dev/uio2";	// Grating component temperature exceeding: internal temperature
+const char *uiod3 = "/dev/uio3";    // Thermal Failure or LCOS permanently damaged
+const char *uiod4 = "/dev/uio4";  // LCOS display panel access error
 
 AlarmModule *AlarmModule::pinstance_{nullptr};
 
 AlarmModule::AlarmModule()
 {
 	HisCon_OA = HisCon_OD = HisCon_GRIDTemp = HisCon_LCOSTemp = 0;
-	DeOA_Flag = DeOD_Flag = DeGRID_Flag = DeLCOS_Flag = true;
+	DeOA_Flag = DeOD_Flag = DeGRID_Flag = DeLCOS_Flag = false;
 
 	thread_id = 0;
 	pthread_attr_init(&thread_attrb);	//Default initialize thread attributes
@@ -38,11 +40,11 @@ AlarmModule::AlarmModule()
     {
         printf("Invalid UIO device file : %s.\n",uiod3);
     }
-//    UIO_LCOS_Ready = open(uiod4, O_RDWR | O_NONBLOCK);
-//    if (UIO_LCOS_Ready < 1)
-//    {
-//        printf("Invalid UIO device file : %s.\n",uiod4);
-//    }
+    UIO_LCOS_Ready = open(uiod4, O_RDWR | O_NONBLOCK);
+    if (UIO_LCOS_Ready < 1)
+    {
+        printf("Invalid UIO device file : %s.\n",uiod4);
+    }
 
     //For GPIO
     GPIO_exportfd = open("/sys/class/gpio/export", O_WRONLY);
@@ -81,12 +83,20 @@ AlarmModule::AlarmModule()
 
 AlarmModule::~AlarmModule()
 {
-	close(UIO_DAC_OA);
-	close(UIO_DAC_OD);
-	close(UIO_GRID_Temp);
-	close(UIO_LCOS_Temp);
-	close(GPIO_valuefd);
-	close(UIO_LCOS_Ready);
+    if (UIO_DAC_OA >= 0) close(UIO_DAC_OA);
+    if (UIO_DAC_OD >= 0) close(UIO_DAC_OD);
+    if (UIO_GRID_Temp >= 0) close(UIO_GRID_Temp);
+    if (UIO_LCOS_Temp >= 0) close(UIO_LCOS_Temp);
+    if (GPIO_valuefd >= 0) close(GPIO_valuefd);
+    if (UIO_LCOS_Ready >= 0) close(UIO_LCOS_Ready);
+
+    // Unexport the GPIO pin
+    int GPIO_unexportfd = open("/sys/class/gpio/unexport", O_WRONLY);
+    if (GPIO_unexportfd >= 0)
+    {
+        write(GPIO_unexportfd, "913", TEST_LEN);
+        close(GPIO_unexportfd);
+    }
 }
 
 AlarmModule *AlarmModule::GetInstance()
@@ -111,7 +121,7 @@ int AlarmModule::MoveToThread()
 {
 	if (thread_id == 0)
 	{
-        if((UIO_DAC_OA < 1) || (UIO_DAC_OD < 1) || (UIO_GRID_Temp < 1) || (UIO_LCOS_Temp < 1))
+        if((UIO_DAC_OA < 1) || (UIO_DAC_OD < 1) || (UIO_GRID_Temp < 1) || (UIO_LCOS_Temp < 1) || (UIO_LCOS_Ready < 1))
         {
         	printf("Not all the file was open do not create pthread .\n");
         	return -1;
@@ -143,157 +153,101 @@ void *AlarmModule::ThreadHandle(void *arg)
 	return (NULL);
 }
 
-void AlarmModule::ProcessUIOAlarmMonitoring(void)
+void AlarmModule::ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName)
 {
-	int irq_on = 1;
-	int icount,jcount,kcount,lconut;
-	int err;
-	MessRes UIOMess = {0};
 
-	icount = jcount = kcount = lconut = 0;
-	while(true)
-	{
-		sleep(5);
+    int count;
+    int err = read(fd, &count, TEST_LEN);
+    if (err != TEST_LEN)
+    {
+        perror("UIO device read error");
+        return;
+    }
 
-		write(UIO_LCOS_Temp, &irq_on, sizeof(irq_on));
-		err = read(UIO_LCOS_Temp, &icount, TEST_LEN);
-		/*printf("Con_LCOSTemp : %d icount : %d\n",err,icount);
-        if (err != TEST_LEN)
+    FaultsAttr UIOMess = {0};
+    if (count != hisCon)
+    {
+        hisCon = count;
+        UIOMess.Raised = true;
+        UIOMess.RaisedCount = count;
+        UIOMess.Degraded = false;
+        UIOMess.DegradedCount = hisCon;
+        FaultMonitor::logFault(logName, UIOMess);
+        deFlag = true;
+
+    }
+    else
+    {
+        UIOMess.Raised = false;
+        UIOMess.RaisedCount = count;
+        UIOMess.Degraded = true;
+        UIOMess.DegradedCount = hisCon;
+        if (deFlag)
         {
-            perror("UIO_LCOS_Temp ERR\n");
-        }*/
-
-        if(icount != HisCon_LCOSTemp)
-        {
-            HisCon_LCOSTemp = icount;
-            //TEC log
-            UIOMess.Raised = true;
-            UIOMess.RaisedCount = icount;
-            UIOMess.Degraded = false;
-            UIOMess.DegradedCount = HisCon_LCOSTemp;
-            Fault_logcompress(HEATER_1_TEMP,&UIOMess);
-
-            DeLCOS_Flag = true;
+        	FaultMonitor::logFault(logName, UIOMess);
+            deFlag = false;
         }
-        else
-        {
-            UIOMess.Raised = false;
-            UIOMess.RaisedCount = icount;
-            UIOMess.Degraded = true;
-            UIOMess.DegradedCount = HisCon_LCOSTemp;
-            if(DeLCOS_Flag == true)
-            {
-                Fault_logcompress(HEATER_1_TEMP,&UIOMess);
-                DeLCOS_Flag = false;
-            }
-        }
-
-        memset(&UIOMess, 0, sizeof(UIOMess));
-        write(UIO_GRID_Temp, &irq_on, sizeof(irq_on));
-        err = read(UIO_GRID_Temp, &jcount, TEST_LEN);
-        /*printf("Con_GRIDTemp : %d jcount : %d\n",err,jcount);
-        if (err != TEST_LEN)
-        {
-            perror("UIO_GRID_Temp ERR\n");
-        }*/
-
-        if(jcount != HisCon_GRIDTemp)
-        {
-        	HisCon_GRIDTemp = jcount;
-        	//HEATER_2_TEMP log
-            UIOMess.Raised = true;
-            UIOMess.RaisedCount = jcount;
-            UIOMess.Degraded = false;
-            UIOMess.DegradedCount = HisCon_GRIDTemp;
-            Fault_logcompress(HEATER_2_TEMP,&UIOMess);
-
-            DeGRID_Flag = true;
-        }
-        else
-        {
-            UIOMess.Raised = false;
-            UIOMess.RaisedCount = jcount;
-            UIOMess.Degraded = true;
-            UIOMess.DegradedCount = HisCon_GRIDTemp;
-            if(DeGRID_Flag == true)
-            {
-                Fault_logcompress(HEATER_2_TEMP,&UIOMess);
-                DeGRID_Flag = false;
-            }
-        }
-
-        memset(&UIOMess, 0, sizeof(UIOMess));
-        write(UIO_DAC_OD, &irq_on, sizeof(irq_on));
-        err = read(UIO_DAC_OD, &kcount, TEST_LEN);
-        /*printf("con_DAC_ODTemp : %d kconut : %d\n",err,kcount);
-        if (err != TEST_LEN)
-        {
-            perror("UIO_DAC_OD ERR \n");
-        }*/
-
-        if(kcount != HisCon_OD)
-        {
-        	HisCon_OD = kcount;
-        	//ADC_AD7689_ACCESS_FAILURE log 2?
-            UIOMess.Raised = true;
-            UIOMess.RaisedCount = kcount;
-            UIOMess.Degraded = false;
-            UIOMess.DegradedCount = HisCon_OD;
-            Fault_logcompress(ADC_AD7689_ACCESS_FAILURE,&UIOMess);
-
-            DeOD_Flag = true;
-        }
-        else
-        {
-            UIOMess.Raised = false;
-            UIOMess.RaisedCount = kcount;
-            UIOMess.Degraded = true;
-            UIOMess.DegradedCount = HisCon_OD;
-            if(DeOD_Flag == true)
-            {
-                Fault_logcompress(ADC_AD7689_ACCESS_FAILURE,&UIOMess);
-                DeOD_Flag = false;
-            }
-        }
-
-        memset(&UIOMess, 0, sizeof(UIOMess));
-        write(UIO_DAC_OA, &irq_on, sizeof(irq_on));
-        err = read(UIO_DAC_OA, &lconut, TEST_LEN);
-        /*printf("con_DAC_OATemp : %d lconut : %d\n",err,lconut);
-        if (err != TEST_LEN)
-        {
-            perror("UIO_DAC_OA ERR \n");
-        }*/
-        if(lconut != HisCon_OA)
-        {
-        	HisCon_OA = lconut;
-        	//ADC_AD7689_ACCESS_FAILURE log 2?
-            UIOMess.Raised = true;
-            UIOMess.RaisedCount = lconut;
-            UIOMess.Degraded = false;
-            UIOMess.DegradedCount = HisCon_OA;
-            Fault_logcompress(WATCH_DOG_EVENT,&UIOMess);
-
-            DeOA_Flag = true;
-        }
-        else
-        {
-            UIOMess.Raised = false;
-            UIOMess.RaisedCount = lconut;
-            UIOMess.Degraded = true;
-            UIOMess.DegradedCount = HisCon_OA;
-            if(DeOA_Flag == true)
-            {
-                Fault_logcompress(WATCH_DOG_EVENT,&UIOMess);
-                DeOA_Flag = false;
-            }
-        }
-
-
-	}
-	pthread_exit(NULL);
+    }
 }
 
+void AlarmModule::ProcessUIOAlarmMonitoring(void)
+{
+
+    while (thread_id != 0) // Add a flag for graceful termination
+    {
+        // Use poll() to wait for interrupts on all UIO devices
+        struct pollfd fds[4] = {
+            {UIO_LCOS_Temp, POLLIN, 0},
+            {UIO_GRID_Temp, POLLIN, 0},
+            {UIO_DAC_OD, POLLIN, 0},
+            {UIO_DAC_OA, POLLIN, 0}
+        };
+        int ret = poll(fds, 4, 5000); // Wait for 5 seconds
+        if (ret < 0)
+        {
+            perror("poll() failed");
+            continue;
+        }
+
+        // Process each UIO device
+        if (fds[0].revents & POLLIN)
+        {
+            ProcessUIODevice(UIO_LCOS_Temp, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
+            SpiCmdDecoder::hss.tempControlShutdown = DeLCOS_Flag;
+            SpiCmdDecoder::hss.internalFailure = DeOA_Flag;
+        }
+        if (fds[1].revents & POLLIN)
+        {
+            ProcessUIODevice(UIO_GRID_Temp, HisCon_GRIDTemp, DeGRID_Flag, HEATER_2_TEMP);
+            SpiCmdDecoder::hss.internalTempError = DeLCOS_Flag;
+            SpiCmdDecoder::hss.thermalShutdown = DeLCOS_Flag;
+        }
+        if (fds[2].revents & POLLIN)
+        {
+            ProcessUIODevice(UIO_DAC_OD, HisCon_OD, DeOD_Flag, ADC_AD7689_ACCESS_FAILURE);
+            SpiCmdDecoder::hss.powerSupplyError = DeOD_Flag;
+            SpiCmdDecoder::hss.powerRailError = DeOD_Flag;
+        }
+        if (fds[3].revents & POLLIN)
+        {
+            ProcessUIODevice(UIO_DAC_OA, HisCon_OA, DeOA_Flag, WATCH_DOG_EVENT);
+            SpiCmdDecoder::hss.opticalControlFailure = DeOA_Flag;
+            SpiCmdDecoder::hss.internalFailure = DeOA_Flag;
+        }
+        //SpiCmdDecoder::hss.caseTempError = DeCase_Flag;
+        //other hardware status polling below:
+        //ADC/DAC Access Error
+
+        //TRANSFER_FAILURE
+
+        //Watch_Dog_Event
+        //Firmware_Download_Failure
+        //...
+
+
+    }
+    pthread_exit(NULL);
+}
 void AlarmModule::StopThread()
 {
 

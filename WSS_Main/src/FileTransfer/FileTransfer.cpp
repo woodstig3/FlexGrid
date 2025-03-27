@@ -18,8 +18,9 @@ extern "C" {
 #include <algorithm> // Include this header for std::copy
 #include <cstring>
 #include <sys/stat.h>
-
+#include <sys/reboot.h>
 #include "FileTransfer.h"
+#include "Dlog.h"
 
 #define  MAX_PACKET_SIZE  2048
 
@@ -30,9 +31,7 @@ extern ThreadSafeQueue<bool> ackQueue;
 
 // Function to convert two hexadecimal characters to an integer
 uint16_t FileTransfer::hexCharToUint16(char high, char low) {
-//    	return (hexToInt(high) << 4) | hexToInt(low);
-//	return(static_cast<uint16_t>(strtoul(hexStr.c_str(), nullptr, 16)));
-	return((high << 8) | low);
+	return (hexToInt(high) << 8) | hexToInt(low);
 }
 
 // Helper function to convert a single hexadecimal character to an integer
@@ -208,7 +207,7 @@ bool FileTransfer::replaceFile(const std::string& oldFilename, const std::string
     // Rename the new file to the old filename
     if (rename(newFilename.c_str(), oldFilename.c_str()) != 0) {
         std::cerr << "Failed to replace old file with the new file: " << std::strerror(errno) << std::endl;
-        // Optionally, you might want to revert the backup if the rename fails
+        // Clean up the backup file if cannot use backup to restore the old file
         if (rename(backupFilename.c_str(), oldFilename.c_str()) != 0) {
             std::cerr << "Failed to revert backup to the old file: " << std::strerror(errno) << std::endl;
         }
@@ -322,16 +321,16 @@ void FileTransfer::processFirmwarePackets(int num_bytes ) {
     bool firmwareComplete = false;
 
     while (!firmwareComplete && m_firmwareUpgradeStarted == true) {
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
     	std::string packet;
         if (packetQueue.empty()) {
             // Optionally sleep for a short period to avoid busy-waiting
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
-#ifdef _WATCHDOG_SOFTRESET_
-		watchdog_feed();
-#endif
+
         packetQueue.pop(packet);
         std::cerr << "Firmware Packet received: " << packet.size() << std::endl;
 
@@ -340,7 +339,8 @@ void FileTransfer::processFirmwarePackets(int num_bytes ) {
 		{ //\0x03<packet_num><FW_bytes>\0x04
 
 			// Extract the packet number
-			uint16_t packet_num = hexCharToUint16(packet[1], packet[2]);
+            uint16_t packet_num = (static_cast<uint8_t>(packet[1]) << 8) | static_cast<uint8_t>(packet[2]);
+			//uint16_t packet_num = hexCharToUint16(packet[1], packet[2]);
 			if (packet_num != currentPacketNumber) {
 				std::cerr << "Unexpected packet number received. Expected: " << currentPacketNumber
 						  << ", Received: " << packet_num << std::endl;
@@ -410,16 +410,16 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
     bool firmwareComplete = false;
 
     while (!firmwareComplete && m_firmwareUpgradeStarted == true) {
-
+#ifdef _WATCHDOG_SOFTRESET_
+		watchdog_feed();
+#endif
     	std::string packet;
         if (packetQueue.empty()) {
             // Optionally sleep for a short period to avoid busy-waiting
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
-#ifdef _WATCHDOG_SOFTRESET_
-		watchdog_feed();
-#endif
+
         packetQueue.pop(packet);
         std::cerr << "LUT File Packet received: " << packet.size() << std::endl;
 
@@ -428,11 +428,18 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 		{ //\0x03<packet_num><FW_bytes>\0x04
 
 			// Extract the packet number
-			uint16_t packet_num = hexCharToUint16(packet[1], packet[2]);
+            uint16_t packet_num = (static_cast<uint8_t>(packet[1]) << 8) | static_cast<uint8_t>(packet[2]);
+			//uint16_t packet_num = hexCharToUint16(packet[1], packet[2]);
 //        	uint16_t packet_num = hexCharToUint16(packet.substr(1,4));
 			if (packet_num != currentPacketNumber) {
 				std::cerr << "Unexpected packet number received. Expected: " << currentPacketNumber
 						  << ", Received: " << packet_num << std::endl;
+	            FaultsAttr attr = {0};
+	            attr.Raised = true;
+	            attr.RaisedCount += 1;
+	            attr.Degraded = false;
+	            attr.DegradedCount = attr.RaisedCount;
+	            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, attr);
 				continue;
 			}
 
@@ -448,6 +455,12 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 			//
 			if (firmwareFile.bad() || !firmwareFile.good()) {
 			    std::cerr << "Error writing to file: " << m_newFirmwarePath << std::endl;
+			    FaultsAttr attr = {0};
+				attr.Raised = true;
+				attr.RaisedCount += 1;
+				attr.Degraded = false;
+				attr.DegradedCount = attr.RaisedCount;
+				FaultMonitor::logFault(FLASH_ACCESS_FAILURE, attr);
 			    continue;
 			}
 			// Check if this is the last packet
@@ -462,6 +475,12 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 
 		} else {
             std::cerr << "Received an unexpected message that is not a lut file packet." << std::endl;
+            FaultsAttr attr = {0};
+            attr.Raised = true;
+            attr.RaisedCount += 1;
+            attr.Degraded = false;
+            attr.DegradedCount = attr.RaisedCount;
+            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, attr);
         }
     }
 
@@ -564,20 +583,51 @@ void FileTransfer::handlePrepareToRead(int numBytesToRead, std::string strPath)
 	startHECFileRead(numBytesToRead,strPath);
 }
 
+void FileTransfer::handleSwitchCommand()
+{
+    // SWITCH
+    std::ofstream flag_file("/mnt/firmware_flag");
+    if (flag_file) {
+        flag_file << "SWITCH";
+        flag_file.close();
+    } else {
+        std::cerr << "ERROR: Cannot write to firmware_flag" << std::endl;
+        return;
+    }
+    std::cout << "SWITCH flag set. System will reboot." << std::endl;
+}
+
 void FileTransfer::handleCommitCommand()
 {
 	//handle fw new version taking into effect by restart
-
+    try {
+        // reboot
+        reboot_system();
+    } catch (const std::exception& e) {
+        std::cerr << "Commit error: " << e.what() << std::endl;
+    }
 }
 
+void FileTransfer::handleRevertCommand() {
+    // REVERT
+    std::ofstream flag_file("/mnt/firmware_flag");
+    if (flag_file) {
+        flag_file << "REVERT";
+        flag_file.close();
+    } else {
+        std::cerr << "ERROR: Cannot write to firmware_flag" << std::endl;
+        return;
+    }
+    //
+    std::cout << "REVERT flag set. System will reboot." << std::endl;
+}
 
-void FileTransfer::handleSwitchCommand()
-{
-	stopFirmwareUpgrade();
-	b_Start_Download = false;
-	//handle file version switch
-	//by writing a flag activeVer = backup or main in an ini file for boot-up shell script to read and
-	//determine which version to run with
+void FileTransfer::reboot_system() {
+
+	sync(); // Ensure that data is written to disk
+	if (reboot(RB_AUTOBOOT) == -1) {
+		throw std::runtime_error("Linux reboot failed: " + std::string(strerror(errno)));
+	}
 
 }
 

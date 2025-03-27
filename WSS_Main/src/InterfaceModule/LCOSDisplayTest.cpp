@@ -5,7 +5,10 @@
  *      Author: Administrator
  */
 
-#include "InterfaceModule/LCOSDisplayTest.h"
+#include "LCOSDisplayTest.h"
+#include "Dlog.h"
+
+bool g_OpticalControl_Failure = false;
 
 LCOSDisplayTest::LCOSDisplayTest()
 {
@@ -113,9 +116,10 @@ int LCOSDisplayTest::RunTest()
 	m_mmap.WriteRegister_Reg2(0x04, input);
 	//printf("Write 0x04 register value =  %02x\n\r", input);
 
-	AnalyseDisplayTest_Data(first_data_in_read, second_data_in_read);
+	LCOSDisplayTest lcosTest;
+	int result = lcosTest.AnalyseDisplayTest_Data(first_data_in_read, second_data_in_read);
 
-	return (0);
+	return (result);
 }
 
 int LCOSDisplayTest::AnalyseDisplayTest_Data(uint32_t first_data_in_read, uint32_t second_data_in_read)
@@ -141,6 +145,16 @@ int LCOSDisplayTest::AnalyseDisplayTest_Data(uint32_t first_data_in_read, uint32
 			printf("D%02d: X\n", i);		// two space for character and one space for distance between pins
 			oss << "D" << i << ": X" << "\n";
 
+			g_OpticalControl_Failure = true;  //added for spi hss query
+
+			//zte cmd get:fault.N
+			FaultsAttr attr{0};
+			attr.Raised = true;
+			attr.RaisedCount += 1;
+			attr.Degraded = false;
+			attr.DegradedCount = attr.RaisedCount;
+			FaultMonitor::logFault(TRANSFER_FAILURE,attr);
+
 		}
 		else
 		{
@@ -152,7 +166,10 @@ int LCOSDisplayTest::AnalyseDisplayTest_Data(uint32_t first_data_in_read, uint32
 
 	outputStr = oss.str();
 
-	return (0);
+	if(g_OpticalControl_Failure == true)
+		return (-1);
+	else
+		return (0);
 }
 
 void LCOSDisplayTest::GetResult(std::string &output)
