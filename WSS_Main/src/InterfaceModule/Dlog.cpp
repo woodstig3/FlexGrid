@@ -5,6 +5,7 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
+#include <sys/stat.h>
 #include "Dlog.h"
 
 std::string FNmask[] =
@@ -12,8 +13,8 @@ std::string FNmask[] =
 	"HEATER_1_TEMP",
 	"HEATER_2_TEMP",
 	"TEC_TEMP",
-	"ADC_AD7490_ACCESS_FAILURE",
-	"DAC_AD7554_ACCESS_FAILURE",
+	"ADC_AD7689_ACCESS_FAILURE",
+	"DAC_AD5624_ACCESS_FAILURE",
 	"DAC_LTC2620_ACCESS_FAILURE",
 	"TRANSFER_FAILURE",
 	"WATCH_DOG_EVENT",
@@ -116,12 +117,16 @@ void Fault::setupADCConditions() {
 
 void FaultMonitor::logFault(FaultsName faultNumber, FaultsAttr& attr) {
 
-	std::time_t now = std::time(nullptr); // Get current time in seconds
+    std::time_t now = std::time(nullptr);
+    char buffer[80];
+    std::strftime(buffer, sizeof(buffer), "%a %b %d %H:%M:%S %Y", std::localtime(&now));
+	// std::time_t now = std::time(nullptr); // Get current time in seconds
 	// Create Fault object
 
 	Fault fault(
         FNmask[faultNumber],                    //faultInfo["Name"] =
-		std::ctime(&now),                       //faultInfo["Timestamp"]
+        buffer,                                 //faultInfo["Timestamp"]
+		//std::ctime(&now),                       //faultInfo["Timestamp"]
         attr.Degraded,                          //faultInfo["Degraded"] == "TRUE",
         attr.DegradedCount,                     //std::stoi(faultInfo["DegradedCount"]),
         attr.Raised,                            //faultInfo["Raised"] == "TRUE",
@@ -133,7 +138,27 @@ void FaultMonitor::logFault(FaultsName faultNumber, FaultsAttr& attr) {
 }
 
 void FaultMonitor::logToFile(const Fault& fault) {
-    std::ofstream logFile(LOG_FILE, std::ios::out | std::ios::app);
+    // std::ofstream logFile(LOG_FILE, std::ios::out | std::ios::app);
+    // if (!logFile) {
+    //     std::cerr << "Error opening log file" << std::endl;
+    //     return;
+    // }
+
+    const size_t MAX_LOG_SIZE = 1024 * 1024; // 1MB limit
+    std::ios_base::openmode mode = std::ios::app; // Default append mode
+    // Check existing file size
+    struct stat file_stat;
+    if (stat(LOG_FILE, &file_stat) == 0) {
+        if (file_stat.st_size >= MAX_LOG_SIZE) {
+            mode = std::ios::trunc; // Switch to truncate mode when over limit
+            std::cout << "Log reached " << file_stat.st_size 
+                    << " bytes, truncating..." << std::endl;
+        }
+    } else if (errno != ENOENT) { // Ignore file-not-exist errors
+        std::cerr << "Log size check failed: " << strerror(errno) << std::endl;
+    }
+    // Open file (append or truncate mode)
+    std::ofstream logFile(LOG_FILE, std::ios::out | mode);
     if (!logFile) {
         std::cerr << "Error opening log file" << std::endl;
         return;
@@ -152,41 +177,60 @@ void FaultMonitor::logToFile(const Fault& fault) {
 }
 
 std::string FaultMonitor::getFaultInfo(int faultNumber) {
+    // Check if faultNumber is valid
+    if (faultNumber < 1 || faultNumber > sizeof(FNmask)/sizeof(FNmask[0])) {
+        return "Error: Invalid fault number";
+    }
     std::ifstream logFile(LOG_FILE);
     if (!logFile) {
         return "Error: Could not open log file";
     }
-
+    // Get target fault name from FNmask array
+    std::string targetFaultName = "Fault Name: " + FNmask[faultNumber - 1];
     std::vector<std::string> faultEntry;
-    if (!findFaultEntry(logFile, faultNumber, faultEntry)) {
-        return "Error: Fault number not found";
+    // Search for the last occurrence of the target fault entry
+    if (!findLastFaultEntry(logFile, targetFaultName, faultEntry)) {
+        return "Error: Fault not found";
     }
 
     return formatFaultEntry(faultEntry);
 }
 
-bool FaultMonitor::findFaultEntry(std::ifstream& file, int faultNumber, std::vector<std::string>& entry) {
+bool FaultMonitor::findLastFaultEntry(std::ifstream& file, const std::string& targetFaultName, std::vector<std::string>& entry) {
     std::string line;
-    int currentFault = 1;
-    entry.clear();
-
+    std::vector<std::string> currentEntry;
+    bool isTargetEntry = false;
+    bool found = false;
     while (std::getline(file, line)) {
+        // Check if the line is a "Fault Name:" line
         if (line.find("Fault Name:") != std::string::npos) {
-            currentFault++;
-            entry.clear();  // Start new entry
-        }
-
-        if (currentFault == faultNumber) {
-            entry.push_back(line);
-
-            // Check if we've reached the end of the entry
-            if (line.find("----") != std::string::npos) {
-                return true;  // Found the complete entry
+            // If it matches the target fault name, start new entry
+            if (line == targetFaultName) {
+                currentEntry.clear();
+                isTargetEntry = true;
+                found = true;  // Mark that we've found at least one occurrence
+            } else {
+                isTargetEntry = false;
             }
         }
+        // Record content if it's the target entry
+        if (isTargetEntry) {
+            currentEntry.push_back(line);
+        }
+        // Check for entry end marker (40 '-')
+        if (line.find("----------------------------------------") != std::string::npos) {
+            // Save current entry if it's the target and properly closed
+            if (isTargetEntry) {
+                entry = currentEntry;
+            }
+            isTargetEntry = false;
+        }
     }
-
-    return false;  // Fault number not found
+    // Handle case where entry is not properly closed at EOF
+    if (isTargetEntry) {
+        entry = currentEntry;
+    }
+    return found;
 }
 
 std::string FaultMonitor::formatFaultEntry(const std::vector<std::string>& entry) {

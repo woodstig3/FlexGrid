@@ -14,19 +14,17 @@
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
-#include "Dlog.h"
 
-#include "OCMTransfer.h"
 #include "CmdDecoder.h"
 #include "LCOSDisplayTest.h"
-#include "SpiCmdDecoder.h"
+
 
 extern double g_direct_LCOS_Temp;
 extern double g_direct_Hearter2_Temp;
 
 extern ThreadSafeQueue<std::string> packetQueue;
 
-FixedGrid CmdDecoder::FG_Channel_DS_For_Pattern[3][g_Total_Channels]{ 0 }; // new FixedGrid[3][g_Total_Channels]();
+FixedGrid CmdDecoder::FG_Channel_DS_For_Pattern[3][g_Total_Channels]{0}; // new FixedGrid[3][g_Total_Channels]();
 std::string out;
 using namespace std;
 
@@ -177,6 +175,13 @@ void CmdDecoder::GetDownloadFilePath(int eObj, std::string& strOldPath, std::str
 			strOldPath = "/mnt/SigmaL_LUT_M2.csv";
 			break;
 		default:
+			std::cerr << "Calib File mismatch! Please check transfer command! " << std::endl;
+			std::lock_guard<std::mutex> lock(m_calibFileMismatch.mtx);
+			m_calibFileMismatch.Raised = true;
+			m_calibFileMismatch.RaisedCount += 1;
+			m_calibFileMismatch.Degraded = true;
+			m_calibFileMismatch.DegradedCount = m_calibFileMismatch.RaisedCount;
+			FaultMonitor::logFault(CALIB_FILE_MISMATCH,m_calibFileMismatch);  // File existence check failed
 			return;
 
 	}
@@ -1204,7 +1209,7 @@ int CmdDecoder::SearchVerb(std::string & verb)
 			eVerb = ADD;
 		else
 		{
-			cout << "ERROR: The command verb is wrong" << endl;
+			cout << "ERROR: The command verb is wrong: " << verb << endl;
 			return (VERB_WRONG);
 		}
 	}
@@ -1216,13 +1221,13 @@ int CmdDecoder::SearchVerb(std::string & verb)
 			eVerb = ACTION;
 		else
 		{
-			cout << "ERROR: The command verb is wrong" << endl;
+			cout << "ERROR: The command verb is wrong: " << verb << endl;
 			return (VERB_WRONG);
 		}
 	}
 	else	// Assume Verb doesn't exist, so we check for Object, i.e. ch.1.1 etc. if found means verb not found
 	{
-		cout << "ERROR: The command verb is wrong" << endl;
+		cout << "ERROR: The command verb is wrong: " << verb << endl;
 		return (VERB_WRONG);
 	}
 
@@ -1276,7 +1281,7 @@ int CmdDecoder::SearchObject(std::string &object)
 									}
 									else
 									{
-										cout << "ERROR: The Module Number is wrong" << endl;
+										cout << "ERROR: The Module Number is wrong: " << g_moduleNum << endl;
 										return (-1);
 									}
 								}
@@ -2808,7 +2813,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								if((TF_Channel_DS[g_moduleNum][g_channelNum].BW/2 + fValue) > VENDOR_FREQ_RANGE_HIGH ||
 										(fValue - TF_Channel_DS[g_moduleNum][g_channelNum].BW/2) < VENDOR_FREQ_RANGE_LOW)
 								{
-									cout << "ERROR: The channel is out of range" << endl;
+									cout << "ERROR: The channel is out of range: FC " << fValue << " BW " << TF_Channel_DS[g_moduleNum][g_channelNum].BW << endl;
 									PrintResponse("\01INVALID_FREQUENCY_CHANGE\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
@@ -2826,7 +2831,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 						else
 						{
-							cout << "ERROR: The Fc is out of range" << endl;
+							cout << "ERROR: The Fc is out of range: FC " << fValue << endl;
 							PrintResponse("\01INVALID_FREQUENCY_CHANGE\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -2967,7 +2972,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 					if (Sscanf(attr[1], fValue, 'f'))
 					{
 #ifdef _DEVELOPMENT_MODE_
-						if(fValue > 0)		// BW +ve
+						if(fValue > 0)		// BW
 #else
 						if(fValue > VENDOR_MIN_BW && fValue < VENDOR_BW_RANGE_HIGH) //drc modified to VENDOR_MIN_BW
 #endif
@@ -2982,7 +2987,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								if((TF_Channel_DS[g_moduleNum][g_channelNum].FC + fValue/2) > VENDOR_FREQ_RANGE_HIGH ||
 										(TF_Channel_DS[g_moduleNum][g_channelNum].FC - fValue/2) < VENDOR_FREQ_RANGE_LOW)
 								{
-									cout << "ERROR: The BW Range is unacceptable" << endl;
+									cout << "ERROR: The BW Range is unacceptable: " << fValue << endl;
 									PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
@@ -2991,13 +2996,13 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 								TF_Channel_DS[g_moduleNum][g_channelNum].F2 = TF_Channel_DS[g_moduleNum][g_channelNum].FC + TF_Channel_DS[g_moduleNum][g_channelNum].BW/2;
 							}
 						else{
-							// Get the float value of BW
-							TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue;
+								// Get the float value of BW
+								TF_Channel_DS[g_moduleNum][g_channelNum].BW = fValue;
 							}
 						}
 						else
 						{
-							cout << "ERROR: The BW Range is unacceptable" << endl;
+							cout << "ERROR: The BW Range is unacceptable: " << fValue << endl;
 							PrintResponse("\01INVALID_BANDWIDTH\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
@@ -3426,7 +3431,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 									return (-1);
 
 								}
-
 							}
 						}
 						else
@@ -3556,7 +3560,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				break;
 			}
 #ifdef _DEVELOPMENT_MODE_
-
 			case 'L':
 			{
 				if (attr[0] == "LAMDA")
@@ -4483,8 +4486,8 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 								if(iValue == 1)
 									PrintResponse("\01DHS124-C\04", ERROR_HI_PRIORITY);			// Send special code to WSScalibre software for developmode initialization
-								else
-									PrintResponse("\01DHS124-NC\04", ERROR_HI_PRIORITY);
+//								else
+//									PrintResponse("\01DHS124-NC\04", ERROR_HI_PRIORITY);
 							}
 							else
 							{
@@ -4576,6 +4579,12 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						if(status == -1)
 						{
 							PrintResponse("\01EEPROM VERIFICATION FAILED. TRY AGAIN\04", ERROR_HI_PRIORITY);
+							std::lock_guard<std::mutex> lock(m_eepromAccessFailure.mtx);
+							m_eepromAccessFailure.Raised = true;
+							m_eepromAccessFailure.RaisedCount += 1;
+							m_eepromAccessFailure.Degraded = true;
+							m_eepromAccessFailure.DegradedCount = m_eepromAccessFailure.RaisedCount;
+							FaultMonitor::logFault(EEPROM_ACCESS_FAILURE, m_eepromAccessFailure);
 							return (-1);
 						}
 					}
@@ -5767,12 +5776,11 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
 				// \01 delimiter added
-				buffLenTemp += sprintf(&buff[buffLenTemp], "CALFILE%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "type=%s\nsequence\n=%s\nmajorVersion=%d\n"
-															"minorVersion=%d\nserialNumber=%s\nproductCode=%s\n"
-															"sequenceNumber=%s\ndate=%s\n",
-															SpiCmdDecoder::conf_spi.mid.c_str(), SpiCmdDecoder::conf_spi.lbl.c_str(), SpiCmdDecoder::conf_spi.hwr, SpiCmdDecoder::conf_spi.fwr,
-															 SpiCmdDecoder::conf_spi.lbl.c_str(),  SpiCmdDecoder::conf_spi.mid.c_str(),SpiCmdDecoder::conf_spi.sno.c_str(),SpiCmdDecoder::conf_spi.mfd.c_str());
+				buffLenTemp += sprintf(&buff[buffLenTemp], "CALFILE\t%d:\n", g_moduleNum);	//Fill this string and get the length filled.
+				buffLenTemp += sprintf(&buff[buffLenTemp], "type\t\t=\t%s\nsequence\t\t=\t%s\nmajorVersion\t=\t%s\n"
+															"minorVersion\t=\t%s\nserialNumber\t=\t%s\nproductCode\t=\t%s\n"
+															"sequenceNumber\t=\t%s\ndate\t\t=\t%s\n",
+															"channels", "1-2-3", "v3", "v1", "2020-01", "9999","3","6th June 2021");
 
 				g_bNoAttribute = false;
 			}
@@ -5780,35 +5788,35 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			{
 				if (attributes == "TYPE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  Type=%s", "  Type=%s", true, SpiCmdDecoder::conf_spi.mid);
+					FillBuffer_ConcatAttributes("CALFILE.%d:  Type\t\t=\t%s", "  Type\t\t=\t%s", true, "channels");
 				}
 				else if (attributes == "SEQUENCE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  Sequence=%s", "  Sequence=%s", true, SpiCmdDecoder::conf_spi.lbl);
+					FillBuffer_ConcatAttributes("CALFILE.%d:  Sequence\t\t=\t%s", "  Sequence\t\t=\t%s", true, "1-2-3");
 				}
 				else if (attributes == "MAJORVERSION")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  nmajorVersion=%l", "  majorVersion=%l", true, SpiCmdDecoder::conf_spi.hwr);
+					FillBuffer_ConcatAttributes("CALFILE.%d:  nmajorVersion\t=\t%s", "  majorVersion\t=\t%s", true, "v3");
 				}
 				else if (attributes == "MINORVERSION")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  minorVersion=%l", "  minorVersion=%l", true, SpiCmdDecoder::conf_spi.fwr);
+					FillBuffer_ConcatAttributes("CALFILE.%d:  minorVersion\t=\t%s", "  minorVersion\t=\t%s", true, "v1");
 				}
 				else if (attributes == "SERIALNUMBER")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  serialNumber=%s", "  serialNumber=%s", true, SpiCmdDecoder::conf_spi.sno.c_str());
+					FillBuffer_ConcatAttributes("CALFILE.%d:  serialNumber\t=\t%s", "  serialNumber\t=\t%s", true, "2020-01");
 				}
 				else if (attributes == "PRODUCTCODE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  productCode\t=%s", "  productCode=%s", true, SpiCmdDecoder::conf_spi.mid.c_str());
+					FillBuffer_ConcatAttributes("CALFILE.%d:  productCode\t=\t%s", "  productCode\t=\t%s", true, "9999");
 				}
 				else if (attributes == "SEQUENCENUMBER")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  sequenceNumber=%s", "  sequenceNumber=%s", true, SpiCmdDecoder::conf_spi.lbl.c_str());
+					FillBuffer_ConcatAttributes("CALFILE.%d:  sequenceNumber\t=\t%s", "  sequenceNumber\t=\t%s", true, "3");
 				}
 				else if (attributes == "DATE")
 				{
-					FillBuffer_ConcatAttributes("CALFILE.%d:  date=%s", "  date=%s", true, SpiCmdDecoder::conf_spi.mfd.c_str());
+					FillBuffer_ConcatAttributes("CALFILE.%d:  date\t\t=\t%s", "  date\t\t=\t%s", true, "6th June 2021");
 				}
 				else
 				{
@@ -5823,11 +5831,28 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 		{
 			if (eGet == ALL_ATTR_OF_CH)		// Print all attributes
 			{
+				const std::string state = file_transfer->getCurrentState();
+				const std::string activeBank = file_transfer->getActiveBank();
+				const bool permanentFlag = file_transfer->getPermanentFlag();
+				const bool temporaryFlag = file_transfer->getTemporaryFlag();
+				const char* permFlagStr = permanentFlag ? "true" : "false";
+				const char* tempFlagStr = temporaryFlag ? "true" : "false";
+
+				//std::cout << "[INFO] Print ActiveBank content: " << activeBank << std::endl;
 				// \01 delimiter added
 				buffLenTemp += sprintf(&buff[buffLenTemp], "FWUPGRADE\t%d:\n", g_moduleNum);	//Fill this string and get the length filled.
-				buffLenTemp += sprintf(&buff[buffLenTemp], "state\t\t=\t%s\nactiveBank\t\t=\t%s\npermanentFlag\t=\t%s\n"
-															"temporaryFlag\t=\t%s\nfirmwareBankA\t=\t%s\nfirmwareBankB\t=\t%s\n",
-															"Running", "BANK A", "TRUE", "FALSE", "2025-01", "2021-02");
+				buffLenTemp += sprintf(
+					&buff[buffLenTemp], 
+					"state\t\t=\t%s\n"
+					"activeBank\t\t=\t%s\n"
+					"permanentFlag\t=\t%s\n"
+					"temporaryFlag\t=\t%s\n"
+					"firmwareBankA\t=\t%s\n"
+					"firmwareBankB\t=\t%s\n",
+					state.c_str(), activeBank.c_str(), permFlagStr, tempFlagStr, "2025-01", "2025-02"
+				);
+				// buffLenTemp += sprintf(&buff[buffLenTemp], "state\t\t=\t%s\nactiveBank\t\t=\t%s\npermanentFlag\t=\t%s\ntemporaryFlag\t=\t%s\nfirmwareBankA\t=\t%s\nfirmwareBankB\t=\t%s\n",
+				// 	"Running", "BANK A", "TRUE", "FALSE", "2025-01", "2025-02");
 
 				g_bNoAttribute = false;
 			}

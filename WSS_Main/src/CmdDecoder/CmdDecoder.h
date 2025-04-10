@@ -204,6 +204,9 @@ public:
 	ActionVrb *actionSR = new ActionVrb(*this);
 
 	FileTransfer  *file_transfer;
+	//static std::unique_ptr<FileTransfer> file_transfer;
+	FaultsAttr m_calibFileMismatch; 
+	FaultsAttr m_eepromAccessFailure; 
 
 };
 

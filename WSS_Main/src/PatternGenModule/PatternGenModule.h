@@ -16,7 +16,7 @@
 #include <fstream>
 #include <cstring>	// for memset and strerror
 
-#include "SerialModule.h"
+//#include "SerialModule.h"
 #include "PatternCalibModule.h"
 #include "TemperatureMonitor.h"
 
@@ -120,6 +120,9 @@ public:
 	unsigned char 		RotatedSquare[2160][4320]{}; // double the resolution
 	unsigned char   	BackgroundColumnData[g_LCOS_Height]{0}; //drc added to store background grating gray scale value
 	Background_DS_For_Pattern  Module_Background_DS_For_Pattern[3]{};  //drc added for 2 module background configuration, index start from 1 not 0
+
+	FaultsAttr m_wssAccessFailure;
+	FaultsAttr m_transferFailure;
 
 
 #ifdef _OCM_SCAN_

@@ -339,6 +339,8 @@ void PatternCalibModule::Calculation_Sigma()
 	        {
 		        // Perform calculations
 		        //std::cout << "Sigma Thread Performing Interpolations..." << std::endl;
+		        //std::cout << "Temperature: " << Sigma_params.temperature << std::endl;
+		        //std::cout << "Frequency: " << Sigma_params.freq << std::endl;
 		        int status = Interpolate_Sigma_Bilinear(Sigma_params.temperature, Sigma_params.freq, Sigma_params.port, Sigma_params.cmp, Sigma_params.result_Sigma);
 
 
@@ -393,14 +395,14 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 	        	//  3- If FC is within range but F1 or F2 are out of range then find FC pixel position and of F1 or F2.
 	        	// OR if both F1 F2 are out of range but FC is within range then
 
-		        //std::cout << "Sigma Thread Performing Interpolations..." << std::endl;
+//		        std::cout << "PixelPos Thread Performing Interpolations... Temperature at: " << Pixel_Pos_params.temperature << std::endl;
 		        int status = Interpolate_PixelPos_Bilinear(Pixel_Pos_params.temperature, Pixel_Pos_params.f1, Pixel_Pos_params.result_F1_PixelPos);
 
 		        if(status != 0)
 		        {
 		        	// ERROR MESSAGE
 		        	Pixel_Pos_params.result_F1_PixelPos = 0;	// F1 not found means F1 is out of range
-		        	std::cout << "F1 out of range" << std::endl;
+		        	std::cout << "F1 out of range: " << Pixel_Pos_params.f1 << std::endl;
 		        }
 
 		        status = Interpolate_PixelPos_Bilinear(Pixel_Pos_params.temperature, Pixel_Pos_params.f2, Pixel_Pos_params.result_F2_PixelPos);
@@ -408,7 +410,7 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 		        if(status != 0)
 		        {
 		        	// ERROR MESSAGE
-		        	std::cout << "F2 out of range" << std::endl;
+		        	std::cout << "F2 out of range： " << Pixel_Pos_params.f2 << std::endl;
 		        	Pixel_Pos_params.result_F2_PixelPos = 1951.99;	// F2 not found means F2 is out of range
 		        }
 
@@ -416,7 +418,6 @@ void PatternCalibModule::Calculation_Pixel_Shift()
 		        {
 		        	// In either case of F1/F2 is not found we find FC.
 		        	status = Interpolate_PixelPos_Bilinear(Pixel_Pos_params.temperature, Pixel_Pos_params.fc, Pixel_Pos_params.result_FC_PixelPos);
-
 		        	if(status != 0)
 		        		std::cout << "FC out of range" << std::endl;
 		        }

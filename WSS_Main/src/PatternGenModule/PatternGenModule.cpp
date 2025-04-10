@@ -13,9 +13,9 @@
 
 
 #include "PatternGenModule.h"
-#include "DataStructures.h"
-#include "Dlog.h"
-#include "LCOSDisplayTest.h"
+//#include "DataStructures.h"
+//#include "LCOSDisplayTest.h"
+//#include "SpiCmdDecoder.h"
 #include "wdt.h"
 
 clock_t tstart;
@@ -116,16 +116,16 @@ void PatternGenModule::ProcessPatternGeneration(void)
 	enum bTrigger {NONE,TEMP_CHANGED, COMMAND_CAME};
 	bTrigger etrigger = NONE;
 
-	//self-test lcos panel pin status
+	/*self-test lcos panel pin status
 	if(LCOSDisplayTest::RunTest() != 0) {
-		FaultsAttr attr = {0};
-		attr.Raised = true;
-		attr.RaisedCount += 1;
-		attr.Degraded = false;
-		attr.DegradedCount = attr.RaisedCount;
-		FaultMonitor::logFault(WSS_ACCESS_FAILURE, attr);
+		std::lock_guard<std::mutex> lock(m_wssAccessFailure.mtx);
+        m_wssAccessFailure.Raised = true;
+        m_wssAccessFailure.RaisedCount += 1;
+        m_wssAccessFailure.Degraded = true;
+        m_wssAccessFailure.DegradedCount = m_wssAccessFailure.RaisedCount;
+		FaultMonitor::logFault(WSS_ACCESS_FAILURE, m_wssAccessFailure);
 
-	}
+	}*/
 
 	Load_Background_LUT(); //drc added for loading parameters for background pattern display
 	loadBackgroundPattern();
@@ -209,7 +209,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)	// Unlocking and checking the result, if lock was successful and no deadlock happened
 				std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
 		}
-
+#ifndef _SPI_INTERFACE_
 		if(is_bRestarted == 0)
 		{
 			is_bRestarted = 1;
@@ -218,6 +218,16 @@ void PatternGenModule::ProcessPatternGeneration(void)
 #ifdef _TWIN_WSS_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(2) == false)
 				std::cout << "No stored module 2 pattern" << std::endl;
+#endif
+#else
+		if(SpiCmdDecoder::conf_spi.sus == 1)
+		{
+			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
+				std::cout << "No stored module 1 pattern" << std::endl;
+#ifdef _TWIN_WSS_
+			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(2) == false)
+				std::cout << "No stored module 2 pattern" << std::endl;
+#endif
 #endif
 		}
 
@@ -231,12 +241,12 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			if(ocmTrans.SendPatternData(fullPatternData) == 0)
 				std::cout << "Pattern Transfer Success!!\n";
 			else {
-				FaultsAttr attr = {0};
-				attr.Raised = true;
-				attr.RaisedCount += 1;
-				attr.Degraded = false;
-				attr.DegradedCount = attr.RaisedCount;
-				FaultMonitor::logFault(TRANSFER_FAILURE, attr);
+				std::lock_guard<std::mutex> lock(m_transferFailure.mtx);
+				m_transferFailure.Raised = true;
+				m_transferFailure.RaisedCount += 1;
+				m_transferFailure.Degraded = false;
+				m_transferFailure.DegradedCount = m_transferFailure.RaisedCount;
+				FaultMonitor::logFault(TRANSFER_FAILURE,m_transferFailure);
 			}
 
 			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);
@@ -1027,7 +1037,9 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			inputs.ch_cmp = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].CMP;
 
 //			double ch_bw_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW_C;  //added for 120 wl test
-			double ch_bw_c = ch_bw-20; //according to experiment
+			double ch_bw_c;
+			if(ch_bw >20)
+				ch_bw_c = ch_bw-20;//according to experiment
 //			float  ch_att_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ATT_C;  //added for 120 wl test
 			float  ch_att_c = 0.5;     //according to experiment
 //			float  edg_factor = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].EDG_FACTOR;  //added for 120 wl test
@@ -1038,6 +1050,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
 			{
+				if(ch_bw <= 4)
+					continue;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw-4)/2;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw-4)/2;
 
@@ -1081,7 +1095,6 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 				edgeK_Att = outputs.Katt;
 
 				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt, outputs.Aatt, edgeK_Att, 2); //2: right edge
-
 
 
 				Fill_Channel_ColumnData(channelNo-1);
@@ -1192,7 +1205,9 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			double ch_bw = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
 
 //			double ch_bw_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW_C;  //added for 120 wl test
-			double ch_bw_c = ch_bw-20; //according to experiment
+			double ch_bw_c = 0;
+			if (ch_bw > 20)
+				ch_bw_c = ch_bw-20; //according to experiment
 //			float  ch_att_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ATT_C;  //added for 120 wl test
 			float  ch_att_c = 0.5;     //according to experiment
 //			float  edg_factor = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].EDG_FACTOR;  //added for 120 wl test
@@ -1418,7 +1433,9 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			double ch_bw = g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
 			inputs.ch_cmp = g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].CMP;
 
-			double ch_bw_c = ch_bw-20; //according to experiment
+			double ch_bw_c = 0;
+			if(ch_bw > 20)
+				ch_bw_c = ch_bw-20; //according to experiment
 			float  ch_att_c = 0.5;     //according to experiment
 			float  edg_factor = 1;     //according to experiment
 
@@ -1427,6 +1444,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			if(g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
 			{
+				if(ch_bw >= 4)
+					continue;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw-4)/2;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw-4)/2;
 
@@ -1458,7 +1477,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 	//				std::cout << "Right Edge Position:" << outputs.F2_PixelPos << std::endl;
 				edge_Att = outputs.F2_PixelPos - floor(outputs.F2_PixelPos);
 				edge_Att = (channel_Att + abs(10*log10(edge_Att)) > MAX_ATT_BLOCK? MAX_ATT_BLOCK: channel_Att + abs(10*log10(edge_Att)));
-				inputs.ch_att = edge_Att;
+
+				inputs.ch_att = edge_Att*edg_factor;
 				status = Find_Parameters_By_Interpolation(inputs, outputs, false, false, true, false);		// Interpolate K_Att parameters for edge
 				edgeK_Att = outputs.Katt;
 	//				std::cout << "Product Mode Right Edge K_Att:" << outputs.Katt << std::endl;
@@ -1571,7 +1591,9 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			double ch_bw = g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
 
 //			double ch_bw_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW_C;  //added for 120 wl test
-			double ch_bw_c = ch_bw-20; //according to experiment
+			double ch_bw_c = 0;
+			if(ch_bw > 20)
+				ch_bw_c = ch_bw-20; //according to experiment
 //			float  ch_att_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ATT_C;  //added for 120 wl test
 			float  ch_att_c = 0.5;     //according to experiment
 //			float  edg_factor = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].EDG_FACTOR;  //added for 120 wl test
@@ -1582,6 +1604,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			if(g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
 			{
+				if(ch_bw >= 4)
+					continue;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw-4)/2;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw-4)/2;
 
@@ -2470,9 +2494,9 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 	int i = 0;
 	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 	int ch_start_pixelLocation = floor(f1_PixelPos);
-//	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
+	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
 	int ch_end_pixelLocation = floor(f2_PixelPos);
-//	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
+	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
 
 	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919/1951, width should be 1920/1952
 
@@ -3229,7 +3253,7 @@ int PatternGenModule::Find_Parameters_By_Interpolation(inputParameters &ins, out
 		{
 			g_patternCalib->Set_Aatt_Katt_Args(ins.ch_adp,ins.ch_fc, ins.ch_att);
 			g_ready2 = true;					// Setting it to false will cause no calculation for that thread
-//			std::cout << "INPUT ATT: " << ins.ch_att << std::endl;
+			//std::cout << "INPUT ATT: " << ins.ch_att << std::endl;
 		}
 
 		if(interpolatePixelPos)
@@ -3672,12 +3696,12 @@ void PatternGenModule::loadBackgroundPattern()
 	if(ocmTrans.SendPatternData(fullPatternData) == 0)
 		std::cerr << "Background Pattern Transfer Success!!\n";
 	else {
-		FaultsAttr attr = {0};
-		attr.Raised = true;
-		attr.RaisedCount += 1;
-		attr.Degraded = false;
-		attr.DegradedCount = attr.RaisedCount;
-		FaultMonitor::logFault(TRANSFER_FAILURE, attr);
+		std::lock_guard<std::mutex> lock(m_transferFailure.mtx);
+		m_transferFailure.Raised = true;
+		m_transferFailure.RaisedCount += 1;
+		m_transferFailure.Degraded = false;
+		m_transferFailure.DegradedCount = m_transferFailure.RaisedCount;
+		FaultMonitor::logFault(TRANSFER_FAILURE,m_transferFailure);
 	}
 #ifdef _FETCH_PATTERN_
 	Save_Pattern_In_FileSystem();

@@ -585,6 +585,7 @@ int MemoryMapping::ReadRegister_TEC32(int addr, unsigned int *value)
 
 	return (0);
 }
+
 int MemoryMapping::WriteRegister_TEC32(int addr, unsigned int value)
 {
 	if (pthread_mutex_lock(&global_mutex[LOCK_TEC_REGISTERS]) != 0)

@@ -38,7 +38,7 @@ public:
 
     void startThreads();
     void stopThreads();
-
+    bool b_endMainSignal = false;
 private:
     ThreadManager() {
         pthread_mutex_init(&spiQueueMutex, nullptr);

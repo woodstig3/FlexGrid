@@ -17,7 +17,7 @@
 //#include <mutex>
 #include <condition_variable>
 #include <vector>
-
+#include "Dlog.h"
 
 template<typename T>
 class ThreadSafeQueue {
@@ -73,11 +73,22 @@ public:
     void handleCommitCommand();
     void handleRevertCommand();
     void handlePrepareToRead(int numBytesToRead, std::string strPath);
+    std::string getCurrentState() const;
+    std::string getActiveBank();
+    bool getPermanentFlag();
+    bool getTemporaryFlag();
+
     int  file_num_bytes;
 	bool b_Start_Download = false;
 	bool b_Bin_Download = false;
 	bool b_Start_Read = false;
 //    char intToHexChar(uint8_t value);
+    //FaultsAttr m_calibFileMismatch; 
+    FaultsAttr m_fwFileChecksumError;
+    FaultsAttr m_calibFileChecksumError;
+    FaultsAttr m_calibFileMissing;
+    FaultsAttr m_flashAccessFailure;
+    FaultsAttr m_firmwareDownloadFailure;
 
 private:
 
@@ -90,6 +101,10 @@ private:
     std::string m_oldFirmwarePath;
     std::string m_newFirmwarePath;
     std::string m_HECFilePath;
+    std::string m_currentState = "STATE_FW_UPGRADE_IDLE";
+    std::string m_activeBank = "BANK A";
+    bool m_permanentFlag = false;
+    bool m_temporaryFlag = false;
 
     std::unique_ptr<std::thread> firmwareUpdaterThread;
     bool m_firmwareUpgradeStarted;
@@ -114,7 +129,7 @@ private:
     // ... [rest of the member functions]
     bool check_integrity(const std::string &path, const int expected_size); //const std::string &expected_hash);
     bool replaceFile(const std::string& oldFilename, const std::string& newFilename);
-    void reboot_system();
+
 };
 
 

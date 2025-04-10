@@ -22,6 +22,7 @@
 #include "SpiCmdDecoder.h"
 #include "TemperatureMonitor.h"
 
+
 extern double g_direct_LCOS_Temp;
 extern double g_direct_Hearter2_Temp;
 extern bool g_Calib_File_Failure;
@@ -31,7 +32,9 @@ extern bool g_OpticalControl_Failure;
 Config_For_Prod SpiCmdDecoder::conf_spi{0};
 Operational_Status SpiCmdDecoder:: oss{0};
 Hardware_Status SpiCmdDecoder:: hss{0};
-SPAConfigStruct SPASlicePortAttenuationCommand::spaConfStruct[];
+
+
+std::unique_ptr<SlicePlanManager> SPASlicePortAttenuationCommand::g_slicePlanManager = nullptr;
 
 SpiCmdDecoder::SpiCmdDecoder()
 {
@@ -161,17 +164,17 @@ std::vector<uint8_t> SpiCmdDecoder::constructErrorReply(uint8_t errorCode) {
 
 // caculate CRC1
 uint32_t SpiCmdDecoder::calculateCRC1(const uint8_t* data) {
-	return calculateCRC(data, 16); // 包头固定16字节
+	return calculateCRC(data, 16); //
 }
-// caculate CRC2（0x00~[LENGTH-5]）
+// caculate CRC2 0x00~[LENGTH-5]
 uint32_t SpiCmdDecoder::calculateCRC2(const uint8_t* data, size_t length) {
-	return calculateCRC(data, length - 4); // 排除最后4字节（CRC2自身）
+	return calculateCRC(data, length - 4); //
 }
 
 // caculate CRC
 uint32_t SpiCmdDecoder::calculateCRC(const uint8_t* data, size_t length) {
 	uint32_t crc = 0xFFFFFFFF;
-	const uint32_t polynomial = 0x82608EDB; // 反向多项式
+	const uint32_t polynomial = 0x82608EDB; //
 	for (size_t i = 0; i < length; i++) {
 		crc ^= data[i];
 		for (int j = 0; j < 8; j++) {
@@ -721,7 +724,7 @@ std::vector<uint8_t> SpiSLSCmdCommand::process(uint32_t seqNo) {
         // Implement your command-specific processing logic here
 // fill  struct with arguments extracted from command
 //write sls = start last saved:1
-	spiCmd->modifyIniValue("SPI CONF", "SLS", std::to_string(1));
+	spiCmd->modifyIniValue("SPI CONF", "SUS", std::to_string(1));
 	//Reply packet constructed below
 	SPIReplyPacket replyPacket;
 	replyPacket.spiMagic = SPIMAGIC;
@@ -1162,6 +1165,7 @@ std::unique_ptr<CmdDecoder> SPASlicePortAttenuationCommand::g_cmdDecoder = nullp
 //spi command SPA processing, e.g.:0x0015 1 1:8 1:2 10 9:10 1:3 20
 bool SPASlicePortAttenuationCommand::parse(const SPICommandPacket& packetData)
 {
+	g_cmdDecoder->SetPatternTransferFlag(false);
 	// First byte is the WSS module number
 	w = packetData.data[0];
 	std::cout << "WSS number: " <<  static_cast<int>(w) << std::endl;
@@ -1170,7 +1174,7 @@ bool SPASlicePortAttenuationCommand::parse(const SPICommandPacket& packetData)
 		std::cout << "Invalid WSS number: " << w << std::endl;
 		return false; // Invalid WSS number
 	}
-
+	SPACommand cmd;//receive command arguments for overlapping check
 	// Parse the rest of the command data
 	size_t index = 1; // Start after the WSS module number
 	while (index < packetData.data.size()) {
@@ -1183,8 +1187,13 @@ bool SPASlicePortAttenuationCommand::parse(const SPICommandPacket& packetData)
 		uint16_t startSlice = spiCmd->bytesToInt16BigEndian(packetData.data, index);
 		uint16_t endSlice = spiCmd->bytesToInt16BigEndian(packetData.data, index+2);
 		sliceRanges.emplace_back(startSlice, endSlice);
-		SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges.emplace_back(startSlice, endSlice);
+//		SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges.emplace_back(startSlice, endSlice);
+
 		std::cout << "StartSlice: " << startSlice << " EndSlice: " << endSlice << std::endl;
+		if((startSlice < 1 || endSlice > WHOLE_BANDWIDTH/sliceSize) || endSlice <= startSlice){
+			std::cout << "Invalid Slice Number: " << startSlice << "-" << endSlice << std::endl;
+			return false; // Invalid
+		}
 		index += 4;
 		// Get common and switching ports
 		uint8_t commonPort = packetData.data[index];
@@ -1194,25 +1203,47 @@ bool SPASlicePortAttenuationCommand::parse(const SPICommandPacket& packetData)
 			std::cout << "Invalid Common Port: " << commonPort << std::endl;
 			return false; // Invalid
 		}
-		if(switchingPort < 1 || switchingPort > 23){
+		if(switchingPort < 1 || switchingPort > VENDOR_MAX_PORT){
 			std::cout << "Invalid Switching Port: " << switchingPort << std::endl;
 			return false; // Invalid
 		}
 		commonPorts.push_back(commonPort);
 		switchingPorts.push_back(switchingPort);
-		SPASlicePortAttenuationCommand::spaConfStruct[w].commonPorts.push_back(commonPort);
-		SPASlicePortAttenuationCommand::spaConfStruct[w].switchingPorts.push_back(switchingPort);
+//		SPASlicePortAttenuationCommand::spaConfStruct[w].commonPorts.push_back(commonPort);
+//		SPASlicePortAttenuationCommand::spaConfStruct[w].switchingPorts.push_back(switchingPort);
 		index += 2;
 		// Get attenuation
 		int16_t attenuation = spiCmd->bytesToInt16BigEndian(packetData.data,index);
 		attenuations.push_back(attenuation);
-		SPASlicePortAttenuationCommand::spaConfStruct[w].attenuations.push_back(attenuation);
+//		SPASlicePortAttenuationCommand::spaConfStruct[w].attenuations.push_back(attenuation);
 		std::cout << "Attenuation: " << attenuation << std::endl;
 		index += 2;
+
+		/* Update the slice plan for the specified range
+		slicePlans[w][{commonPort,switchingPort}] = {{startSlice, endSlice}, attenuation};
+		std::cout << "SlicePlan startSlice: " << slicePlans[w][{commonPort,switchingPort}].slicePairs.first<< std::endl;
+		std::cout << "SlicePlan endSlice: " << slicePlans[w][{commonPort,switchingPort}].slicePairs.second<< std::endl;
+		std::cout << "SlicePlan ATT: " << slicePlans[w][{commonPort,switchingPort}].att<< std::endl;
+		*/
+
+		//overlapping check to determine queue command or execute command
+		cmd.wss_id = w;
+		cmd.assignments.emplace_back(startSlice, endSlice, PortPair{commonPort, switchingPort}, attenuation);
+		cmd.timestamp = std::chrono::system_clock::now();
+
+		// check overlapping to get executing(in active_config_ranges) and queued config(in queued_commands)
+
 	}
+	g_slicePlanManager->processSPACommand(cmd);
+	g_slicePlanManager->onCommandComplete(cmd);
+
+	// When command completes (in real system, this would be called by completion callback)
+	//g_slicePlanManager.onCommandComplete(cmd);
+
 	return true; // Successfully parsed command
 }
 
+/*
 std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 // Implement your command-specific processing logic here
 // fill patternGen struct with arguments extracted from command
@@ -1227,7 +1258,7 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 	// Lock the channel data structures for thread safety
 	if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0) {
 		std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
-		replyPacket.comres = 1;
+		replyPacket.comres = -1;
 		//replyPacket.crc1 = spiCmd->calculateCRC(reinterpret_cast<const uint8_t*>(&replyPacket), sizeof(replyPacket)); // Implement CRC calculation
 		return spiCmd->constructSPIReplyPacket(replyPacket);
 	}
@@ -1236,7 +1267,7 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 		// Get reference to the FG_Channel_DS for the specified WSS module
 		// Update channel parameters for each slice range
 		for (size_t i = 0; i < sliceRanges.size(); i++) {
-			uint16_t channelNum = i + 1; // Adjust based on your channel numbering scheme
+			uint16_t channelNum = i + 1;
 
 			// Update channel parameters using existing structure
 			g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNum].active = true;
@@ -1260,10 +1291,6 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 			}
 			g_cmdDecoder->activeChannels.push_back({w, channelNum});
 		}
-
-		// Set flag to trigger pattern generation using existing mechanism
-		g_bNewCommandData = true;
-		replyPacket.comres = 0; // Success
 	}
 	catch (const std::exception& e) {
 		std::cerr << "Error processing SPI command: " << e.what() << std::endl;
@@ -1273,6 +1300,10 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 	pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]);
 
 	std::cout << "SPI command is ready for pattern generation" << std::endl;
+	// Set flag to trigger pattern generation using existing mechanism
+	g_bNewCommandData = true;
+	replyPacket.comres = 0; // Success
+	g_cmdDecoder->SetPatternTransferFlag(false);
 	g_cmdDecoder->WaitPatternTransfer();
 
 	replyPacket.length = 20; // SPIMAGIC + LENGTH + SEQNO + COMRES + CRC1
@@ -1280,6 +1311,90 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
         replyPacket.length += replyPacket.data.size() + 4; // DATA + CRC2
     }
 
+	return spiCmd->constructSPIReplyPacket(replyPacket);
+
+}
+*/
+
+std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
+// Implement your command-specific processing logic here
+// fill patternGen struct with arguments extracted from command
+	SPIReplyPacket replyPacket;
+	replyPacket.spiMagic = SPIMAGIC;
+	//replyPacket.length = sizeof(SPIReplyPacket); //
+	replyPacket.data.clear(); // No data attached in reply
+	replyPacket.seqNo = seqNo;
+
+	// Lock the channel data structures for thread safety
+	if (pthread_mutex_lock(&global_mutex[LOCK_CHANNEL_DS]) != 0) {
+		std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
+		replyPacket.comres = -1;
+		//replyPacket.crc1 = spiCmd->calculateCRC(reinterpret_cast<const uint8_t*>(&replyPacket), sizeof(replyPacket)); // Implement CRC calculation
+		return spiCmd->constructSPIReplyPacket(replyPacket);
+	}
+
+	try {
+
+		// Get current configuration in std::map<SliceRange, SliceConfig>
+		uint8_t wssid = w, 	channelNum = 1;;
+		uint8_t commonPort;
+		uint8_t switchingPort;
+		uint16_t startSlice;
+		uint16_t endSlice;
+		int16_t att;
+
+		if (g_slicePlanManager->active_config_ranges.count(wssid)) {
+
+			g_cmdDecoder->activeChannels.remove_if([wssid](const ChannelModules& point) {
+				return point.moduleNo == wssid;
+			});
+			for (const auto& range_config_pair : g_slicePlanManager->active_config_ranges.at(wssid)) {
+
+				const SliceRange& range = range_config_pair.first;
+				const SliceConfig& config = range_config_pair.second;
+
+				commonPort = config.ports.common_port;
+				switchingPort = config.ports.switching_port;
+				startSlice = range.start;
+				endSlice = range.end;
+				att = config.attenuation/10.0;// devided by 10 because it's cB not dB
+
+				// Update channel parameters using existing structure
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].active = true;
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].ATT = att;
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].F1 = freqBySlice(startSlice);
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].F2 = freqBySlice(endSlice);
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].FC = (g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].F1 + g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].F2) / 2;
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].BW = g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].F2 - g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].F1;
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].slotNum = endSlice - startSlice + 1;
+
+				// Set ports
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].CMP = commonPort;
+				g_cmdDecoder->FG_Channel_DS_For_Pattern[wssid][channelNum].ADP = switchingPort;
+
+				g_cmdDecoder->activeChannels.push_back({wssid, channelNum++});
+			}
+			g_bNewCommandData = true;
+		}
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error processing SPI command: " << e.what() << std::endl;
+		replyPacket.comres = 1;
+	}
+
+	pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]);
+
+	std::cout << "SPI command is ready for pattern generation" << std::endl;
+	// Set flag to trigger pattern generation using existing mechanism
+
+	replyPacket.comres = 0; // Success
+//	g_cmdDecoder->SetPatternTransferFlag(false);
+	g_cmdDecoder->WaitPatternTransfer();
+
+	replyPacket.length = 20; // SPIMAGIC + LENGTH + SEQNO + COMRES + CRC1
+    if (!replyPacket.data.empty()) {
+        replyPacket.length += replyPacket.data.size() + 4; // DATA + CRC2
+    }
 
 	return spiCmd->constructSPIReplyPacket(replyPacket);
 
@@ -1314,41 +1429,24 @@ std::vector<uint8_t> SPAQuerySlicePortAttenuationCommand::process(uint32_t seqNo
 	replyPacket.comres = 0; // Indicate success
 
 	size_t dataSize = 1; // Start with 1 byte for <W>
-    for (size_t i = 0; i < SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges.size(); i++) {
-        for (size_t j = SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges[i].first;
-             j <= SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges[i].second; j++) {
-            dataSize += 6; // Each slice adds 6 bytes: <S><P><P><A>
-        }
-    }
+	// Get current configuration
+	auto config = SPASlicePortAttenuationCommand::g_slicePlanManager->getCurrentConfig(w);
     // Resize data to ensure it has enough space
-    replyPacket.data.resize(dataSize);
+	if(config.size() != 0) dataSize = config.size()*7; //<W><S><P><P><A>
+	replyPacket.data.resize(dataSize);
     // Fill the data
     size_t offset = 0;
     replyPacket.data[offset++] = w; // <W>
-    for (size_t i = 0; i < SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges.size(); i++) {
-        for (size_t j = SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges[i].first;
-             j <= SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges[i].second; j++) {
-            replyPacket.data[offset++] = (j >> 8) & 0xFF; // <S> high byte
-            replyPacket.data[offset++] = j & 0xFF;        // <S> low byte
-            replyPacket.data[offset++] = SPASlicePortAttenuationCommand::spaConfStruct[w].commonPorts[i]; // <P>
-            replyPacket.data[offset++] = SPASlicePortAttenuationCommand::spaConfStruct[w].switchingPorts[i]; // <P>
-            replyPacket.data[offset++] = (SPASlicePortAttenuationCommand::spaConfStruct[w].attenuations[i] >> 8) & 0xFF; // <A> high byte
-            replyPacket.data[offset++] = SPASlicePortAttenuationCommand::spaConfStruct[w].attenuations[i] & 0xFF; // <A> low byte
-        }
+    for (const auto& sliceNo : config) {
+
+		replyPacket.data[offset++] = (sliceNo.first >> 8) & 0xFF; // <S> high byte
+		replyPacket.data[offset++] = sliceNo.first & 0xFF;        // <S> low byte
+		replyPacket.data[offset++] = sliceNo.second.ports.common_port; // <P>
+		replyPacket.data[offset++] = sliceNo.second.ports.switching_port; // <P>
+		replyPacket.data[offset++] = (sliceNo.second.attenuation >> 8) & 0xFF; // <A> high byte
+		replyPacket.data[offset++] = sliceNo.second.attenuation & 0xFF; // <A> low byte
+
     }
-	// //<W>{<S><P><P><A>}*(1:Smax)
-	// replyPacket.data[0] = w;
-	// for (size_t i = 0; i < SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges.size(); i++) {
-	// 	for(size_t j = SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges[i].first;
-	// 			j <= SPASlicePortAttenuationCommand::spaConfStruct[w].sliceRanges[i].second; j++) {
-	// 		replyPacket.data[1] = (j >> 8) & 0xFF;
-	// 		replyPacket.data[2] = j & 0xFF;
-	// 		replyPacket.data[3] = SPASlicePortAttenuationCommand::spaConfStruct[w].commonPorts[i];;
-	// 		replyPacket.data[4] = SPASlicePortAttenuationCommand::spaConfStruct[w].switchingPorts[i];
-	// 		replyPacket.data[5] = (SPASlicePortAttenuationCommand::spaConfStruct[w].attenuations[i] >> 8) & 0xFF;
-	// 		replyPacket.data[6] = SPASlicePortAttenuationCommand::spaConfStruct[w].attenuations[i] & 0xFF;
-	// 	}
-	// }
 
 	replyPacket.length = 20; // SPIMAGIC + LENGTH + SEQNO + COMRES + CRC1
     if (!replyPacket.data.empty()) {
@@ -1637,7 +1735,7 @@ std::vector<uint8_t> SpiFWPQueryCommand::process(uint32_t seqNo) {
 				std::string filename;
 				// Extract filename from path
 				if (lastSlash != std::string::npos) {
-					filename = firmwarePath.substr(lastSlash + 1); // "/mnt/WSS_Backup2.elf" → "WSS_Backup2.elf"
+					filename = firmwarePath.substr(lastSlash + 1); // "/mnt/WSS_Backup2.elf" â†’ "WSS_Backup2.elf"
 				} else {
 					filename = firmwarePath;
 				}
@@ -1645,14 +1743,14 @@ std::vector<uint8_t> SpiFWPQueryCommand::process(uint32_t seqNo) {
 				size_t dotPos = filename.find_last_of('.');
 				std::string basename = (dotPos != std::string::npos) ? 
 									filename.substr(0, dotPos) : 
-									filename; // "WSS_Backup2.elf" → "WSS_Backup2"
+									filename; // "WSS_Backup2.elf" â†’ "WSS_Backup2"
 				// Find position of "Backup" keyword
 				size_t backupPos = basename.find("Backup");
 				if (backupPos != std::string::npos) {
 					// Extract position number after "Backup"
 					size_t numPos = backupPos + 6; // "Backup" is 6 characters long
 					if (numPos < basename.size()) {
-						char posChar = basename[numPos]; // "WSS_Backup2" → '2'
+						char posChar = basename[numPos]; // "WSS_Backup2" â†’ '2'
 						if (posChar >= '0' && posChar <= '2') {
 							firmwarePosition = static_cast<uint8_t>(posChar - '0');
 							std::cout << "Current firmware position: " << static_cast<int>(firmwarePosition) << std::endl;

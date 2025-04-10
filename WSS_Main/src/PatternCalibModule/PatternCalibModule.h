@@ -25,7 +25,7 @@ extern bool b_LoopOn;												// Loop running on threads
 #define LUT_ATT_FREQ_NUM  8
 #define LUT_SIGMA_FREQ_NUM 14
 #define LUT_PIXELPOS_FREQ_NUM 27
-#define LUT_ATT_ATT_NUM 7       //so accordingly when loading att_lut,rownumber need to be modified > 12 which is the start of next port
+#define LUT_ATT_ATT_NUM 8       //so accordingly when loading att_lut,rownumber need to be modified > 12 which is the start of next port
 #define LUT_SIGMA_TEMP_NUM 6    //so accordingly when loading sigma_lut, columnnumber needs to be modified <=7
 #define LUT_PIXELPOS_TEMP_NUM 6
 #define PORT_NUM 22

@@ -103,18 +103,18 @@ int OCMTransfer::SendPatternData(uint8_t *pattern)
 				WP=WP+HEC7020_OCM_MEM_STEP;
 			}
 
-			mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, WP);//usleep(300);	<-STABLE DELAY, but 100ms more time
+			mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, WP);usleep(100);	//<-STABLE DELAY, but 100ms more time
 		}
 
 		do
 		{
-			mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP); usleep(10); //usleep(1000); <-STABLE DELAY, but 100ms more time
+			mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP); //usleep(10); //usleep(1000); <-STABLE DELAY, but 100ms more time
 		}while(RP != WP);
 
-		mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);
+		mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);usleep(100);
 	}
 
-	mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);
+	mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);usleep(100);
 
 #ifdef _DEVELOPMENT_MODE_
 //	printf("Pattern send finished....\n");
@@ -211,7 +211,7 @@ int OCMTransfer::SetOutputToOCM(void)
 	//printf("Perform axis_switch to 8bit data  bus\n\r");
 
 	//Change axis_switch_0 to 8bit data bus. OCM Module Reg6[0] = 1
-	status = mmapOCM->WriteRegister_OCM(0x18, 0x1);usleep(200);
+	status = mmapOCM->WriteRegister_OCM(0x18, 0x1);usleep(100);
 
 	status |= EnsureVideoInputSourceIsEmbeddedLinux();
 
@@ -282,7 +282,7 @@ int OCMTransfer::EnsureVideoInputSourceIsEmbeddedLinux()
 }
 int OCMTransfer::GetRegister(int addr,unsigned char *vsyncProps)
 {
-	return (mmapReg2->ReadRegister_Reg2(addr, vsyncProps));usleep(200);
+	return (mmapReg2->ReadRegister_Reg2(addr, vsyncProps));//usleep(200);
 }
 
 int OCMTransfer::GetInternalVsyncFrequency (double *vsyncFrequencyHz)
@@ -291,17 +291,17 @@ int OCMTransfer::GetInternalVsyncFrequency (double *vsyncFrequencyHz)
 	uint32_t vsyncRatio;  //drc modified from unsigned long to uint32_t
 	int status;
 
-	status = mmapReg2->ReadRegister_Reg2(VSyncTimerHH, &value);usleep(200);
+	status = mmapReg2->ReadRegister_Reg2(VSyncTimerHH, &value);//usleep(200);
 	vsyncRatio = value;
 	if (!status) status |= mmapReg2->ReadRegister_Reg2(VSyncTimerH, &value);
 	vsyncRatio = (vsyncRatio << 8) | value;
-	usleep(200);
+	usleep(100);
 	if (!status) status |= mmapReg2->ReadRegister_Reg2(VSyncTimerL, &value);
 	vsyncRatio = (vsyncRatio << 8) | value;
-	usleep(200);
+	usleep(100);
 	if (!status) status |= mmapReg2->ReadRegister_Reg2(VSyncTimerLL, &value);
 	vsyncRatio = (vsyncRatio << 8) | value;
-	usleep(200);
+	usleep(100);
 
 	*vsyncFrequencyHz = HEC7020_PLL_BASE / vsyncRatio;
 
@@ -340,7 +340,7 @@ int OCMTransfer::SetInternalVsyncFrequency(double vsyncFrequencyHz)
 	vsyncRatio >>= 8;
 	data = (uint8_t)(vsyncRatio & 0xFF);			// VHH = 0xA5
 	if(!error) mmapReg2->WriteRegister_Reg2(VSyncTimerHH, data);
-	//usleep(200);
+	usleep(100);
 //	printf("A5 = %02x\n\r", data);
 
 	return error;
@@ -355,7 +355,7 @@ int OCMTransfer::VsyncSelectExt()
 	//usleep(200);
 	//printf("hec7020_vsyncSelectExt = %04x\n\r", value);
 	value = 0x0;
-	status |= mmapReg2->WriteRegister_Reg2(0x17, value);usleep(200);
+	status |= mmapReg2->WriteRegister_Reg2(0x17, value);usleep(100);
 
 	return status;
 }
@@ -368,7 +368,7 @@ int OCMTransfer::VsyncSelectInt()
 	status = mmapReg2->ReadRegister_Reg2(0x17, &value);//usleep(500);
 	//printf("hec7020_vsyncSelectExt = %04x\n\r", value);
 	value = 0x08;
-	status |= mmapReg2->WriteRegister_Reg2(0x17, value);usleep(200);
+	status |= mmapReg2->WriteRegister_Reg2(0x17, value);usleep(100);
 
 	return status;
 }
@@ -382,7 +382,7 @@ int OCMTransfer::SetARMInputActive(unsigned char value)
 	if (value == 1)
 	{
 		uint8_t ocm_val;
-		mmapOCM->ReadRegister_OCM(0x0, &ocm_val);usleep(100);
+		mmapOCM->ReadRegister_OCM(0x0, &ocm_val);//usleep(100);
 		ocm_val = 0x1;
 		mmapOCM->WriteRegister_OCM(0x0, ocm_val);usleep(100);
 
@@ -398,7 +398,7 @@ int OCMTransfer::SetARMInputActive(unsigned char value)
 	else if (value == 0)
 	{
 		uint8_t ocm_val;
-		mmapOCM->ReadRegister_OCM(0x0, &ocm_val);usleep(100);
+		mmapOCM->ReadRegister_OCM(0x0, &ocm_val);//usleep(100);
 		ocm_val = 0x0;
 		mmapOCM->WriteRegister_OCM(0x0, ocm_val);usleep(100);
 
@@ -453,7 +453,7 @@ int OCMTransfer::GetARMInputActive(unsigned char *value)
 		return -1;
 
 	unsigned char regval = 0;
-	mmapReg2->ReadRegister_Reg2(0xB4, &regval);usleep(100);
+	mmapReg2->ReadRegister_Reg2(0xB4, &regval);//usleep(100);
 
 	if ( (regval & 0x30) != 0x10) // "01" in bit 5:4
 	{

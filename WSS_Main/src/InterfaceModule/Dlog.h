@@ -1,42 +1,45 @@
+#ifndef DLOG_H_
+#define DLOG_H_
 
 #include<string.h>
 #include <map>
 #include <vector>
 #include <iostream>
-
+#include <mutex>
 
 enum FaultsName
- {
-	HEATER_1_TEMP=1,
-	HEATER_2_TEMP,
-	TEC_TEMP,
-	ADC_AD7689_ACCESS_FAILURE,
-	DAC_AD5624_ACCESS_FAILURE,
-	DAC_LTC2620_ACCESS_FAILURE,
-	TRANSFER_FAILURE,
-	WATCH_DOG_EVENT,
-	FIRMWARE_DOWNLOAD_FAILURE,
-	WSS_ACCESS_FAILURE,
-	FPGA_ACCESS_FAILURE,
-	FLASH_ACCESS_FAILURE,
-	FLASH_PROGRAMMING_ERROR,
-	EEPROM_ACCESS_FAILURE,
-	EEPROM_CHECKSUM_FAILURE,
-	CALIB_FILE_MISMATCH,
-	CALIB_FILE_MISSING,
-	CALIB_FILE_CHECKSUM_ERROR,
-	FW_FILE_CHECKSUM_ERROR,
-	FPGA1_DOWNLOAD_FAILURE,
-	FPGA2_DOWNLOAD_FAILURE
- };
+{
+    HEATER_1_TEMP = 0,
+    HEATER_2_TEMP,
+    TEC_TEMP,
+    ADC_AD7689_ACCESS_FAILURE,
+    DAC_AD5624_ACCESS_FAILURE,
+    DAC_LTC2620_ACCESS_FAILURE,
+    TRANSFER_FAILURE,
+    WATCH_DOG_EVENT,
+    FIRMWARE_DOWNLOAD_FAILURE,
+    WSS_ACCESS_FAILURE,
+    FPGA_ACCESS_FAILURE,
+    FLASH_ACCESS_FAILURE,
+    FLASH_PROGRAMMING_ERROR,
+    EEPROM_ACCESS_FAILURE,
+    EEPROM_CHECKSUM_FAILURE,
+    CALIB_FILE_MISMATCH,
+    CALIB_FILE_MISSING,
+    CALIB_FILE_CHECKSUM_ERROR,
+    FW_FILE_CHECKSUM_ERROR,
+    FPGA1_DOWNLOAD_FAILURE,
+    FPGA2_DOWNLOAD_FAILURE
+};
 
 struct FaultsAttr
 {
-	char name[30];
+	char name[30] = {0};
 	bool Degraded = false;
 	int  DegradedCount = 0;
 	bool Raised = false;
 	int  RaisedCount = 0;
+    std::mutex mtx; 
 };
 
 class Fault {
@@ -88,7 +91,8 @@ private:
     static std::map<std::string, std::string> ConstructFaultData(const std::string& faultData);
 
     static void logToFile(const Fault& fault);
-    static bool findFaultEntry(std::ifstream& file, int faultNumber, std::vector<std::string>& entry);
+    static bool findLastFaultEntry(std::ifstream& file, const std::string& targetFaultName, std::vector<std::string>& entry);
+    //static bool findFaultEntry(std::ifstream& file, int faultNumber, std::vector<std::string>& entry);
     static std::string formatFaultEntry(const std::vector<std::string>& entry);
 
     static constexpr size_t MAX_LOG_SIZE = 2 * 1024;  // 2KB limit
@@ -98,6 +102,6 @@ private:
     // ... existing private members ...
     static void rotateLogFile();
 
-
-
 };
+
+#endif

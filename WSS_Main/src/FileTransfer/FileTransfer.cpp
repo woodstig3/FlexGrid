@@ -20,7 +20,7 @@ extern "C" {
 #include <sys/stat.h>
 #include <sys/reboot.h>
 #include "FileTransfer.h"
-#include "Dlog.h"
+
 
 #define  MAX_PACKET_SIZE  2048
 
@@ -434,12 +434,12 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 			if (packet_num != currentPacketNumber) {
 				std::cerr << "Unexpected packet number received. Expected: " << currentPacketNumber
 						  << ", Received: " << packet_num << std::endl;
-	            FaultsAttr attr = {0};
-	            attr.Raised = true;
-	            attr.RaisedCount += 1;
-	            attr.Degraded = false;
-	            attr.DegradedCount = attr.RaisedCount;
-	            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, attr);
+                std::lock_guard<std::mutex> lock(m_firmwareDownloadFailure.mtx);
+	            m_firmwareDownloadFailure.Raised = true;
+	            m_firmwareDownloadFailure.RaisedCount += 1;
+	            m_firmwareDownloadFailure.Degraded = false;
+	            m_firmwareDownloadFailure.DegradedCount = m_firmwareDownloadFailure.RaisedCount;
+	            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, m_firmwareDownloadFailure);
 				continue;
 			}
 
@@ -455,18 +455,18 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 			//
 			if (firmwareFile.bad() || !firmwareFile.good()) {
 			    std::cerr << "Error writing to file: " << m_newFirmwarePath << std::endl;
-			    FaultsAttr attr = {0};
-				attr.Raised = true;
-				attr.RaisedCount += 1;
-				attr.Degraded = false;
-				attr.DegradedCount = attr.RaisedCount;
-				FaultMonitor::logFault(FLASH_ACCESS_FAILURE, attr);
+			    std::lock_guard<std::mutex> lock(m_flashAccessFailure.mtx);
+                m_flashAccessFailure.Raised = true;
+                m_flashAccessFailure.RaisedCount += 1;
+                m_flashAccessFailure.Degraded = true;
+                m_flashAccessFailure.DegradedCount = m_flashAccessFailure.RaisedCount;
+				FaultMonitor::logFault(FLASH_ACCESS_FAILURE, m_flashAccessFailure);
 			    continue;
 			}
 			// Check if this is the last packet
 			else if (currentPacketNumber == totalPackets-1) {
 				firmwareComplete = true;
-				std::cerr << "LUT File download successfully completed in " << totalPackets << " packets" << std::endl;
+				std::cout << "LUT File download successfully completed in " << totalPackets << " packets" << std::endl;
 			}
 			else {
 				// Increment the packet number for the next packet
@@ -475,27 +475,78 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 
 		} else {
             std::cerr << "Received an unexpected message that is not a lut file packet." << std::endl;
-            FaultsAttr attr = {0};
-            attr.Raised = true;
-            attr.RaisedCount += 1;
-            attr.Degraded = false;
-            attr.DegradedCount = attr.RaisedCount;
-            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, attr);
+            std::lock_guard<std::mutex> lock(m_firmwareDownloadFailure.mtx);
+            m_firmwareDownloadFailure.Raised = true;
+            m_firmwareDownloadFailure.RaisedCount += 1;
+            m_firmwareDownloadFailure.Degraded = false;
+            m_firmwareDownloadFailure.DegradedCount = m_firmwareDownloadFailure.RaisedCount;
+            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, m_firmwareDownloadFailure);
         }
     }
 
 	stopFirmwareUpgrade();
     firmwareFile.close();
 
-    // Perform the integrity check and rename/reboot if successful
-//    int expectedHash = num_bytes; // Normally should be provided,but here only to compare file size before and after.
-//    if (check_integrity(m_newFirmwarePath, expectedHash)) {
-//    	if(!replaceFile(m_oldFirmwarePath, m_newFirmwarePath))
-//    		std::cerr << "Error replacing file: " << m_oldFirmwarePath << std::endl;
-//        reboot_system();
-//    } else {
-//        std::cerr << "Firmware integrity check failed." << std::endl;
-//    }
+    // zte cmd get:fault.N
+    struct stat file_stat;
+    bool sizeValid = false;
+    
+    if (access(m_newFirmwarePath.c_str(), F_OK) == -1) {
+        std::cerr << "Error: File " << m_newFirmwarePath 
+                << " not found in /mnt directory after transfer!" << std::endl;
+        std::lock_guard<std::mutex> lock(m_calibFileMissing.mtx);
+        m_calibFileMissing.Raised = true;
+        m_calibFileMissing.RaisedCount += 1;
+        m_calibFileMissing.Degraded = true;
+        m_calibFileMissing.DegradedCount = m_calibFileMissing.RaisedCount;
+        FaultMonitor::logFault(CALIB_FILE_MISSING,m_calibFileMissing);  // File existence check failed
+    } else {
+        std::cout << "File verification success: " 
+                << m_newFirmwarePath << " exists." << std::endl;
+    }
+    // Validate file size matches expected bytes
+    if (stat(m_newFirmwarePath.c_str(), &file_stat) == 0) {
+        sizeValid = (file_stat.st_size == num_bytes);  // Compare actual vs expected size
+    } else {
+        std::cerr << "Failed to get file size: " << m_newFirmwarePath << std::endl;
+    }
+
+    // Handle size validation result
+    if (!sizeValid) {
+        std::cerr << "File size mismatch. Expected: " << num_bytes 
+                << ", Actual: " << file_stat.st_size << std::endl;
+        // std::lock_guard<std::mutex> lock(m_calibFileMismatch.mtx);
+        // m_calibFileMismatch.Raised = true;
+        // m_calibFileMismatch.RaisedCount += 1;
+        // m_calibFileMismatch.Degraded = true;
+        // m_calibFileMismatch.DegradedCount = m_calibFileMismatch.RaisedCount;
+        // FaultMonitor::logFault(CALIB_FILE_MISMATCH,m_calibFileMismatch);  // File existence check failed
+         // if elf
+        size_t dotIndex = m_newFirmwarePath.find_last_of('.');
+        std::string ext = (dotIndex != std::string::npos) ? m_newFirmwarePath.substr(dotIndex+1) : "";
+        if (ext == "elf") {
+            std::lock_guard<std::mutex> lock(m_fwFileChecksumError.mtx);
+            m_fwFileChecksumError.Raised = true;
+            m_fwFileChecksumError.RaisedCount += 1;
+            m_fwFileChecksumError.Degraded = true;
+            m_fwFileChecksumError.DegradedCount = m_fwFileChecksumError.RaisedCount;
+            FaultMonitor::logFault(FW_FILE_CHECKSUM_ERROR, m_fwFileChecksumError);
+        } else {
+            std::lock_guard<std::mutex> lock(m_calibFileChecksumError.mtx);
+            m_calibFileChecksumError.Raised = true;
+            m_calibFileChecksumError.RaisedCount += 1;
+            m_calibFileChecksumError.Degraded = true;
+            m_calibFileChecksumError.DegradedCount = m_calibFileChecksumError.RaisedCount;
+            FaultMonitor::logFault(CALIB_FILE_CHECKSUM_ERROR, m_calibFileChecksumError);
+        }
+        // FaultType faultType = (ext == "elf") ? FW_FILE_CHECKSUM_ERROR : CALIB_FILE_CHECKSUM_ERROR;
+        // FaultMonitor::logFault(faultType, attr);
+        //FaultMonitor::logFault(CALIB_FILE_CHECKSUM_ERROR, attr);  // Size validation failed
+    } else {
+        std::cout << "File verification success. Size matches: " 
+                << num_bytes << " bytes." << std::endl;
+    }
+
 }
 
 // Function to read a HEC file and send it through UART
@@ -557,6 +608,8 @@ void FileTransfer::handlePrepareCommand(int numBytesToReceive, std::string strOl
 	b_Start_Download = true;
 	b_Bin_Download = false;
 
+    m_currentState = "STATE_FW_UPGRADE_PREPARING";
+
 	startLUTFileUpgrade(numBytesToReceive,strNewPath);
 }
 
@@ -588,21 +641,48 @@ void FileTransfer::handleSwitchCommand()
     // SWITCH
     std::ofstream flag_file("/mnt/firmware_flag");
     if (flag_file) {
-        flag_file << "SWITCH";
+        flag_file << "SWITCH" << std::endl;
+        flag_file << "processing" << std::endl;
         flag_file.close();
     } else {
         std::cerr << "ERROR: Cannot write to firmware_flag" << std::endl;
         return;
     }
     std::cout << "SWITCH flag set. System will reboot." << std::endl;
+    m_currentState = "STATE_FW_UPGRADE_SWITCHING";
 }
 
 void FileTransfer::handleCommitCommand()
 {
+    m_currentState = "STATE_FW_UPGRADE_COMMITTING";
 	//handle fw new version taking into effect by restart
+    const std::string flagPath = "/mnt/firmware.conf";
+	if (access(flagPath.c_str(), F_OK) == 0) {
+		std::cout << "Deleting firmware.conf..." << std::endl;
+		if (remove(flagPath.c_str()) != 0) {
+			std::cerr << "Warning: Delete failed: " << strerror(errno) << std::endl;
+		}
+	}
     try {
-        // reboot
-        reboot_system();
+        // Reboot with startwss.elf
+		const std::string mainAppPath = "/mnt/startwss.elf";
+			
+		// Step 1: Verify main application existence
+		if (access(mainAppPath.c_str(), F_OK) != 0) {
+			throw std::runtime_error("Main application not found");
+		}
+		// Step 2: Close non-standard file descriptors
+		int max_fd = sysconf(_SC_OPEN_MAX);
+		for (int fd = 3; fd < max_fd; ++fd) { 
+			close(fd); // Ignore EBADF errors
+		}
+		// Step 3: Execute process replacement
+		char* argv[] = {const_cast<char*>(mainAppPath.c_str()), nullptr};
+		execv(mainAppPath.c_str(), argv);
+		
+		// If reached here, execv failed
+		throw std::runtime_error("Exec failed: " + std::string(strerror(errno)));
+        //reboot_system();
     } catch (const std::exception& e) {
         std::cerr << "Commit error: " << e.what() << std::endl;
     }
@@ -612,7 +692,8 @@ void FileTransfer::handleRevertCommand() {
     // REVERT
     std::ofstream flag_file("/mnt/firmware_flag");
     if (flag_file) {
-        flag_file << "REVERT";
+        flag_file << "REVERT" << std::endl;
+        flag_file << "processing" << std::endl;
         flag_file.close();
     } else {
         std::cerr << "ERROR: Cannot write to firmware_flag" << std::endl;
@@ -620,15 +701,126 @@ void FileTransfer::handleRevertCommand() {
     }
     //
     std::cout << "REVERT flag set. System will reboot." << std::endl;
+    m_currentState = "STATE_FW_UPGRADE_REVERTING";
 }
 
-void FileTransfer::reboot_system() {
+std::string FileTransfer::getCurrentState() const {
+    return m_currentState;
+}
+std::string FileTransfer::getActiveBank() {
+    //std::cout << "[INFO] Enter getActiveBank " << std::endl;
 
-	sync(); // Ensure that data is written to disk
-	if (reboot(RB_AUTOBOOT) == -1) {
-		throw std::runtime_error("Linux reboot failed: " + std::string(strerror(errno)));
-	}
-
+    // Check current state first
+    if (m_currentState != "STATE_FW_UPGRADE_IDLE") {
+        //std::cout << "[INFO] Enter getActiveBank " << m_currentState << std::endl;
+        return m_activeBank;
+    }
+    
+    // Read flag file
+    std::ifstream flagFile("/mnt/firmware_flag");
+    if (!flagFile) {
+        m_activeBank = "BANK A";
+        return m_activeBank; // Default to BANK A if flag file missing
+    }
+    std::string flagContent;
+    std::getline(flagFile, flagContent);
+    //std::cout << "[INFO] Firmware flag content: " << flagContent << std::endl;
+    // Handle SWITCH flag
+    if (flagContent == "SWITCH") {
+        m_activeBank = std::ifstream("/mnt/WSS_Backup.elf") ? "BANK B" : "BANK A";
+        //std::cout << "[INFO] m_activeBank content: " << m_activeBank << std::endl;
+        return m_activeBank;
+    }
+    // Handle REVERT flag
+    else if (flagContent == "REVERT") {
+        m_activeBank = std::ifstream("/mnt/WSS_Main.bak.elf") ? "BANK A" : "BANK B";
+        return m_activeBank;
+    }
+    // Handle unknown flag content
+    else {
+        m_activeBank = "BANK A";
+        return m_activeBank;
+    }
+}
+bool FileTransfer::getPermanentFlag() {
+    std::ifstream flagFile("/mnt/firmware_flag");
+    
+    // Handle file open failure
+    if (!flagFile.is_open()) {
+        std::cerr << "[ERROR] Failed to open firmware flag file" << std::endl;
+        return m_permanentFlag; // Preserve current state
+    }
+    std::string line;
+    int lineCount = 0;
+    // Read first two lines
+    while (lineCount < 2 && std::getline(flagFile, line)) {
+        lineCount++;
+        
+        // Only process the second line
+        if (lineCount == 2) {
+            // Trim trailing whitespace and newline characters
+            line.erase(line.find_last_not_of(" \t\r\n") + 1);
+            
+            if (line == "processing") {
+                m_permanentFlag = false;
+            } else if (line == "processed") {
+                m_permanentFlag = true;
+            } else {
+                std::cerr << "[WARNING] Invalid flag state: " << line 
+                        << ", maintaining previous state: " 
+                        << (m_permanentFlag ? "processed" : "processing")
+                        << std::endl;
+            }
+        }
+    }
+    // Handle insufficient file lines
+    if (lineCount < 2) {
+        std::cerr << "[WARNING] Incomplete flag file (only " << lineCount 
+                << " lines), maintaining state: "
+                << (m_permanentFlag ? "processed" : "processing")
+                << std::endl;
+    }
+    return m_permanentFlag;
+}
+bool FileTransfer::getTemporaryFlag() {
+    std::ifstream flagFile("/mnt/firmware_flag");
+    
+    // Handle file open failure
+    if (!flagFile.is_open()) {
+        std::cerr << "[ERROR] Failed to open firmware flag file" << std::endl;
+        return m_temporaryFlag; // Preserve current state
+    }
+    std::string line;
+    int lineCount = 0;
+    // Read first two lines
+    while (lineCount < 2 && std::getline(flagFile, line)) {
+        lineCount++;
+        
+        // Only process the second line
+        if (lineCount == 2) {
+            // Trim trailing whitespace and newline characters
+            line.erase(line.find_last_not_of(" \t\r\n") + 1);
+            
+            if (line == "processing") {
+                m_temporaryFlag = true;
+            } else if (line == "processed") {
+                m_temporaryFlag = false;
+            } else {
+                std::cerr << "[WARNING] Invalid flag state: " << line 
+                        << ", maintaining previous state: " 
+                        << (m_temporaryFlag ? "processed" : "processing")
+                        << std::endl;
+            }
+        }
+    }
+    // Handle insufficient file lines
+    if (lineCount < 2) {
+        std::cerr << "[WARNING] Incomplete flag file (only " << lineCount 
+                << " lines), maintaining state: "
+                << (m_temporaryFlag ? "processed" : "processing")
+                << std::endl;
+    }
+    return m_temporaryFlag;
 }
 
 #endif

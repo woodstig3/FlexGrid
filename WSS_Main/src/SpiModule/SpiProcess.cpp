@@ -179,6 +179,8 @@ void ThreadManager::startThreads() {
 
     pthread_create(&spiListenerThread, nullptr, spiListener, nullptr);
     pthread_create(&spiProcessorThread, nullptr, spiPacketProcessor, nullptr);
+
+    b_endMainSignal = false;
 }
 
 void ThreadManager::stopThreads() {
@@ -187,6 +189,8 @@ void ThreadManager::stopThreads() {
     pthread_cond_broadcast(&cv); // Unblock the processing thread if waiting
     pthread_join(spiListenerThread, nullptr);
     pthread_join(spiProcessorThread, nullptr);
+
+    b_endMainSignal = true;
 }
 
 // Function to parse SPI command/query packet

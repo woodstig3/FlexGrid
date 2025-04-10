@@ -6,7 +6,7 @@
  */
 
 #include "LCOSDisplayTest.h"
-#include "Dlog.h"
+
 
 bool g_OpticalControl_Failure = false;
 
@@ -146,15 +146,6 @@ int LCOSDisplayTest::AnalyseDisplayTest_Data(uint32_t first_data_in_read, uint32
 			oss << "D" << i << ": X" << "\n";
 
 			g_OpticalControl_Failure = true;  //added for spi hss query
-
-			//zte cmd get:fault.N
-			FaultsAttr attr{0};
-			attr.Raised = true;
-			attr.RaisedCount += 1;
-			attr.Degraded = false;
-			attr.DegradedCount = attr.RaisedCount;
-			FaultMonitor::logFault(TRANSFER_FAILURE,attr);
-
 		}
 		else
 		{

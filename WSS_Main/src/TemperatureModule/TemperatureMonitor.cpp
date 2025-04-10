@@ -8,14 +8,15 @@
 
 #include "TemperatureMonitor.h"
 #include "SpiCmdDecoder.h"
-#include "Dlog.h"
 #include "wdt.h"
+
+
 long PRIMARK = 0.0;
 double g_direct_LCOS_Temp = 0x36;
 double g_direct_Hearter2_Temp = 0x36;
 
-#define TEC_STRCHEECK_LOW 45.0
-#define TEC_STRCHEECK_HIGH 75.0
+#define TEC_STRCHEECK_LOW 40.0
+#define TEC_STRCHEECK_HIGH 80.0
 
 /*
  * When delta Temp change is more than +- 0.2 we calculate pattern
@@ -712,7 +713,8 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 	{
 		*temp = ConvertToCelsius(LUT_MIN_HEX);
 		//zte cmd get:fault.N
-		FaultsAttr attr{0};
+		//FaultsAttr attr{0};
+		std::lock_guard<std::mutex> lock(attr.mtx);
 		attr.Raised = true;
 		attr.RaisedCount += 1;
 		attr.Degraded = true;
@@ -725,7 +727,8 @@ int TemperatureMonitor::ReadTemperature(double *temp, int sensor)
 	{
 		*temp = ConvertToCelsius(LUT_MAX_HEX);
 		//zte cmd get:fault.N
-		FaultsAttr attr{0};
+		//FaultsAttr attr{0};
+		std::lock_guard<std::mutex> lock(attr.mtx);
 		attr.Raised = true;
 		attr.RaisedCount += 1;
 		attr.Degraded = true;

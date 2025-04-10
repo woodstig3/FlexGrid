@@ -1,14 +1,14 @@
 #include <poll.h>
 
 #include "AlarmUIO.h"
-#include "SpiCmdDecoder.h"
+
 
 
 const char *uiod0 = "/dev/uio0";    // LCos panel voltage exceeding: Optics failure
 const char *uiod1 = "/dev/uio1";	// Lcos panel voltage exceeding: Optics failure
 const char *uiod2 = "/dev/uio2";	// Grating component temperature exceeding: internal temperature
 const char *uiod3 = "/dev/uio3";    // Thermal Failure or LCOS permanently damaged
-const char *uiod4 = "/dev/uio4";  // LCOS display panel access error
+const char *uiod4 = "/dev/uio4";    // LCOS display panel access error
 
 AlarmModule *AlarmModule::pinstance_{nullptr};
 
@@ -19,6 +19,8 @@ AlarmModule::AlarmModule()
 
 	thread_id = 0;
 	pthread_attr_init(&thread_attrb);	//Default initialize thread attributes
+
+	mmapTEC = new MemoryMapping(MemoryMapping::TEC);
 
 	UIO_DAC_OA = open(uiod0, O_RDWR | O_NONBLOCK);
     if (UIO_DAC_OA < 1)
@@ -97,6 +99,7 @@ AlarmModule::~AlarmModule()
         write(GPIO_unexportfd, "913", TEST_LEN);
         close(GPIO_unexportfd);
     }
+    delete mmapTEC;
 }
 
 AlarmModule *AlarmModule::GetInstance()
@@ -164,7 +167,7 @@ void AlarmModule::ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName
         return;
     }
 
-    FaultsAttr UIOMess = {0};
+    //FaultsAttr UIOMess = {0};
     if (count != hisCon)
     {
         hisCon = count;
@@ -234,10 +237,11 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             SpiCmdDecoder::hss.opticalControlFailure = DeOA_Flag;
             SpiCmdDecoder::hss.internalFailure = DeOA_Flag;
         }
-        //SpiCmdDecoder::hss.caseTempError = DeCase_Flag;
+        //SpiCmdDecoder::hss.caseTempError = DeCase_Flag; //currently not available because no case tempsensor yet.
         //other hardware status polling below:
         //ADC/DAC Access Error
-
+        checkADCPowerSupply();
+		checkDACPowerSupply();
         //TRANSFER_FAILURE
 
         //Watch_Dog_Event
@@ -277,5 +281,55 @@ void AlarmModule::GpioWrite(int fd, char level)
 	if(level == '1')
 	{
 		write(fd,"1", 2);
+	}
+}
+
+void AlarmModule::checkADCPowerSupply(){
+	// Added: Check if the 5V ADC power supply voltage is normal
+	unsigned int hexAdcVoltage = 0;
+	int adcStatus = mmapTEC->ReadRegister_TEC32(ADC_REG_ADDR / 0x4, &hexAdcVoltage);
+	if (adcStatus != 0) {
+		printf("Error: Failed to read 5V ADC power supply register\n");
+	}
+	//printf("[DEBUG] Raw ADC value: 0x%04X | DEC: %u\n", hexAdcVoltage, hexAdcVoltage);
+
+	double hexAdcVoltage_adjusted = (hexAdcVoltage / 33.2) * (33.2 + 91);
+	double vadc_out = (hexAdcVoltage_adjusted * ADC_REF_VOLTAGE) / 4096;
+	if (vadc_out < 4.5 || vadc_out > 5.5) {
+		printf("[ERROR] ADC not enabled! 5V power supply abnormal: current voltage=%.2fV\n", vadc_out);
+		std::lock_guard<std::mutex> lock(UIOMess.mtx);
+		UIOMess.Raised = true;
+		UIOMess.RaisedCount += 1;
+		UIOMess.Degraded = true;
+		UIOMess.DegradedCount = UIOMess.RaisedCount;
+        FaultMonitor::logFault(ADC_AD7689_ACCESS_FAILURE,UIOMess);
+	}
+}
+
+void AlarmModule::checkDACPowerSupply(){
+	// Added: DAC output check section
+	unsigned int hexAdcInput = 0;
+	// const uint16_t ADC_DATA_MASK = 0x0FFF;  // Define 12-bit data mask
+	int dacStatus = mmapTEC->ReadRegister_TEC32(DAC_REG_ADDR / 0x4, &hexAdcInput);
+	if (dacStatus != 0) {
+		printf("Error: Failed to read portD(ADC input/DAC output) register\n");
+	}
+	// Extract valid 12-bit data (assuming right-aligned)
+	uint16_t adcInputData = hexAdcInput & ADC_DATA_MASK;
+	// printf("[DEBUG] Raw DAC value: 0x%04X | DEC: %u\n", hexAdcInput, hexAdcInput);
+	//printf("[DEBUG] Raw DAC value: 0x%04X | Valid 12-bit: 0x%03X\n", hexAdcInput, adcInputData);
+	// DAC value validation (example conditions)
+	double vadc_tempout = (adcInputData * ADC_REF_VOLTAGE) / 4096;
+	// Calculate DAC output voltage with gain compensation (1 + 33/33)
+	double vdac_out = (vadc_tempout * (1 + 33 + 33)) / 33;
+	//printf("[DEBUG] DAC current output voltage=%.2fV\n", vdac_out);
+	if (vdac_out < 1 || vdac_out > 1.25) {
+		printf("[ERROR] DAC output abnormal: current voltage=%.2fV\n", vdac_out);
+		std::lock_guard<std::mutex> lock(UIOMess.mtx);
+		UIOMess.Raised = true;
+		UIOMess.RaisedCount += 1;
+		UIOMess.Degraded = true;
+		UIOMess.DegradedCount = UIOMess.RaisedCount;
+        FaultMonitor::logFault(ADC_AD7689_ACCESS_FAILURE,UIOMess);
 	}
 }

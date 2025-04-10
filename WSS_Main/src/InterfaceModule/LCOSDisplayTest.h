@@ -26,6 +26,7 @@ private:
 	int 			AnalyseDisplayTest_Data(uint32_t first_data_in_read, uint32_t second_data_in_read);
 	uint8_t 		DisplayBus_Test_Result[32];	// 32bits and 32 pins of LCOS.
 	std::string 	outputStr;
+	//FaultsAttr      attr{0};
 };
 
 #endif /* SRC_INTERFACEMODULE_LCOSDISPLAYTEST_H_ */

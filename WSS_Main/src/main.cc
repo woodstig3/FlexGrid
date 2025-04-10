@@ -58,11 +58,11 @@ int main(int argc, char* argv[])
 {
 	InitializeGlobalMutex();
 
-
+#ifndef _SPI_INTERFACE_
 	SerialModule *serialIns = SerialModule::GetInstance();
 	if(serialIns->MoveToThread() != 0)
 		printf("SerialModule: MoveToThread Failed!\n");
-
+#endif
 	TemperatureMonitor *tempIns = TemperatureMonitor::GetInstance();
 	if(tempIns->MoveToThread() != 0)
 	printf("TemperatureModule: MoveToThread Failed!\n");
@@ -74,7 +74,6 @@ int main(int argc, char* argv[])
 	PatternCalibModule *patternCalibIns = PatternCalibModule::GetInstance();
 	if(patternCalibIns->MoveToThread() != 0)
 		printf("PatternCalibModule: MoveToThread Failed!\n");
-
 
 
 //	if(argc > 1)	// SEND COMMAND DIRECTLY FROM CONSOLE ARGUMENTS
@@ -105,11 +104,6 @@ int main(int argc, char* argv[])
 
 
 #ifdef _SPI_INTERFACE_
-//	SPISlave spi("/dev/spidev1.0");
-//	if (!spi.init()) {
-//		throw std::runtime_error("Failed to initialize SPI slave");
-//	}
-
 
 	ThreadManager& manager = ThreadManager::getInstance();
 	ThreadManager::initializer();
@@ -124,11 +118,9 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Failed to initialize watchdog\n");
 		return 1;
 	}
-
 	// Register signal handlers for graceful shutdown
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
-
+//	signal(SIGINT, signal_handler);
+//	signal(SIGTERM, signal_handler);
 
 #endif
 
@@ -166,21 +158,29 @@ int main(int argc, char* argv[])
 	}
 #endif
 
+#ifdef _SPI_INTERFACE_
+	while(!manager.b_endMainSignal)
+	{
+		sleep(2);
+	}
+#else
 	while(!serialIns->b_endMainSignal) 			// To close main loop and end application when serial thread ends
 	{
 		sleep(2);
 	}
+#endif
 
 	patternIns->StopThread();
 	patternCalibIns->StopThread();
 	tempIns->StopThread();
-	serialIns->StopThread();
 	InterUIO->StopThread();
 
 	DestroyGlobalMutex();
 
 #ifdef _SPI_INTERFACE_
 	manager.stopThreads();  	// Shutdown spi interface module
+#else
+	serialIns->StopThread();    // Shutdown serial interface module
 #endif
 
 #ifdef _WATCHDOG_SOFTRESET_

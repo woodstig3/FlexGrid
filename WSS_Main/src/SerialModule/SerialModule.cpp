@@ -36,17 +36,6 @@ SerialModule::SerialModule()
 	if(status != 0)
 	{
 		printf("Driver<RS232>: Serial Module Initialization Failed.\n");
-		// Mode drc checked this is not right when no serial at all
-		std::ofstream enable_file("/mnt/enable_flag");
-		if (enable_file) {
-			enable_file << "SPI";
-			enable_file.close();
-		} else {
-			std::cerr << "ERROR: Cannot write to enable_flag" << std::endl;
-			return;
-		}
-		//
-		std::cout << "SPI Mode" << std::endl;
 		Serial_Closure();
 	}
 
@@ -171,7 +160,6 @@ void SerialModule::ProcessReadWrite(void)
 //			std::cout << "First clock = " << tstart << std::endl;
 
 			//extract download file packets into queue
-
 			int status = Serial_ExtractFilePacket(strPacket, temp_search_Str);
 
 			if (status == DelimiterStatus::FOUND)

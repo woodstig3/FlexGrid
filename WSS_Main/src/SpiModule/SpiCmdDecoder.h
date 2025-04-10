@@ -17,9 +17,10 @@
 #include <map>
 #include <functional>
 #include <memory>
+
 #include "SpiStructs.h"
 #include "CmdDecoder.h"
-
+#include "SlicePlanManager.h"
 
 // Define constants for SPI interface packet start delimiter
 const uint32_t SPIMAGIC = 0x0F1E2D3C;
@@ -388,17 +389,24 @@ public:
 //0x0015 command SPA processing, e.g.:0x0015 1, 1:8 1:1
 struct SPAConfigStruct {
 //    uint8_t w;                          // WSS module number [1|2]
-    std::vector<std::pair<uint16_t, uint16_t>> sliceRanges; // Slice ranges
-    std::vector<uint8_t> commonPorts;  // Common ports
-    std::vector<uint8_t> switchingPorts; // Switching ports
-    std::vector<int16_t> attenuations; // Attenuation values
+//    std::vector<std::pair<uint16_t, uint16_t>> sliceRanges; // Slice ranges
+//    std::vector<uint8_t> commonPorts;  // Common ports
+//    std::vector<uint8_t> switchingPorts; // Switching ports
+//    std::vector<int16_t> attenuations;
+	std::pair<uint16_t, uint16_t> slicePairs;
+    int16_t att; // Attenuation values
 };
+
 
 class SPASlicePortAttenuationCommand : public BaseCommand {
 public:
     SPASlicePortAttenuationCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {
     	if(!g_cmdDecoder) {
     		g_cmdDecoder = std::make_unique<CmdDecoder>();
+    	}
+    	if(!g_slicePlanManager) {
+    		g_slicePlanManager = std::make_unique<SlicePlanManager>();
+    		g_slicePlanManager->setDebugLogging(true);
     	}
     };
 
@@ -409,19 +417,32 @@ public:
     virtual bool parse(const SPICommandPacket& packetData) override;
     virtual std::vector<uint8_t> process(uint32_t seqNo) override;
 
-    static SPAConfigStruct spaConfStruct[3]; //store slice configuration for each module
+    //static SPAConfigStruct spaConfStruct[3]; //store slice configuration for each module
+//    static std::map<uint8_t, std::map<std::pair<uint16_t, uint16_t>, SPAConfigStruct>> slicePlans;
+//    static std::vector<slicePlans>sliceConfig;
+    static std::unique_ptr<SlicePlanManager> g_slicePlanManager;
 
 private:
-    float sliceSize = 3.125; //6.25/12.5GHz
+    float sliceSize = 6.25; //6.25/12.5GHz
     uint8_t w; // WSS module number
 	std::vector<std::pair<uint16_t, uint16_t>> sliceRanges;
 	std::vector<uint8_t> commonPorts;
 	std::vector<uint8_t> switchingPorts;
 	std::vector<int16_t> attenuations;
 
+	SPACommand spaCommands;
+
     double freqBySlice(uint16_t sliceNo) {
-    	return((sliceNo-1)*sliceSize);
+    	return((sliceNo-1)*sliceSize+VENDOR_FREQ_RANGE_LOW);
     };
+    // Helper method to check for overlapping slice ranges
+    int hasOverlap(
+        const std::pair<uint16_t, uint16_t>& range1,
+        const std::pair<uint16_t, uint16_t>& range2) {
+    	return !(range1.second < range2.first || range1.first > range2.second);
+    }
+
+
 };
 
 //0x0016 command SPA processing, e.g.:0x0016 1/2
@@ -442,7 +463,7 @@ public:
 private:
     float sliceSize = 6.25; //6.25/12.5GHz
     double freqBySlice(uint16_t sliceNo) {
-    	return((sliceNo-1)*sliceSize);
+    	return((sliceNo-1)*sliceSize+VENDOR_FREQ_RANGE_LOW);
     };
 };
 
