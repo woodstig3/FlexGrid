@@ -23,7 +23,7 @@
 #define UIO_2 68
 #define UIO_3 84
 
-#define TEST_LEN 4
+#define TEST_LEN 3 //4
 #define GPIO_WRR 913
 
 constexpr int ADC_REG_ADDR = 0x0100;

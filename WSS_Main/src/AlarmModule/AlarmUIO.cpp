@@ -156,43 +156,6 @@ void *AlarmModule::ThreadHandle(void *arg)
 	return (NULL);
 }
 
-void AlarmModule::ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName)
-{
-
-    int count;
-    int err = read(fd, &count, TEST_LEN);
-    if (err != TEST_LEN)
-    {
-        perror("UIO device read error");
-        return;
-    }
-
-    //FaultsAttr UIOMess = {0};
-    if (count != hisCon)
-    {
-        hisCon = count;
-        UIOMess.Raised = true;
-        UIOMess.RaisedCount = count;
-        UIOMess.Degraded = false;
-        UIOMess.DegradedCount = hisCon;
-        FaultMonitor::logFault(logName, UIOMess);
-        deFlag = true;
-
-    }
-    else
-    {
-        UIOMess.Raised = false;
-        UIOMess.RaisedCount = count;
-        UIOMess.Degraded = true;
-        UIOMess.DegradedCount = hisCon;
-        if (deFlag)
-        {
-        	FaultMonitor::logFault(logName, UIOMess);
-            deFlag = false;
-        }
-    }
-}
-
 void AlarmModule::ProcessUIOAlarmMonitoring(void)
 {
 
@@ -252,6 +215,44 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
     }
     pthread_exit(NULL);
 }
+
+void AlarmModule::ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName)
+{
+
+    int count;
+    int err = read(fd, &count, TEST_LEN);
+    if (err != TEST_LEN)
+    {
+        perror("UIO device read error");
+        return;
+    }
+
+    //FaultsAttr UIOMess = {0};
+    if (count != hisCon)
+    {
+        hisCon = count;
+        UIOMess.Raised = true;
+        UIOMess.RaisedCount = count;
+        UIOMess.Degraded = false;
+        UIOMess.DegradedCount = hisCon;
+        FaultMonitor::logFault(logName, UIOMess);
+        deFlag = true;
+
+    }
+    else
+    {
+        UIOMess.Raised = false;
+        UIOMess.RaisedCount = count;
+        UIOMess.Degraded = true;
+        UIOMess.DegradedCount = hisCon;
+        if (deFlag)
+        {
+        	FaultMonitor::logFault(logName, UIOMess);
+            deFlag = false;
+        }
+    }
+}
+
 void AlarmModule::StopThread()
 {
 
