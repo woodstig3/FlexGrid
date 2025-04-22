@@ -1856,8 +1856,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode()
 			double wavelength = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].LAMDA;
 			double ch_fc = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].FC;
 			double ch_bw = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][ch].BW;
-			double ch_f1 = ch_fc - (ch_bw-4)/2;
-			double ch_f2 = ch_fc + (ch_bw-4)/2;
+			double ch_f1 = ch_fc - ch_bw/2;
+			double ch_f2 = ch_fc + ch_bw/2;
 
 			double F1_PixelPos, F2_PixelPos, FC_PixelPos;
 
@@ -1912,8 +1912,8 @@ int PatternGenModule::Calculate_Every_ChannelPattern_DevelopMode()
 			double ch_f1 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F1;
 			double ch_f2 = g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][ch].F2;
 
-			ch_f1 = ch_fc - (ch_bw-4)/2;
-			ch_f2 = ch_fc + (ch_bw-4)/2;
+			ch_f1 = ch_fc - ch_bw/2;
+			ch_f2 = ch_fc + ch_bw/2;
 
 			double F1_PixelPos, F2_PixelPos, FC_PixelPos;
 
@@ -2689,9 +2689,9 @@ void PatternGenModule::RelocateChannelFG_SPI(unsigned int chNum, double f1_Pixel
 	int i = 0;
 	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 	int ch_start_pixelLocation = floor(f1_PixelPos);
-	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
+//	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
 	int ch_end_pixelLocation = floor(f2_PixelPos);
-	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
+//	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
 
 	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919/1951, width should be 1920/1952
 
