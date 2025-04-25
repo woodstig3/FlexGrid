@@ -25,6 +25,7 @@ extern double g_direct_Hearter2_Temp;
 extern ThreadSafeQueue<std::string> packetQueue;
 
 FixedGrid CmdDecoder::FG_Channel_DS_For_Pattern[3][g_Total_Channels]{0}; // new FixedGrid[3][g_Total_Channels]();
+
 std::string out;
 using namespace std;
 
@@ -231,7 +232,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 			else
 			{
 				//cout << "\01ERROR: Missing ':' in the command\04" << endl;
-				PrintResponse("\01MISSING_DELIMITER\04", NO_ERROR);
+				PrintResponse("\01MISSING_DELIMITER\04", ERROR_HI_PRIORITY);
 				searchDone = -1;
 				break;			// Immediately break the loop and don't process any commands
 			}
@@ -243,7 +244,7 @@ std::string& CmdDecoder::ReceiveCommand(const std::string& recvCommand)
 	{
 		//PrintResponse("\01WARNING: Invalid Command Format\04", ERROR_MSG);
 		cout << "WARNING: Invalid Command Format" <<endl;
-		PrintResponse("\01INVALID_COMMAND_ACTION\04", NO_ERROR);
+		PrintResponse("\01INVALID_COMMAND_ACTION\04", ERROR_HI_PRIORITY);
 	}
 
 	/************************************************************************/
@@ -4935,10 +4936,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 				return (-1);
 			}
-
+#endif
 			break;
 		}
-#endif
+
 		case RESTART:		//ACTION Restart dont have attribute at all, if you come here it means user gave attribute so issue ERROR
 		{
 			if(eVerb == ACTION)
@@ -5089,11 +5090,10 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 				return (-1);
 			}
-			}
-
-			break;
 		}
 		break;
+		}
+//		break;
 #ifdef _DEVELOPMENT_MODE_
 		case GMLUTWRITE:
 		{
@@ -7107,8 +7107,8 @@ bool CmdDecoder::ActionVrb::RestoreModule(int moduleNum)
 						std::cout << "global_mutex[LOCK_CHANNEL_DS] lock unsuccessful" << std::endl;
 				else
 				{
-					outerRef.FG_Channel_DS_For_Pattern[moduleNum][0].slotBlockedOrNot.resize(160);
-					outerRef.FG_Channel_DS_For_Pattern[moduleNum][0].slotsATTEN.resize(160);
+					outerRef.FG_Channel_DS_For_Pattern[moduleNum][0].slotBlockedOrNot.resize(164);  //from 160: drc 120wl
+					outerRef.FG_Channel_DS_For_Pattern[moduleNum][0].slotsATTEN.resize(164);
 					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS_For_Pattern[moduleNum][0]);
 					std::copy(&FG_Channel_DS_For_Save[moduleNum][0], &FG_Channel_DS_For_Save[moduleNum][0]+g_Total_Channels, &outerRef.FG_Channel_DS[moduleNum][0]);
 					g_bNewCommandData = true;

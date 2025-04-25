@@ -37,10 +37,10 @@ public:
  * define SPI commands and corresponding processes handlers class.
  *****************************************************************/
 struct WareVersion {
-    int year1;            // Major version (1-99)
-    int year2;            // Minor version (1-99)
-    int month1;   // Implementation version (0-99)
-    int month2; // Release Candidate version (0-99)
+	unsigned char year1;            // Major version (1-99)
+	unsigned char year2;            // Minor version (1-99)
+	unsigned char month1;   // Implementation version (0-99)
+	unsigned char month2; // Release Candidate version (0-99)
 };
 
 struct Config_For_Prod {
@@ -112,6 +112,7 @@ public:
     int modifyIniValue(const std::string& section, const std::string& key, const std::string& newValue);
     uint16_t constructOSSReplyData();
     uint16_t constructHSSReplyData();
+    void restoreActiveConfig(void);
 
 private:
 //    using CommandHandler = std::vector<uint8_t> (SpiCmdDecoder::*)(const std::vector<uint8_t>&);
@@ -448,8 +449,15 @@ private:
 //0x0016 command SPA processing, e.g.:0x0016 1/2
 class SPAQuerySlicePortAttenuationCommand : public BaseCommand {
 public:
-    SPAQuerySlicePortAttenuationCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {};
+    SPAQuerySlicePortAttenuationCommand(SpiCmdDecoder* cmd) : spiCmd(cmd) {
+
+    	if(!g_cmdDecoder) {
+			g_cmdDecoder = std::make_unique<CmdDecoder>();
+		}
+    };
 	SpiCmdDecoder* spiCmd;
+
+	static std::unique_ptr<CmdDecoder> g_cmdDecoder;
 
 	uint8_t w; // WSS module number
 

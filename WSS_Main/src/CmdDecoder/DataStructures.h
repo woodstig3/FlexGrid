@@ -334,8 +334,8 @@
 		int 			ocm_top_M2 = 600;
 		int 			ocm_bottom_M2 = 700;
 
-		std::string     current; //drc added for BIST
-		std::string     last;
+//		std::string     current; //drc added for BIST
+//		std::string     last;
 	};
 #endif
 

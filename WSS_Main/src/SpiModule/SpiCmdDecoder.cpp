@@ -11,7 +11,7 @@
 #include <memory>
 #include <fstream>
 #include <sstream>
-#include <map>
+
 #include <string>
 #include <bitset>
 #include <cstdlib>    
@@ -29,6 +29,7 @@ extern bool g_Calib_File_Failure;
 extern bool g_OpticalControl_Failure;
 
 
+
 Config_For_Prod SpiCmdDecoder::conf_spi{0};
 Operational_Status SpiCmdDecoder:: oss{0};
 Hardware_Status SpiCmdDecoder:: hss{0};
@@ -43,6 +44,8 @@ SpiCmdDecoder::SpiCmdDecoder()
 
 		loadProdIniConf();
 
+
+		 // Register command handlers as needed
     	commandHandlers[0x0001] = [this]() { return std::make_unique<SpiNOPCmdCommand>(this); };  //No Operation
     	commandHandlers[0x0002] = [this]() { return std::make_unique<SpiResetCmdCommand>(this); };  //Soft Reset
 		commandHandlers[0x0003] = [this]() { return std::make_unique<SpiStoreCmdCommand>(this); };  //Store
@@ -70,7 +73,6 @@ SpiCmdDecoder::SpiCmdDecoder()
 		commandHandlers[0x001A] = [this]() { return std::make_unique<SpiFWPQueryCommand>(this); };  //FWPQuery
 		commandHandlers[0x001B] = [this]() { return std::make_unique<SpiFWECmdCommand>(this); };  //FWE
 
-        // Register other command handlers as needed
 }
 
 // Main method to process the incoming SPI command packet
@@ -698,6 +700,7 @@ std::vector<uint8_t> SpiSFDCmdCommand::process(uint32_t seqNo) {
 // fill  struct with arguments extracted from command
 //write sus= start factory default:0
 	spiCmd->modifyIniValue("SPI CONF", "SUS", std::to_string(0));
+	spiCmd->loadProdIniConf();
 	//Reply packet constructed below
 	SPIReplyPacket replyPacket;
 	replyPacket.spiMagic = SPIMAGIC;
@@ -725,6 +728,7 @@ std::vector<uint8_t> SpiSLSCmdCommand::process(uint32_t seqNo) {
 // fill  struct with arguments extracted from command
 //write sls = start last saved:1
 	spiCmd->modifyIniValue("SPI CONF", "SUS", std::to_string(1));
+	spiCmd->loadProdIniConf();
 	//Reply packet constructed below
 	SPIReplyPacket replyPacket;
 	replyPacket.spiMagic = SPIMAGIC;
@@ -947,6 +951,7 @@ std::vector<uint8_t> SpiMIDAssignCmdCommand::process(uint32_t seqNo) {
  * SPI Command processing functions definitions below: 0x000D
  * ********************************************************************************************/
 bool SpiMIDQueryCommand::parse(const SPICommandPacket& packetData) {
+
 	return true; // Successfully parsed command
 }
 
@@ -954,6 +959,7 @@ std::vector<uint8_t> SpiMIDQueryCommand::process(uint32_t seqNo) {
         // Implement your command-specific processing logic here
 // fill  struct with arguments extracted from command
 	//Reply packet constructed below
+	spiCmd->loadProdIniConf();
 	SPIReplyPacket replyPacket;
 	replyPacket.spiMagic = SPIMAGIC;
 	replyPacket.seqNo = seqNo;
@@ -1348,6 +1354,7 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 			g_cmdDecoder->activeChannels.remove_if([wssid](const ChannelModules& point) {
 				return point.moduleNo == wssid;
 			});
+
 			for (const auto& range_config_pair : g_slicePlanManager->active_config_ranges.at(wssid)) {
 
 				const SliceRange& range = range_config_pair.first;
@@ -1374,6 +1381,10 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 
 				g_cmdDecoder->activeChannels.push_back({wssid, channelNum++});
 			}
+			g_bNewCommandData = true;
+		}
+		else if(g_cmdDecoder->activeChannels.size() != 0)
+		{
 			g_bNewCommandData = true;
 		}
 	}
@@ -1403,6 +1414,7 @@ std::vector<uint8_t> SPASlicePortAttenuationCommand::process(uint32_t seqNo) {
 /***********************************************************************************************
  * SPI Command processing functions definitions below: 0x0016 1/2
  * ********************************************************************************************/
+std::unique_ptr<CmdDecoder> SPAQuerySlicePortAttenuationCommand::g_cmdDecoder = nullptr;
 bool SPAQuerySlicePortAttenuationCommand::parse(const SPICommandPacket& packetData) {
 
 	// First byte is the WSS module number
@@ -1420,7 +1432,7 @@ bool SPAQuerySlicePortAttenuationCommand::parse(const SPICommandPacket& packetDa
 std::vector<uint8_t> SPAQuerySlicePortAttenuationCommand::process(uint32_t seqNo) {
 // Implement your command-specific processing logic here
 // fill  struct with arguments extracted from command
-
+	SliceConfig sliceConf;
 	//Reply packet constructed below
 	SPIReplyPacket replyPacket;
 	replyPacket.spiMagic = SPIMAGIC;
@@ -1428,11 +1440,33 @@ std::vector<uint8_t> SPAQuerySlicePortAttenuationCommand::process(uint32_t seqNo
 	replyPacket.seqNo = seqNo;
 	replyPacket.comres = 0; // Indicate success
 
-	size_t dataSize = 1; // Start with 1 byte for <W>
+	size_t dataSize = 1, channelNo = 1; // Start with 1 byte for <W>
 	// Get current configuration
-	auto config = SPASlicePortAttenuationCommand::g_slicePlanManager->getCurrentConfig(w);
+	std::map<uint16_t, SliceConfig> config = SPASlicePortAttenuationCommand::g_slicePlanManager->getCurrentConfig(w);
     // Resize data to ensure it has enough space
-	if(config.size() != 0) dataSize = config.size()*7; //<W><S><P><P><A>
+	if(config.size() != 0)
+		dataSize += config.size()*6; //<W><S><P><P><A>
+	else if(g_cmdDecoder->activeChannels.size() != 0) {
+
+		for(const auto& ch :  g_cmdDecoder->activeChannels)
+		{
+			channelNo = ch.channelNo;
+
+			unsigned char sliceNum = (g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].F2 - g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].F1)/6.25 + 1;
+
+			for (int i = 0; i < sliceNum; i++)
+			{
+				uint16_t sliceNo = (g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].F1 + i*sliceSize - VENDOR_FREQ_RANGE_LOW)/sliceSize + 1;
+				sliceConf.ports.common_port = g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].CMP;
+				sliceConf.ports.switching_port = g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].ADP;
+				sliceConf.attenuation = g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].ATT;
+				PortPair pp(sliceConf.ports.common_port, sliceConf.ports.switching_port);
+				config[sliceNo] = SliceConfig(pp, sliceConf.attenuation);
+
+			}
+		}
+		dataSize += config.size()*6;
+	}
 	replyPacket.data.resize(dataSize);
     // Fill the data
     size_t offset = 0;

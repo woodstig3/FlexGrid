@@ -8,9 +8,26 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <memory>
 #include "SlicePlanManager.h"
 
+
 using namespace std;
+
+//std::unique_ptr<CmdDecoder> SlicePlanManager::g_cmdDecoder = nullptr;
+std::list<ChannelModules> CmdDecoder::activeChannels(0);
+
+SlicePlanManager::SlicePlanManager()
+{
+/*	if(!g_cmdDecoder) {
+		g_cmdDecoder = std::make_unique<CmdDecoder>();
+	}
+
+	restoreActiveConfig();
+*/
+}
+
+SlicePlanManager::~SlicePlanManager() = default; // Define destructor
 
 /*
 void SlicePlanManager::updateRanges(uint8_t wss_id, const SliceRange& new_range, const SliceConfig& config) {
@@ -124,7 +141,7 @@ void SlicePlanManager::updateRanges(uint8_t wss_id, const SliceRange& new_range,
         log() << "After updateRanges:\n";
         for (const auto& r : ranges) {
             log() << "  " << r.first.start << "-" << r.first.end
-                  << "→P" << (int)r.second.ports.common_port
+                  << "->P" << (int)r.second.ports.common_port
                   << ":" << (int)r.second.ports.switching_port
                   << "@" << r.second.attenuation << "cB\n";
         }
@@ -256,6 +273,7 @@ map<uint16_t, SliceConfig> SlicePlanManager::getCurrentConfig(uint8_t wss_id) co
             }
         }
     }
+
     return result;
 }
 
@@ -327,7 +345,7 @@ void SlicePlanManager::logCommand(const std::string& phase, const SPACommand& cm
         const auto& ports = std::get<2>(assignment);
         int16_t atten = std::get<3>(assignment);
 
-        log() << start << "-" << end << "→P" << (int)ports.common_port
+        log() << start << "-" << end << "->P" << (int)ports.common_port
               << ":" << (int)ports.switching_port << "@" << atten << "cB ";
     }
     log() << "\n";
@@ -342,7 +360,7 @@ void SlicePlanManager::logSliceRanges(uint8_t wss_id) const {
             const auto& range = range_config.first;
             const auto& config = range_config.second;
             log() << "  " << range.start << "-" << range.end
-                  << "→P" << (int)config.ports.common_port
+                  << "->P" << (int)config.ports.common_port
                   << ":" << (int)config.ports.switching_port
                   << "@" << config.attenuation << "cB\n";
         }
@@ -357,7 +375,8 @@ void SlicePlanManager::logOverlapCheck(uint16_t start, uint16_t end,
     if (!debug_logging) return;
 
     log() << "  Overlap Check: [" << start << "," << end << "] vs ["
-          << e_start << "," << e_end << "] → "
+          << e_start << "," << e_end << "] -> "
           << (overlaps ? "OVERLAP" : "clear") << "\n";
 }
+
 

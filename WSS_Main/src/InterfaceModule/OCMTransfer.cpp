@@ -103,18 +103,18 @@ int OCMTransfer::SendPatternData(uint8_t *pattern)
 				WP=WP+HEC7020_OCM_MEM_STEP;
 			}
 
-			mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, WP);usleep(100);	//<-STABLE DELAY, but 100ms more time
+			mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, WP);//usleep(100);	//<-STABLE DELAY, but 100ms more time
 		}
 
 		do
 		{
-			mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP); //usleep(10); //usleep(1000); <-STABLE DELAY, but 100ms more time
+			mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP); usleep(10); //usleep(1000); <-STABLE DELAY, but 100ms more time
 		}while(RP != WP);
 
-		mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);usleep(100);
+		mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);//usleep(100);
 	}
 
-	mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);usleep(100);
+	mmapOCM->WriteRegister_OCM32(HEC7020_OCM_WRITEPTR, 0);//usleep(100);
 
 #ifdef _DEVELOPMENT_MODE_
 //	printf("Pattern send finished....\n");

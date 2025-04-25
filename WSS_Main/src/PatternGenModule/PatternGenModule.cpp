@@ -16,10 +16,12 @@
 //#include "DataStructures.h"
 //#include "LCOSDisplayTest.h"
 //#include "SpiCmdDecoder.h"
+#include "SlicePlanManager.h"
 #include "wdt.h"
 
 clock_t tstart;
 PatternGenModule *PatternGenModule::pinstance_{nullptr};
+std::map<uint8_t, std::map<SliceRange, SliceConfig>>SlicePlanManager:: active_config_ranges{};
 
 #define OCM_SCAN_CHANNEL 2048    //greater than normal to branch for OCM columdata calcu.
 
@@ -105,6 +107,32 @@ void *PatternGenModule::ThreadHandle(void *arg)
 	PatternGenModule *recvPtr = (PatternGenModule*) arg;
 	recvPtr->ProcessPatternGeneration();
 	return (NULL);
+}
+
+void PatternGenModule::restoreActiveConfig(void)
+{
+	size_t channelNo = 1, w = 1;
+	if(g_spaCmd->g_cmdDecoder->activeChannels.size() != 0) {
+
+		for(const auto& ch :  g_spaCmd->g_cmdDecoder->activeChannels)
+		{
+			channelNo = ch.channelNo;
+			w = ch.moduleNo;
+
+			uint16_t start = (g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].F1 - VENDOR_FREQ_RANGE_LOW)/6.25 + 1;
+			uint16_t end = (g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].F2 - VENDOR_FREQ_RANGE_LOW)/6.25 + 1;
+			SliceRange sr(start, end);
+
+			uint8_t common_port = g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].CMP;
+			uint8_t switching_port = g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].ADP;
+			int16_t attenuation = g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[w][channelNo].ATT;
+			PortPair pp(common_port, switching_port);
+			SliceConfig sc(pp, attenuation);
+
+			g_spaCmd->g_slicePlanManager->active_config_ranges[w].emplace(sr, sc);
+		}
+
+	}
 }
 
 void PatternGenModule::ProcessPatternGeneration(void)
@@ -209,10 +237,11 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			if (pthread_mutex_unlock(&global_mutex[LOCK_CHANNEL_DS]) != 0)	// Unlocking and checking the result, if lock was successful and no deadlock happened
 				std::cout << "global_mutex[LOCK_CHANNEL_DS] unlock unsuccessful" << std::endl;
 		}
-#ifndef _SPI_INTERFACE_
+
 		if(is_bRestarted == 0)
 		{
 			is_bRestarted = 1;
+#ifndef _SPI_INTERFACE_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
 				std::cout << "No stored module 1 pattern" << std::endl;
 #ifdef _TWIN_WSS_
@@ -220,15 +249,17 @@ void PatternGenModule::ProcessPatternGeneration(void)
 				std::cout << "No stored module 2 pattern" << std::endl;
 #endif
 #else
-		if(SpiCmdDecoder::conf_spi.sus == 1)
-		{
-			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
-				std::cout << "No stored module 1 pattern" << std::endl;
+			if(SpiCmdDecoder::conf_spi.sus == 1)
+			{
+				if(g_spaCmd->g_cmdDecoder->actionSR->RestoreModule(1) == false)
+					std::cout << "No stored module 1 pattern" << std::endl;
 #ifdef _TWIN_WSS_
-			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(2) == false)
-				std::cout << "No stored module 2 pattern" << std::endl;
+				if(g_spaCmd->g_cmdDecoder->actionSR->RestoreModule(2) == false)
+					std::cout << "No stored module 2 pattern" << std::endl;
 #endif
+				restoreActiveConfig();
 #endif
+			}
 		}
 
 		if(is_bPatternDone == PatternOutcome::SUCCESS)
@@ -248,9 +279,11 @@ void PatternGenModule::ProcessPatternGeneration(void)
 				m_transferFailure.DegradedCount = m_transferFailure.RaisedCount;
 				FaultMonitor::logFault(TRANSFER_FAILURE,m_transferFailure);
 			}
-
+#ifndef _SPI_INTERFACE_
 			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);
-
+#else
+			g_spaCmd->g_cmdDecoder->SetPatternTransferFlag(true);
+#endif
 #ifdef _FETCH_PATTERN_
 			Save_Pattern_In_FileSystem();
 			g_serialMod->Serial_WritePort("FF\n");	// Fetch File string send to PC software to start fetching
@@ -259,6 +292,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 		}
 		else if (is_bPatternDone == PatternOutcome::FAILED)
 		{
+#ifndef _SPI_INTERFACE_
 			std::string msg;
 			GetErrorMessage(msg);
 
@@ -273,6 +307,9 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			}
 
 			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);  //drc why still true here WHILE FAILED OUTCOME?
+#else
+			g_spaCmd->g_cmdDecoder->SetPatternTransferFlag(true);
+#endif
 		}
 
 	}
@@ -1432,11 +1469,13 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			inputs.ch_adp = g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ADP-1;			// -1 because Calib Module PORT[] array starts from 0 to 22, while user gives ADP from 1 to 23
 			double ch_bw = g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
 			inputs.ch_cmp = g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].CMP;
-
+#ifdef		_120_WL_
 			double ch_bw_c = 0;
 			if(ch_bw > 20)
 				ch_bw_c = ch_bw-20; //according to experiment
+
 			float  ch_att_c = 0.5;     //according to experiment
+#endif
 			float  edg_factor = 1;     //according to experiment
 
 			if(inputs.ch_att > MAX_ATT_BLOCK)
@@ -1444,7 +1483,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			if(g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
 			{
-				if(ch_bw >= 4)
+				if(ch_bw < 4)
 					continue;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw-4)/2;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw-4)/2;
@@ -1485,9 +1524,10 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 				Calculate_Optimization_And_Attenuation(outputs.Aopt, outputs.Kopt,  outputs.Aatt, edgeK_Att, 2); //2: right edge
 				Fill_Channel_ColumnData(channelNo-1);
 
+
 				g_b120WL = false;
 				RelocateChannelTF(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
-
+#ifdef _120_WL_
 				//RelocateChannel is needed because extra attenuation is required within the closest area around fc for 120 wl
 				if(ch_bw_c != 0 && ch_att_c != 0) {
 					inputs.ch_f1 = inputs.ch_fc - ch_bw_c/2;
@@ -1502,7 +1542,9 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 					Calculate_Pattern_Formulas(channelNo-1, g_wavelength, g_pixelSize, outputs.sigma, outputs.Aopt, outputs.Kopt, outputs.Aatt, outputs.Katt);
 					g_b120WL = true;
 					RelocateChannelTF(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
+
 				}
+#endif
 			}
 			else if(g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 1 &&
 					g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 1)
@@ -1591,12 +1633,14 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			double ch_bw = g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW;
 
 //			double ch_bw_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].BW_C;  //added for 120 wl test
+#ifdef  _120_WL_
 			double ch_bw_c = 0;
 			if(ch_bw > 20)
 				ch_bw_c = ch_bw-20; //according to experiment
 //			float  ch_att_c = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].ATT_C;  //added for 120 wl test
 			float  ch_att_c = 0.5;     //according to experiment
 //			float  edg_factor = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].EDG_FACTOR;  //added for 120 wl test
+#endif
 			float  edg_factor = 1;  //according to experiment
 
 			if(inputs.ch_att > MAX_ATT_BLOCK)
@@ -1604,7 +1648,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			if(g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
 			{
-				if(ch_bw >= 4)
+				if(ch_bw < 4)
 					continue;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw-4)/2;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw-4)/2;
@@ -1645,7 +1689,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 
 				g_b120WL = false;
 				RelocateChannelFG_SPI(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
-
+#ifdef _120_WL_
 				//RelocateChannel is needed because extra attenuation is required within the closest area around fc for 120 wl
 				if(ch_bw_c != 0 && ch_att_c != 0) {
 					inputs.ch_f1 = inputs.ch_fc - ch_bw_c/2;
@@ -1661,6 +1705,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 					g_b120WL = true;
 					RelocateChannelFG_SPI(channelNo-1, outputs.F1_PixelPos, outputs.F2_PixelPos, outputs.FC_PixelPos);
 				}
+#endif
 			}
 			else if(g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 1 &&
 					g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 1)
@@ -2494,9 +2539,9 @@ void PatternGenModule::RelocateChannelFG(unsigned int chNum, double f1_PixelPos,
 	int i = 0;
 	unsigned char value = m_backColor, tgapped = 0, mgapped = 0, bgapped = 0;
 	int ch_start_pixelLocation = floor(f1_PixelPos);
-	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
+//	std::cout << "f1_PixelPos: " << f1_PixelPos <<std::endl;
 	int ch_end_pixelLocation = floor(f2_PixelPos);
-	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
+//	std::cout << "f2_PixelPos: " << f2_PixelPos <<std::endl;
 
 	int ch_width_inPixels = ch_end_pixelLocation - ch_start_pixelLocation + 1; //drc modified starting from 0 end with 1919/1951, width should be 1920/1952
 

@@ -163,7 +163,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
 
             std::cout << "Content of transfer.tx_buf: ";
-            for (int i = 0; i < replyPacketData.size(); i++) {
+            for (size_t i = 0; i < replyPacketData.size(); i++) {
                 std::cout << std::hex << static_cast<int>(transfer.tx_buf[i]) << " ";
             }
             std::cout << std::endl;

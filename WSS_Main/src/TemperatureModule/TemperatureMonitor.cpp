@@ -990,9 +990,9 @@ double TemperatureMonitor::GetLCOSTemperature(void)
 
 bool TemperatureMonitor::Check_Need_For_TEC_Data_Transfer_To_PC()
 {
-#ifdef _DEVELOPMENT_MODE_
-	int status = false;
 
+	bool status = false;
+#ifdef _DEVELOPMENT_MODE_
 	if (pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]) != 0)	// locking and checking the result, if lock was successful and no deadlock happened
 		std::cout << "global_mutex[LOCK_DEVMODE_VARS] lock unsuccessful" << std::endl;
 	else
@@ -1059,10 +1059,8 @@ bool TemperatureMonitor::Check_Need_For_TEC_Data_Transfer_To_PC()
 		if (pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]) != 0)	// Unlocking and checking the result, if lock was successful and no deadlock happened
 			std::cout << "global_mutex[LOCK_DEVMODE_VARS] unlock unsuccessful" << std::endl;
 	}
-
-	return status;
-
 #endif
+	return status;
 }
 
 inline int TemperatureMonitor::SetHeaters(bool state)

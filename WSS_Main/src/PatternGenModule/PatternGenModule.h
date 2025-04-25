@@ -105,6 +105,7 @@ public:
 	TemperatureMonitor *g_tempMonitor{nullptr};
 	SPASlicePortAttenuationCommand *g_spaCmd{nullptr};
 
+
 	int 				MoveToThread();
 	void 				StopThread();
 
@@ -171,6 +172,8 @@ private:
 	pthread_attr_t 	thread_attrb{};									// Create Attributes
 
 	bool 			b_LoopOn{};										// Loop running on thread
+
+	void 			restoreActiveConfig(void);
 
 private:
 

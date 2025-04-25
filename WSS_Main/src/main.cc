@@ -58,7 +58,21 @@ int main(int argc, char* argv[])
 {
 	InitializeGlobalMutex();
 
-#ifndef _SPI_INTERFACE_
+#ifdef _WATCHDOG_SOFTRESET_
+    const char *watchdog_device = "/dev/watchdog0";
+    int timeout = 3; // Default timeout in seconds
+    // Initialize the watchdog
+	if (watchdog_init(watchdog_device, timeout) < 0) {
+		fprintf(stderr, "Failed to initialize watchdog\n");
+		return 1;
+	}
+	// Register signal handlers for graceful shutdown
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+
+#endif
+
+#ifdef _SPI_INTERFACE_
 	SerialModule *serialIns = SerialModule::GetInstance();
 	if(serialIns->MoveToThread() != 0)
 		printf("SerialModule: MoveToThread Failed!\n");
@@ -85,10 +99,10 @@ int main(int argc, char* argv[])
 //			serialIns->Serial_InitiateCommandDecoding(temp);
 //		}
 //	}
-	AlarmModule *InterUIO = AlarmModule::GetInstance();
+/*	AlarmModule *InterUIO = AlarmModule::GetInstance();
 	if(InterUIO->MoveToThread() != 0)
 		printf("Alarm for UIO: MoveToThread Failed");
-
+*/
 //	MemoryMapping MMAP(MemoryMapping::CLUT);
 //
 //	uint8_t val;
@@ -108,20 +122,6 @@ int main(int argc, char* argv[])
 	ThreadManager& manager = ThreadManager::getInstance();
 	ThreadManager::initializer();
 	manager.startThreads();
-#endif
-
-#ifdef _WATCHDOG_SOFTRESET_
-    const char *watchdog_device = "/dev/watchdog0";
-    int timeout = 3; // Default timeout in seconds
-    // Initialize the watchdog
-	if (watchdog_init(watchdog_device, timeout) < 0) {
-		fprintf(stderr, "Failed to initialize watchdog\n");
-		return 1;
-	}
-	// Register signal handlers for graceful shutdown
-//	signal(SIGINT, signal_handler);
-//	signal(SIGTERM, signal_handler);
-
 #endif
 
 
@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
 	patternIns->StopThread();
 	patternCalibIns->StopThread();
 	tempIns->StopThread();
-	InterUIO->StopThread();
+//	InterUIO->StopThread();
 
 	DestroyGlobalMutex();
 

@@ -99,7 +99,7 @@ static FixedGrid    FG_Channel_DS_For_Pattern[3][g_Total_Channels];
 	void 			SetPanelInfo(bool);
 	void 			SetPanelInfo(Panel&);
 	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
-	std::list<ChannelModules> activeChannels;
+static std::list<ChannelModules> activeChannels;
 	char           customerInfo[100] = " ";
 	char           bist_current[64] = " ";
 
@@ -116,7 +116,7 @@ private:
 	double 			prevF1 = 0;
 	double 			prevF2 = 0;
 
-	char 			buff[10000]{0};												//Buffer to add data that user can read- data send to user
+	char 			buff[20000]{0};												//Buffer to add data that user can read- data send to user
 	int 			buffLenTemp = 0;											//Temporary integer for shifting/jumping in buffer to another index
 
 	int 			g_moduleNum = 0;												//Module number parsed from cmd

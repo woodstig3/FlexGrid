@@ -16,9 +16,10 @@
 #include <condition_variable>
 #include <atomic>
 #include <cstring>
-
+#include <map>
 #include "SpiInterface.h"
 #include "SpiCmdDecoder.h"
+
 
 struct Packet {
 	std::vector<uint8_t> data;
