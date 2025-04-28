@@ -55,7 +55,7 @@ AlarmModule::AlarmModule()
         printf("Cannot open GPIO to export it\n");
         exit(1);
     }
-
+/*
     write(GPIO_exportfd, "913", TEST_LEN);
     close(GPIO_exportfd);
     printf("GPIO exported successfully\n");
@@ -81,6 +81,7 @@ AlarmModule::AlarmModule()
     }
 
     printf("GPIO value opened, now toggling...\n");
+*/
 }
 
 AlarmModule::~AlarmModule()

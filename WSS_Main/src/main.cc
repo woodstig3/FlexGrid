@@ -81,13 +81,14 @@ int main(int argc, char* argv[])
 	if(tempIns->MoveToThread() != 0)
 	printf("TemperatureModule: MoveToThread Failed!\n");
 
+	PatternCalibModule *patternCalibIns = PatternCalibModule::GetInstance();
+	if(patternCalibIns->MoveToThread() != 0)
+		printf("PatternCalibModule: MoveToThread Failed!\n");
+
 	PatternGenModule *patternIns = PatternGenModule::GetInstance();			// Singleton approach has been used (passing instance to other class)
 	if(patternIns->MoveToThread() != 0)
 		printf("PatternGenModule: MoveToThread Failed!\n");
 
-	PatternCalibModule *patternCalibIns = PatternCalibModule::GetInstance();
-	if(patternCalibIns->MoveToThread() != 0)
-		printf("PatternCalibModule: MoveToThread Failed!\n");
 
 
 //	if(argc > 1)	// SEND COMMAND DIRECTLY FROM CONSOLE ARGUMENTS

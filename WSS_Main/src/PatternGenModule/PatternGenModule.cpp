@@ -130,6 +130,8 @@ void PatternGenModule::restoreActiveConfig(void)
 			SliceConfig sc(pp, attenuation);
 
 			g_spaCmd->g_slicePlanManager->active_config_ranges[w].emplace(sr, sc);
+
+			std::cout << "Restored pattern channel: " << channelNo << " mod: " << w << " startSlice: " << start << " endSlice: " << end << " cmp: " << common_port << " adp: " << switching_port << " att: " << attenuation << std::endl;
 		}
 
 	}
@@ -181,6 +183,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 				std::cout << "global_mutex[LOCK_TEMP_CHANGED_FLAG] lock unsuccessful" << std::endl;
 			else
 			{
+
 				if(g_bNewCommandData || g_bTempChanged)
 				{
 					status = Get_LCOS_Temperature();
@@ -221,12 +224,11 @@ void PatternGenModule::ProcessPatternGeneration(void)
 					}
 
 					g_bNewCommandData = false;
+				}
 
 #ifdef _OCM_SCAN_
 		CalculateOCMPattern();
 #endif
-
-				}
 				else	// If no new command or temp changed happened
 				{
 					if (pthread_mutex_unlock(&global_mutex[LOCK_TEMP_CHANGED_FLAG]) != 0)	// Unlocking and checking the result, if lock was successful and no deadlock happened
@@ -243,11 +245,12 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			is_bRestarted = 1;
 #ifndef _SPI_INTERFACE_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
-				std::cout << "No stored module 1 pattern" << std::endl;
+			std::cout << "No stored module 1 pattern" << std::endl;
 #ifdef _TWIN_WSS_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(2) == false)
 				std::cout << "No stored module 2 pattern" << std::endl;
 #endif
+		}
 #else
 			if(SpiCmdDecoder::conf_spi.sus == 1)
 			{
@@ -258,10 +261,9 @@ void PatternGenModule::ProcessPatternGeneration(void)
 					std::cout << "No stored module 2 pattern" << std::endl;
 #endif
 				restoreActiveConfig();
-#endif
 			}
+#endif
 		}
-
 		if(is_bPatternDone == PatternOutcome::SUCCESS)
 		{
 			if(rotationAngle != 0)
@@ -1483,7 +1485,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 			if(g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
 			{
-				if(ch_bw < 4)
+				if(ch_bw <= 4)
 					continue;
 				inputs.ch_f1 = inputs.ch_fc - (ch_bw-4)/2;
 				inputs.ch_f2 = inputs.ch_fc + (ch_bw-4)/2;
