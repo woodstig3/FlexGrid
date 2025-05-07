@@ -16,8 +16,8 @@
 #define _XILINX_
 
 //#define _OCM_SCAN_                     //added for OCM function blocks
-#define _SPI_INTERFACE_
-#define _WATCHDOG_SOFTRESET_
+//#define _SPI_INTERFACE_
+//#define _WATCHDOG_SOFTRESET_
 
 const double PI = 3.141592653589793238;
 

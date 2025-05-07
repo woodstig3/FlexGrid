@@ -10,15 +10,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/signal.h>
+#include <Dlog.h>
+//#include <linux/watchdog.h>
 
 
 // Watchdog definitions
@@ -43,12 +47,18 @@ struct watchdog_info {
 #define WDIOF_MAGICCLOSE        0x0100  /* Supports magic close char */
 #define WDIOS_DISABLECARD       0x0001  /* Turn off the watchdog timer */
 
+extern volatile uint32_t* WATCHDOG_RESET_STATUS_REG;
+//extern volatile uint32_t* WATCHDOG_CONTROL_REG; 
 
 int watchdog_init(const char *device, int timeout);
 int watchdog_feed();
 int watchdog_disable();
 void signal_handler(int sig);
+void boot_check();
+void init_watchdog_registers();
+//void create_watchdog_flag();
+//void cleanup_watchdog_flag();
 
-
+extern FaultsAttr m_watchDogEvent;
 
 #endif /* SRC_INTERFACEMODULE_WDT_H_ */

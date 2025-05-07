@@ -311,9 +311,8 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);  //drc why still true here WHILE FAILED OUTCOME?
 #else
 			g_spaCmd->g_cmdDecoder->SetPatternTransferFlag(true);
-#endif
 		}
-
+#endif
 	}
 
 	pthread_exit(NULL);

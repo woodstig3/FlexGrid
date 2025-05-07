@@ -46,6 +46,7 @@ CmdDecoder::CmdDecoder() {
 	strcpy(customerInfo, "BAIANTEK");
 
 	file_transfer = new FileTransfer("/mnt/WSS_Main.elf", "/mnt/WSS_Backup.elf");
+	mmapGPIO = new MemoryMapping(MemoryMapping::GPIO);
 
 }
 
@@ -60,7 +61,7 @@ CmdDecoder::~CmdDecoder()
 #endif
 	delete actionSR;
 	delete file_transfer;
-
+	delete mmapGPIO;
 }
 
 void CmdDecoder::WaitPatternTransfer(void)
@@ -183,6 +184,7 @@ void CmdDecoder::GetDownloadFilePath(int eObj, std::string& strOldPath, std::str
 			m_calibFileMismatch.Degraded = true;
 			m_calibFileMismatch.DegradedCount = m_calibFileMismatch.RaisedCount;
 			FaultMonitor::logFault(CALIB_FILE_MISMATCH,m_calibFileMismatch);  // File existence check failed
+			mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
 			return;
 
 	}

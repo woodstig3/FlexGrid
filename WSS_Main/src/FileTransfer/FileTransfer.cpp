@@ -440,6 +440,7 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
 	            m_firmwareDownloadFailure.Degraded = false;
 	            m_firmwareDownloadFailure.DegradedCount = m_firmwareDownloadFailure.RaisedCount;
 	            FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, m_firmwareDownloadFailure);
+                mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
 				continue;
 			}
 
@@ -481,6 +482,7 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
             m_firmwareDownloadFailure.Degraded = false;
             m_firmwareDownloadFailure.DegradedCount = m_firmwareDownloadFailure.RaisedCount;
             FaultMonitor::logFault(FIRMWARE_DOWNLOAD_FAILURE, m_firmwareDownloadFailure);
+            mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
         }
     }
 
@@ -500,6 +502,7 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
         m_calibFileMissing.Degraded = true;
         m_calibFileMissing.DegradedCount = m_calibFileMissing.RaisedCount;
         FaultMonitor::logFault(CALIB_FILE_MISSING,m_calibFileMissing);  // File existence check failed
+        mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
     } else {
         std::cout << "File verification success: " 
                 << m_newFirmwarePath << " exists." << std::endl;
@@ -531,6 +534,7 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
             m_fwFileChecksumError.Degraded = true;
             m_fwFileChecksumError.DegradedCount = m_fwFileChecksumError.RaisedCount;
             FaultMonitor::logFault(FW_FILE_CHECKSUM_ERROR, m_fwFileChecksumError);
+            mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
         } else {
             std::lock_guard<std::mutex> lock(m_calibFileChecksumError.mtx);
             m_calibFileChecksumError.Raised = true;
@@ -538,6 +542,7 @@ void FileTransfer::processLUTFilePackets(int num_bytes ) {
             m_calibFileChecksumError.Degraded = true;
             m_calibFileChecksumError.DegradedCount = m_calibFileChecksumError.RaisedCount;
             FaultMonitor::logFault(CALIB_FILE_CHECKSUM_ERROR, m_calibFileChecksumError);
+            mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
         }
         // FaultType faultType = (ext == "elf") ? FW_FILE_CHECKSUM_ERROR : CALIB_FILE_CHECKSUM_ERROR;
         // FaultMonitor::logFault(faultType, attr);

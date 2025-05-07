@@ -39,11 +39,11 @@ void* ThreadManager::spiListener(void* arg) {
     while (receiving) {
 
     	// Wait for master command by detecting cs and sclk valid at the same time
-/*    	if(!spiSlave->isReady()) {
+    	if(!spiSlave->isReady()) {
     		std::cout << "Waiting for master command ...\n" << std::endl;
     		continue;
     	}
-*/
+
 #ifdef _WATCHDOG_SOFTRESET_
 		watchdog_feed();
 #endif
@@ -71,7 +71,7 @@ void* ThreadManager::spiListener(void* arg) {
 
 		}
         // Sleep for a short duration to prevent busy-waiting
-        usleep(50000); // Sleep for 1ms
+        //usleep(10); // Sleep for 1ms
     }
     return nullptr;
 }
@@ -111,13 +111,13 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 				SPIReplyPacket replyPacket;
 				replyPacket.spiMagic = SPIMAGIC;
 				replyPacket.length = commandPacket.length; // Example length
-				replyPacket.seqNo = commandPacket.seqNo;
+				replyPacket.seqNo = 0x14; //commandPacket.seqNo;
 				replyPacket.comres = -1; // PENDING COMRES
                 // component header: 16 bytes
                 std::vector<uint8_t> headerData = spiDec->constructSPIReplyPacketHeader(replyPacket);
                 // caculate CRC1
                 replyPacket.crc1 = spiDec->calculateCRC1(headerData.data());
-                if (replyPacket.length > 0x0014 ) {
+                /*if (replyPacket.length > 0x0014 ) {
                     replyPacket.data.clear();
                     replyPacket.data.reserve(commandPacket.data.size());
                     for (signed char c : commandPacket.data) {
@@ -126,7 +126,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
                     // Calculate CRC2 based on the entire packet (excluding CRC2 itself)
                     std::vector<uint8_t> packetWithoutCRC2 = spiDec->constructSPIReplyPacketWithoutCRC2(replyPacket);
                     replyPacket.crc2 = spiDec->calculateCRC2(packetWithoutCRC2.data(), packetWithoutCRC2.size());
-                }
+                }*/
 
 				replyPacketData = constructSPIReplyPacket(replyPacket);
                 
@@ -136,7 +136,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
                 }
 				// Formulate a reply based on the processed packet
 				memset(transfer.tx_buf, 0, BUFFER_SIZE);
-				memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size()*sizeof(uint8_t));
+				memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
 
 				spiDec->oss.isPending = true;
 
@@ -161,6 +161,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             // Formulate a reply based on the processed packet
             memset(transfer.tx_buf, 0, BUFFER_SIZE);
             memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
+            spiDec->oss.isPending = false;
 
             std::cout << "Content of transfer.tx_buf: ";
             for (size_t i = 0; i < replyPacketData.size(); i++) {

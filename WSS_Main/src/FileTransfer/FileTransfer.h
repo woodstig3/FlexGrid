@@ -18,6 +18,8 @@
 #include <condition_variable>
 #include <vector>
 #include "Dlog.h"
+#include "MemoryMapping.h"
+#include "wdt.h"
 
 template<typename T>
 class ThreadSafeQueue {
@@ -53,10 +55,13 @@ class FileTransfer {
 public:
 
 	FileTransfer(const std::string &old_firmware_path, const std::string &base_firmware_dir)
-	        : m_oldFirmwarePath(old_firmware_path), m_newFirmwarePath(base_firmware_dir) {}//, firmwareUpdaterThread(nullptr) {}
+	        : m_oldFirmwarePath(old_firmware_path), m_newFirmwarePath(base_firmware_dir) {
+                mmapGPIO = new MemoryMapping(MemoryMapping::GPIO);
+            }//, firmwareUpdaterThread(nullptr) {}
 
     ~FileTransfer() {
-//         Properly join the thread if it's still running before destroying it
+        delete mmapGPIO;
+        // Properly join the thread if it's still running before destroying it
         if (firmwareUpdaterThread && firmwareUpdaterThread->joinable()) {
         	stopFirmwareUpgrade();
             firmwareUpdaterThread->join();
@@ -130,6 +135,7 @@ private:
     bool check_integrity(const std::string &path, const int expected_size); //const std::string &expected_hash);
     bool replaceFile(const std::string& oldFilename, const std::string& newFilename);
 
+    MemoryMapping *mmapGPIO;
 };
 
 

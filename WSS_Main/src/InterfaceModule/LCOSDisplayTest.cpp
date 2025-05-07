@@ -62,6 +62,7 @@ int LCOSDisplayTest::RunTest()
 	//8- Write data 0x81 to the 0x01 register
 	input = 0x81;
 	m_mmap.WriteRegister_Reg2(0x01, input);
+	usleep(500);
 	//printf("0x01 register value =  %04x\n\r", input);
 
 	//9- Read data from 0x31/0x32/0x33/0x34 register
@@ -77,6 +78,7 @@ int LCOSDisplayTest::RunTest()
 	//10- Write data 0x82 to the 0x01 register
 	input = 0x82;
 	m_mmap.WriteRegister_Reg2(0x01, input);
+	usleep(500);
 	//printf("0x01 register value =  %04x\n\r", input);
 
 	//11- Read data from 0x31/0x32/0x33/0x34 register

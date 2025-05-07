@@ -30,13 +30,6 @@ bool SPISlave::init()
         return false;
     }
 
-	if (ioctl(m_fd, SPI_IOC_RD_MODE32, &current_mode) < 0) {
-	    perror("Failed to read SPI mode");
-	    cleanup();
-	    return false;
-	}
-	printf("Current SPI mode: %d\n", current_mode);
-
 	if (ioctl(m_fd, SPI_IOC_RD_BITS_PER_WORD, &bits) < 0) {
         std::cerr << "Error setting bits per word: " << strerror(errno) << std::endl;
         cleanup();
@@ -51,6 +44,11 @@ bool SPISlave::init()
     }
 	printf("Current SPI speed in Hz: %d\n", speed);
 
+	if (ioctl(m_fd, SPI_IOC_WR_MODE, &current_mode) < 0) {
+		perror("Can't get SPI mode");
+		return -1;
+	}
+	printf("Current SPI mode is: %d\n", current_mode);
     return (true);
 }
 
@@ -80,6 +78,16 @@ bool SPISlave::configureSPIDevice()
 		return false;
 	}
 
+    if (ioctl(m_fd, SPI_IOC_WR_MODE, &current_mode) < 0) {
+		std::cerr << "Error setting mode: " << strerror(errno) << std::endl;
+		return false;
+	}
+	// lsb_first: 0 for MSB-first (default), 1 for LSB-first
+	if (ioctl(m_fd, SPI_IOC_WR_LSB_FIRST, &msb_first) < 0) {
+		perror("Can't set SPI bit order");
+		return -1;
+	}
+
     return true;
 }
 
@@ -104,7 +112,7 @@ int SPISlave::spi_transfer(struct spi_transfer_data &transfer) {
     tr.tx_buf = (unsigned long)transfer.tx_buf;
     tr.rx_buf = (unsigned long)transfer.rx_buf;
 	tr.len = transfer.len;
-	tr.speed_hz = 20000000; // 1MHz - adjust as needed
+	tr.speed_hz = 60000000; // 1MHz - adjust as needed
 	tr.bits_per_word = bits;
 	tr.delay_usecs = 0;
 

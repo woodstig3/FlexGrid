@@ -8,7 +8,11 @@ const char *uiod0 = "/dev/uio0";    // LCos panel voltage exceeding: Optics fail
 const char *uiod1 = "/dev/uio1";	// Lcos panel voltage exceeding: Optics failure
 const char *uiod2 = "/dev/uio2";	// Grating component temperature exceeding: internal temperature
 const char *uiod3 = "/dev/uio3";    // Thermal Failure or LCOS permanently damaged
-const char *uiod4 = "/dev/uio4";    // LCOS display panel access error
+const char *uiod4 = "/dev/uio4";    // Hard reset
+const char *uiod5 = "/dev/uio5";    // Pattern receive finish
+const char *uiod6 = "/dev/uio6";    // EEPROM load ready
+const char *uiod7 = "/dev/uio7";    // Grid low temp
+const char *uiod8 = "/dev/uio8";    // Lcos low temp
 
 AlarmModule *AlarmModule::pinstance_{nullptr};
 
@@ -21,6 +25,7 @@ AlarmModule::AlarmModule()
 	pthread_attr_init(&thread_attrb);	//Default initialize thread attributes
 
 	mmapTEC = new MemoryMapping(MemoryMapping::TEC);
+    mmapGPIO = new MemoryMapping(MemoryMapping::GPIO);
 
 	UIO_DAC_OA = open(uiod0, O_RDWR | O_NONBLOCK);
     if (UIO_DAC_OA < 1)
@@ -32,20 +37,40 @@ AlarmModule::AlarmModule()
     {
         printf("Invalid UIO device file : %s.\n",uiod1);
     }
-    UIO_GRID_Temp = open(uiod2, O_RDWR | O_NONBLOCK);
-    if (UIO_GRID_Temp < 1)
+    UIO_GRID_Temp_H = open(uiod2, O_RDWR | O_NONBLOCK);
+    if (UIO_GRID_Temp_H < 1)
     {
         printf("Invalid UIO device file : %s.\n",uiod2);
     }
-    UIO_LCOS_Temp = open(uiod3, O_RDWR | O_NONBLOCK);
-    if (UIO_LCOS_Temp < 1)
+    UIO_LCOS_Temp_H = open(uiod3, O_RDWR | O_NONBLOCK);
+    if (UIO_LCOS_Temp_H < 1)
     {
         printf("Invalid UIO device file : %s.\n",uiod3);
     }
-    UIO_LCOS_Ready = open(uiod4, O_RDWR | O_NONBLOCK);
-    if (UIO_LCOS_Ready < 1)
+    UIO_Hard_Reset = open(uiod4, O_RDWR | O_NONBLOCK);
+    if (UIO_Hard_Reset < 1)
     {
         printf("Invalid UIO device file : %s.\n",uiod4);
+    }
+    UIO_Pattern_Received = open(uiod5, O_RDWR | O_NONBLOCK);
+    if (UIO_Pattern_Received < 1)
+    {
+        printf("Invalid UIO device file : %s.\n",uiod5);
+    }
+    UIO_EEPROM_Load_Ready = open(uiod6, O_RDWR | O_NONBLOCK);
+    if (UIO_EEPROM_Load_Ready < 1)
+    {
+        printf("Invalid UIO device file : %s.\n",uiod6);
+    }
+    UIO_GRID_Temp_L = open(uiod7, O_RDWR | O_NONBLOCK);
+    if (UIO_GRID_Temp_L < 1)
+    {
+        printf("Invalid UIO device file : %s.\n",uiod7);
+    }
+    UIO_LCOS_Temp_L = open(uiod8, O_RDWR | O_NONBLOCK);
+    if (UIO_LCOS_Temp_L < 1)
+    {
+        printf("Invalid UIO device file : %s.\n",uiod8);
     }
 
     //For GPIO
@@ -88,10 +113,13 @@ AlarmModule::~AlarmModule()
 {
     if (UIO_DAC_OA >= 0) close(UIO_DAC_OA);
     if (UIO_DAC_OD >= 0) close(UIO_DAC_OD);
-    if (UIO_GRID_Temp >= 0) close(UIO_GRID_Temp);
-    if (UIO_LCOS_Temp >= 0) close(UIO_LCOS_Temp);
+    if (UIO_GRID_Temp_H >= 0) close(UIO_GRID_Temp_H);
+    if (UIO_LCOS_Temp_H >= 0) close(UIO_LCOS_Temp_H);
     if (GPIO_valuefd >= 0) close(GPIO_valuefd);
-    if (UIO_LCOS_Ready >= 0) close(UIO_LCOS_Ready);
+    if (UIO_Hard_Reset >= 0) close(UIO_Hard_Reset);
+    if (UIO_EEPROM_Load_Ready >= 0) close(UIO_EEPROM_Load_Ready);
+    if (UIO_GRID_Temp_L >= 0) close(UIO_GRID_Temp_L);
+    if (UIO_LCOS_Temp_L >= 0) close(UIO_LCOS_Temp_L);
 
     // Unexport the GPIO pin
     int GPIO_unexportfd = open("/sys/class/gpio/unexport", O_WRONLY);
@@ -101,6 +129,7 @@ AlarmModule::~AlarmModule()
         close(GPIO_unexportfd);
     }
     delete mmapTEC;
+    delete mmapGPIO;
 }
 
 AlarmModule *AlarmModule::GetInstance()
@@ -125,7 +154,8 @@ int AlarmModule::MoveToThread()
 {
 	if (thread_id == 0)
 	{
-        if((UIO_DAC_OA < 1) || (UIO_DAC_OD < 1) || (UIO_GRID_Temp < 1) || (UIO_LCOS_Temp < 1) || (UIO_LCOS_Ready < 1))
+        if((UIO_DAC_OA < 1) || (UIO_DAC_OD < 1) || (UIO_GRID_Temp_H < 1) || (UIO_LCOS_Temp_H < 1) || (UIO_Hard_Reset < 1) || 
+            (UIO_Pattern_Received < 1) || (UIO_EEPROM_Load_Ready < 1) || (UIO_GRID_Temp_L < 1) || (UIO_LCOS_Temp_L < 1))
         {
         	printf("Not all the file was open do not create pthread .\n");
         	return -1;
@@ -163,49 +193,268 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
     while (thread_id != 0) // Add a flag for graceful termination
     {
         // Use poll() to wait for interrupts on all UIO devices
-        struct pollfd fds[4] = {
-            {UIO_LCOS_Temp, POLLIN, 0},
-            {UIO_GRID_Temp, POLLIN, 0},
+        //printf("[DEBUG] Polling UIO devices... (timeout=5s)\n");
+        struct pollfd fds[9] = {
+            {UIO_DAC_OA, POLLIN, 0},
             {UIO_DAC_OD, POLLIN, 0},
-            {UIO_DAC_OA, POLLIN, 0}
+            {UIO_GRID_Temp_H, POLLIN, 0},
+            {UIO_LCOS_Temp_H, POLLIN, 0},
+            {UIO_Hard_Reset, POLLIN, 0},
+            {UIO_Pattern_Received, POLLIN, 0},
+            {UIO_EEPROM_Load_Ready, POLLIN, 0},
+            {UIO_GRID_Temp_L, POLLIN, 0},
+            {UIO_LCOS_Temp_L, POLLIN, 0}
         };
-        int ret = poll(fds, 4, 5000); // Wait for 5 seconds
+        int ret = poll(fds, 9, 5000); // Wait for 5 seconds
         if (ret < 0)
         {
             perror("poll() failed");
             continue;
+        } else if (ret == 0){
+            //printf("[DEBUG] poll() timed out, no interrupts detected.\n");
+            continue;
+        } else {
+            printf("[DEBUG] poll() returned %d events.\n", ret);
+        }
+
+        // Prints the trigger status of each device
+        for (int i = 0; i < 9; i++)
+        {
+            printf("[DEBUG] Device fd=%d, revents=0x%X (%s)\n",
+                   fds[i].fd,
+                   fds[i].revents,
+                   (fds[i].revents & POLLIN) ? "Interrupt!" : "No event");
         }
 
         // Process each UIO device
         if (fds[0].revents & POLLIN)
         {
-            ProcessUIODevice(UIO_LCOS_Temp, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
-            SpiCmdDecoder::hss.tempControlShutdown = DeLCOS_Flag;
-            SpiCmdDecoder::hss.internalFailure = DeOA_Flag;
+#ifdef _SPI_INTERFACE_
+            SpiCmdDecoder::hss.opticalControlFailure = 1; // Bit 4
+            SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
+#else
+            std::lock_guard<std::mutex> lock(m_wssAccessFailure.mtx);
+            m_wssAccessFailure.Raised = true;
+            m_wssAccessFailure.RaisedCount += 1;
+            m_wssAccessFailure.Degraded = true;
+            m_wssAccessFailure.RaisedCount += 1;
+            FaultMonitor::logFault(WSS_ACCESS_FAILURE, m_wssAccessFailure);
+            //ProcessUIODevice(UIO_DAC_OA, HisCon_OA, DeOA_Flag, WATCH_DOG_EVENT);
+            //WSS_ACCESS
+#endif
+            //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[0].fd, &enable, sizeof(enable));
         }
         if (fds[1].revents & POLLIN)
         {
-            ProcessUIODevice(UIO_GRID_Temp, HisCon_GRIDTemp, DeGRID_Flag, HEATER_2_TEMP);
-            SpiCmdDecoder::hss.internalTempError = DeLCOS_Flag;
-            SpiCmdDecoder::hss.thermalShutdown = DeLCOS_Flag;
+#ifdef _SPI_INTERFACE_
+            SpiCmdDecoder::hss.powerSupplyError = 1;      // Bit 5
+            SpiCmdDecoder::hss.powerRailError = 1;        // Bit 6
+#else 
+            std::lock_guard<std::mutex> lock(m_wssAccessFailure.mtx);
+            m_wssAccessFailure.Raised = true;
+            m_wssAccessFailure.RaisedCount += 1;
+            m_wssAccessFailure.Degraded = true;
+            m_wssAccessFailure.RaisedCount += 1;
+            FaultMonitor::logFault(WSS_ACCESS_FAILURE, m_wssAccessFailure);
+            //ProcessUIODevice(UIO_DAC_OD, HisCon_OD, DeOD_Flag, ADC_AD7689_ACCESS_FAILURE);
+            //WSS_ACCESS
+#endif
+            //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[1].fd, &enable, sizeof(enable));
         }
         if (fds[2].revents & POLLIN)
         {
-            ProcessUIODevice(UIO_DAC_OD, HisCon_OD, DeOD_Flag, ADC_AD7689_ACCESS_FAILURE);
-            SpiCmdDecoder::hss.powerSupplyError = DeOD_Flag;
-            SpiCmdDecoder::hss.powerRailError = DeOD_Flag;
+#ifdef _SPI_INTERFACE_
+            //SpiCmdDecoder::hss.tempControlShutdown = DeGRID_Flag; // Bit 2
+            SpiCmdDecoder::hss.internalTempError = 1;     // Bit 1
+            SpiCmdDecoder::hss.thermalShutdown = 1;       // Bit 3
+#else    
+        unsigned int hexValue = 0;
+        int status = mmapTEC->ReadRegister_TEC32(0x007C / 0x4, &hexValue);
+        if (status != 0) {
+            printf("Error: Failed to read INTR_STATE_REG register\n");
+        } else {
+            //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
+            if (hexValue == 0) {
+                printf("[WARNING] Normal alert: Register value is zero\n");
+                std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                m_heater2Temp.Raised = false;
+                m_heater2Temp.Degraded = true;
+                m_heater2Temp.DegradedCount += 1;
+                FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+            } else if (hexValue == 1) {
+                printf("[CRITICAL] Severe alert: Register value is one\n");
+                std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                m_heater2Temp.Raised = true;
+                m_heater2Temp.RaisedCount += 1;
+                m_heater2Temp.Degraded = false;
+                FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+            } else {
+                printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
+            }
+        }
+            //ProcessUIODevice(UIO_GRID_Temp_H, HisCon_GRIDTemp, DeGRID_Flag, HEATER_2_TEMP);
+#endif
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[2].fd, &enable, sizeof(enable));
         }
         if (fds[3].revents & POLLIN)
         {
-            ProcessUIODevice(UIO_DAC_OA, HisCon_OA, DeOA_Flag, WATCH_DOG_EVENT);
-            SpiCmdDecoder::hss.opticalControlFailure = DeOA_Flag;
-            SpiCmdDecoder::hss.internalFailure = DeOA_Flag;
+#ifdef _SPI_INTERFACE_
+            SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
+            SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
+            //SpiCmdDecoder::hss.thermalShutdown = DeLCOS_Flag;     // Bit 3
+#else
+            unsigned int hexValue = 0;
+            int status = mmapTEC->ReadRegister_TEC32(0x007C / 0x4, &hexValue);
+            if (status != 0) {
+                printf("Error: Failed to read INTR_STATE_REG register\n");
+            } else {
+                //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
+                if (hexValue == 0) {
+                    printf("[WARNING] Normal alert: Register value is zero\n");
+                    std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
+                    m_tecTemp.Raised = false;
+                    m_tecTemp.Degraded = true;
+                    m_tecTemp.DegradedCount += 1;
+                    FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
+                } else if (hexValue == 1) {
+                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                    std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
+                    m_tecTemp.Raised = true;
+                    m_tecTemp.RaisedCount += 1;
+                    m_tecTemp.Degraded = false;
+                    FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
+                } else {
+                    printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
+                }
+            }
+            //ProcessUIODevice(UIO_LCOS_Temp_H, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
+#endif
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[3].fd, &enable, sizeof(enable));
         }
+        if (fds[4].revents & POLLIN)
+        {
+            HardReset();    
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[4].fd, &enable, sizeof(enable));
+        }
+        if (fds[5].revents & POLLIN)
+        {
+            // printf("[DEBUG] UIO_Pattern_Received\n");
+            // int count;
+            // if (read(fds[5].fd, &count, sizeof(count)) == sizeof(count)) {
+            //     printf("[DEBUG] UIO_Pattern_Received (fd=%d): Interrupt triggered, count=%d\n", 
+            //            fds[5].fd, count);
+            //     // Re-enable interrupt if needed:
+            //     uint32_t enable = 1;
+            //     write(fds[5].fd, &enable, sizeof(enable));
+            // } else {
+            //     perror("Failed to read UIO_Pattern_Received");
+            // }
+        }
+        if (fds[6].revents & POLLIN)
+        {
+            // printf("[DEBUG] UIO_EEPROM_Load_Ready\n");
+            // int count;
+            // if (read(fds[6].fd, &count, sizeof(count)) == sizeof(count)) {
+            //     printf("[DEBUG] UIO_EEPROM_Load_Ready (fd=%d): Interrupt triggered, count=%d\n", 
+            //         fds[6].fd, count);
+            //     // Re-enable interrupt
+            //     uint32_t enable = 1;
+            //     write(fds[6].fd, &enable, sizeof(enable));
+            // } else {
+            //     perror("Failed to read UIO_EEPROM_Load_Ready");
+            // }   
+        }
+        if (fds[7].revents & POLLIN)
+        {
+#ifdef _SPI_INTERFACE_
+            SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
+            SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
+            //SpiCmdDecoder::hss.thermalShutdown = DeLCOS_Flag;     // Bit 3
+#else
+            unsigned int hexValue = 0;
+            int status = mmapTEC->ReadRegister_TEC32(0x007C / 0x4, &hexValue);
+            if (status != 0) {
+                printf("Error: Failed to read INTR_STATE_REG register\n");
+            } else {
+                //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
+                if (hexValue == 0) {
+                    printf("[WARNING] Normal alert: Register value is zero\n");
+                    std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                    m_heater2Temp.Raised = false;
+                    m_heater2Temp.Degraded = true;
+                    m_heater2Temp.DegradedCount += 1;
+                    FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+                } else if (hexValue == 1) {
+                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                    std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                    m_heater2Temp.Raised = true;
+                    m_heater2Temp.RaisedCount += 1;
+                    m_heater2Temp.Degraded = false;
+                    FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+                } else {
+                    printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
+                }
+            }
+            //ProcessUIODevice(UIO_GRID_Temp_L, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
+#endif
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[7].fd, &enable, sizeof(enable));
+        }
+        if (fds[8].revents & POLLIN)
+        {
+#ifdef _SPI_INTERFACE_
+            SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
+            SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
+            //SpiCmdDecoder::hss.thermalShutdown = DeLCOS_Flag;     // Bit 3
+#else
+            unsigned int hexValue = 0;
+            int status = mmapTEC->ReadRegister_TEC32(0x007C / 0x4, &hexValue);
+            if (status != 0) {
+                printf("Error: Failed to read INTR_STATE_REG register\n");
+            } else {
+                //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
+                if (hexValue == 0) {
+                    printf("[WARNING] Normal alert: Register value is zero\n");
+                    std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
+                    m_tecTemp.Raised = false;
+                    m_tecTemp.Degraded = true;
+                    m_tecTemp.DegradedCount += 1;
+                    FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
+                } else if (hexValue == 1) {
+                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                    std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
+                    m_tecTemp.Raised = true;
+                    m_tecTemp.RaisedCount += 1;
+                    m_tecTemp.Degraded = false;
+                    FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
+                } else {
+                    printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
+                }
+            }
+            //ProcessUIODevice(UIO_LCOS_Temp_L, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
+#endif
+            // Re-enable interrupt if needed:
+            uint32_t enable = 1;
+            write(fds[8].fd, &enable, sizeof(enable));
+        }     
         //SpiCmdDecoder::hss.caseTempError = DeCase_Flag; //currently not available because no case tempsensor yet.
         //other hardware status polling below:
         //ADC/DAC Access Error
-        checkADCPowerSupply();
-		checkDACPowerSupply();
+        CheckADCPowerSupply();
+		CheckDACPowerSupply();
         //TRANSFER_FAILURE
 
         //Watch_Dog_Event
@@ -215,43 +464,6 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
 
     }
     pthread_exit(NULL);
-}
-
-void AlarmModule::ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName)
-{
-
-    int count;
-    int err = read(fd, &count, TEST_LEN);
-    if (err != TEST_LEN)
-    {
-        perror("UIO device read error");
-        return;
-    }
-
-    //FaultsAttr UIOMess = {0};
-    if (count != hisCon)
-    {
-        hisCon = count;
-        UIOMess.Raised = true;
-        UIOMess.RaisedCount = count;
-        UIOMess.Degraded = false;
-        UIOMess.DegradedCount = hisCon;
-        FaultMonitor::logFault(logName, UIOMess);
-        deFlag = true;
-
-    }
-    else
-    {
-        UIOMess.Raised = false;
-        UIOMess.RaisedCount = count;
-        UIOMess.Degraded = true;
-        UIOMess.DegradedCount = hisCon;
-        if (deFlag)
-        {
-        	FaultMonitor::logFault(logName, UIOMess);
-            deFlag = false;
-        }
-    }
 }
 
 void AlarmModule::StopThread()
@@ -286,7 +498,7 @@ void AlarmModule::GpioWrite(int fd, char level)
 	}
 }
 
-void AlarmModule::checkADCPowerSupply(){
+void AlarmModule::CheckADCPowerSupply(){
 	// Added: Check if the 5V ADC power supply voltage is normal
 	unsigned int hexAdcVoltage = 0;
 	int adcStatus = mmapTEC->ReadRegister_TEC32(ADC_REG_ADDR / 0x4, &hexAdcVoltage);
@@ -299,16 +511,16 @@ void AlarmModule::checkADCPowerSupply(){
 	double vadc_out = (hexAdcVoltage_adjusted * ADC_REF_VOLTAGE) / 4096;
 	if (vadc_out < 4.5 || vadc_out > 5.5) {
 		printf("[ERROR] ADC not enabled! 5V power supply abnormal: current voltage=%.2fV\n", vadc_out);
-		std::lock_guard<std::mutex> lock(UIOMess.mtx);
-		UIOMess.Raised = true;
-		UIOMess.RaisedCount += 1;
-		UIOMess.Degraded = true;
-		UIOMess.DegradedCount = UIOMess.RaisedCount;
-        FaultMonitor::logFault(ADC_AD7689_ACCESS_FAILURE,UIOMess);
+		std::lock_guard<std::mutex> lock(m_adcAccessFailure.mtx);
+		m_adcAccessFailure.Raised = true;
+		m_adcAccessFailure.RaisedCount += 1;
+		m_adcAccessFailure.Degraded = true;
+		m_adcAccessFailure.DegradedCount = m_adcAccessFailure.RaisedCount;
+        FaultMonitor::logFault(ADC_AD7689_ACCESS_FAILURE,m_adcAccessFailure);
 	}
 }
 
-void AlarmModule::checkDACPowerSupply(){
+void AlarmModule::CheckDACPowerSupply(){
 	// Added: DAC output check section
 	unsigned int hexAdcInput = 0;
 	// const uint16_t ADC_DATA_MASK = 0x0FFF;  // Define 12-bit data mask
@@ -327,11 +539,38 @@ void AlarmModule::checkDACPowerSupply(){
 	//printf("[DEBUG] DAC current output voltage=%.2fV\n", vdac_out);
 	if (vdac_out < 1 || vdac_out > 1.25) {
 		printf("[ERROR] DAC output abnormal: current voltage=%.2fV\n", vdac_out);
-		std::lock_guard<std::mutex> lock(UIOMess.mtx);
-		UIOMess.Raised = true;
-		UIOMess.RaisedCount += 1;
-		UIOMess.Degraded = true;
-		UIOMess.DegradedCount = UIOMess.RaisedCount;
-        FaultMonitor::logFault(ADC_AD7689_ACCESS_FAILURE,UIOMess);
+		std::lock_guard<std::mutex> lock(m_dacAccessFailure.mtx);
+		m_dacAccessFailure.Raised = true;
+		m_dacAccessFailure.RaisedCount += 1;
+		m_dacAccessFailure.Degraded = true;
+		m_dacAccessFailure.DegradedCount = m_dacAccessFailure.RaisedCount;
+        FaultMonitor::logFault(DAC_AD5624_ACCESS_FAILURE,m_dacAccessFailure);
 	}
+}
+
+void AlarmModule::HardReset(){
+    try {
+        const std::string firmwarePath = "/mnt/startwss.elf";
+        
+        // Step 1: Verify firmware existence
+        if (access(firmwarePath.c_str(), F_OK) != 0) {
+            throw std::runtime_error("Main firmware not found");
+        }
+        // Step 2: Set executable permissions
+        if (chmod(firmwarePath.c_str(), 0777) != 0) {  // Note: 0777 is octal format
+            throw std::runtime_error("Permission setting failed: " + std::string(strerror(errno)));
+        }
+        // Step 3: Close all non-standard file descriptors
+        int max_fd = sysconf(_SC_OPEN_MAX);
+        for (int fd = 3; fd < max_fd; ++fd) {
+            close(fd);  // Errors are ignored (invalid fds return EBADF)
+        }
+        // Step 4: Perform process replacement
+        char* argv[] = {const_cast<char*>(firmwarePath.c_str()), nullptr};
+        execv(firmwarePath.c_str(), argv);
+        // If execution reaches here, execv failed
+        throw std::runtime_error("Execution failed: " + std::string(strerror(errno)));
+    } catch (const std::runtime_error& e) {
+        std::cerr << "HardReset Error: " << e.what() << std::endl;
+    }
 }

@@ -99,7 +99,7 @@ static FixedGrid    FG_Channel_DS_For_Pattern[3][g_Total_Channels];
 	void 			SetPanelInfo(bool);
 	void 			SetPanelInfo(Panel&);
 	std::vector<std::string> objVec;											// chMOdule vector that contains SplitCmdted strings of OBJECT, CH.M.N.S , MODULE.1 etc
-static std::list<ChannelModules> activeChannels;
+	static std::list<ChannelModules> activeChannels;
 	char           customerInfo[100] = " ";
 	char           bist_current[64] = " ";
 
@@ -178,6 +178,8 @@ private:
 	bool 			PrintAllChannelsFG(int);
 
 	void            PrintAllSlotsFG(int SlotNum);
+
+	MemoryMapping   *mmapGPIO;
 
 public:
 

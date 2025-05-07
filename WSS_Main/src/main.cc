@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
 
 #endif
 
-#ifdef _SPI_INTERFACE_
+#ifndef _SPI_INTERFACE_
 	SerialModule *serialIns = SerialModule::GetInstance();
 	if(serialIns->MoveToThread() != 0)
 		printf("SerialModule: MoveToThread Failed!\n");
@@ -100,10 +100,10 @@ int main(int argc, char* argv[])
 //			serialIns->Serial_InitiateCommandDecoding(temp);
 //		}
 //	}
-/*	AlarmModule *InterUIO = AlarmModule::GetInstance();
+	AlarmModule *InterUIO = AlarmModule::GetInstance();
 	if(InterUIO->MoveToThread() != 0)
 		printf("Alarm for UIO: MoveToThread Failed");
-*/
+
 //	MemoryMapping MMAP(MemoryMapping::CLUT);
 //
 //	uint8_t val;
@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
 	patternIns->StopThread();
 	patternCalibIns->StopThread();
 	tempIns->StopThread();
-//	InterUIO->StopThread();
+	InterUIO->StopThread();
 
 	DestroyGlobalMutex();
 

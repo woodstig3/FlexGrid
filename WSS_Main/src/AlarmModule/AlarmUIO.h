@@ -17,13 +17,14 @@
 #include "GlobalVariables.h"
 #include "SpiCmdDecoder.h"
 #include "MemoryMapping.h"
+#include "Dlog.h"
 
 #define UIO_0 66
 #define UIO_1 67
 #define UIO_2 68
 #define UIO_3 84
 
-#define TEST_LEN 3 //4
+#define TEST_LEN 4 //3
 #define GPIO_WRR 913
 
 constexpr int ADC_REG_ADDR = 0x0100;
@@ -43,9 +44,13 @@ public:
 
 	int UIO_DAC_OA;
 	int UIO_DAC_OD;
-	int UIO_GRID_Temp;
-	int UIO_LCOS_Temp;
-	int UIO_LCOS_Ready;
+	int UIO_GRID_Temp_H;
+	int UIO_LCOS_Temp_H;
+	int UIO_Hard_Reset;
+	int UIO_Pattern_Received;
+	int UIO_EEPROM_Load_Ready;
+	int UIO_GRID_Temp_L;
+	int UIO_LCOS_Temp_L;
 
 	int HisCon_OA;
 	int HisCon_OD;
@@ -70,15 +75,22 @@ public:
 	int 			MoveToThread();
 	void 			StopThread();
 	static void 	*ThreadHandle(void *);
-	void            ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName);
+	//void            ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName);
 	void 			ProcessUIOAlarmMonitoring(void);
 	void            GpioWrite(int fd, char level);
 private:
-	FaultsAttr UIOMess{0};
+	FaultsAttr m_heater1Temp;
+	FaultsAttr m_heater2Temp;
+	FaultsAttr m_tecTemp;
+	FaultsAttr m_adcAccessFailure;
+	FaultsAttr m_dacAccessFailure;
+	FaultsAttr m_wssAccessFailure;
 	MemoryMapping 	*mmapTEC;
+	MemoryMapping   *mmapGPIO;
 
-	void            checkADCPowerSupply();
-	void            checkDACPowerSupply();
+	void            CheckADCPowerSupply();
+	void            CheckDACPowerSupply();
+	void            HardReset();
 };
 
 #endif
