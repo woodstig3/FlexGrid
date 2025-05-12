@@ -17,6 +17,9 @@
 #include <atomic>
 #include <cstring>
 #include <map>
+#include <vector>
+#include <cstdint>
+#include <iomanip>
 #include "SpiInterface.h"
 #include "SpiCmdDecoder.h"
 

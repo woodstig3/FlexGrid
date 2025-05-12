@@ -362,7 +362,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                     m_tecTemp.Degraded = false;
                     FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
                 }
-				} else {
+				else {
                     printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
                 }
             }

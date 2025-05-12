@@ -229,6 +229,7 @@ void ThreadManager::stopThreads() {
     b_endMainSignal = true;
 }
 
+/*
 bool ThreadManager::isCRC1Valid(SPICommandPacket& commandPacket)
 {
 	std::vector<uint8_t> byteVec(16); // Allocate space
@@ -252,6 +253,7 @@ bool ThreadManager::isCRC2Valid(SPICommandPacket& commandPacket)
 	else
 		return false;
 }
+*/
 // Function to parse SPI command/query packet
 int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket& commandPacket) {
     // std::cout << "[DEBUG]: current packet.data.size(): " 
