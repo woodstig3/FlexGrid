@@ -112,7 +112,7 @@ int SPISlave::spi_transfer(struct spi_transfer_data &transfer) {
     tr.tx_buf = (unsigned long)transfer.tx_buf;
     tr.rx_buf = (unsigned long)transfer.rx_buf;
 	tr.len = transfer.len;
-	tr.speed_hz = 60000000; // 1MHz - adjust as needed
+	tr.speed_hz = speed; // 1000000: 1MHz - adjust as needed
 	tr.bits_per_word = bits;
 	tr.delay_usecs = 0;
 

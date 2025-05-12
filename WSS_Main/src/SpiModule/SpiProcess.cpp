@@ -32,7 +32,7 @@ void* ThreadManager::spiListener(void* arg) {
     std::cout << "ThreadManager::spiListenner started." << std::endl;
 
 // Prepare a packet as default reply when there was no previous command received
-    std::vector<uint8_t> defReply = constructDefaultPacket();
+    std::vector<uint8_t> defReply = constructDefaultPacket(0);
 //  std::memcpy(transfer.tx_buf, defReply.data(), defReply.size()*sizeof(uint8_t));
     std::copy(defReply.begin(), defReply.end(), transfer.tx_buf);
 
@@ -51,13 +51,13 @@ void* ThreadManager::spiListener(void* arg) {
     	int ret = spiSlave->spi_transfer(transfer);
 		if (ret >= 0 ) {
 	    	std::cout << "Incoming data...\n" << std::endl;
-/*			if(busy == true)
+			if(busy == true)
 			{//previous command or query is not finished
 				std::cerr << "Busy state: Discard incoming data." << std::endl;
 				memset(transfer.rx_buf, 0, BUFFER_SIZE);
 				continue;  //device pending on the previous processing, discard any incoming packets until pending is finished.
 			}
-*/
+
 			pthread_mutex_lock(&spiQueueMutex);
 
 			std::vector<uint8_t> buffer(std::begin(transfer.rx_buf), std::end(transfer.rx_buf));
@@ -104,20 +104,21 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             SPICommandPacket commandPacket;   //read out data into struct
 
     		int result = ThreadManager::parseSPICommandPacket(packet, commandPacket);
-            if (result == 0) {
+            if (result >= 0 && result <= 2 ) {
         		std::cout << "Command packet header parsed successfully." << std::endl;
     		    busy = true;
 				//Send back PENDING reply packet first before further parsing and processing
 				SPIReplyPacket replyPacket;
 				replyPacket.spiMagic = SPIMAGIC;
-				replyPacket.length = commandPacket.length; // Example length
-				replyPacket.seqNo = 0x14; //commandPacket.seqNo;
-				replyPacket.comres = -1; // PENDING COMRES
+				replyPacket.length = 0x14; //commandPacket.length; // Example length
+				replyPacket.seqNo = commandPacket.seqNo;
+				replyPacket.comres = result == 0? -1: result; // PENDING or CER/AER
+				std::cout << "Reply packet COMRES: " << result << std::endl;
                 // component header: 16 bytes
                 std::vector<uint8_t> headerData = spiDec->constructSPIReplyPacketHeader(replyPacket);
                 // caculate CRC1
                 replyPacket.crc1 = spiDec->calculateCRC1(headerData.data());
-                /*if (replyPacket.length > 0x0014 ) {
+/*                if (replyPacket.length > 0x0014 ) {
                     replyPacket.data.clear();
                     replyPacket.data.reserve(commandPacket.data.size());
                     for (signed char c : commandPacket.data) {
@@ -126,8 +127,8 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
                     // Calculate CRC2 based on the entire packet (excluding CRC2 itself)
                     std::vector<uint8_t> packetWithoutCRC2 = spiDec->constructSPIReplyPacketWithoutCRC2(replyPacket);
                     replyPacket.crc2 = spiDec->calculateCRC2(packetWithoutCRC2.data(), packetWithoutCRC2.size());
-                }*/
-
+                }
+*/
 				replyPacketData = constructSPIReplyPacket(replyPacket);
                 
                 if (replyPacketData.size() > BUFFER_SIZE) {
@@ -149,19 +150,53 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
         		}
 				std::cout << "Reply packet constructed successfully." << std::endl;
 			}
-            else
+            else if (result == 3) //VER of crc1
 			{
-				std::cout << "Command packet format is not correct." << std::endl;
-	            busy = false;
-	            //Send back Default reply packet first before further parsing and processing
+            	std::cout << "Command packet format is not correct." << std::endl;
+				//Send back Default reply packet first before further parsing and processing
 				SPIReplyPacket replyPacket;
-				replyPacketData = constructDefaultPacket();
+				replyPacket.comres = result;
+				replyPacketData = constructDefaultPacket(replyPacket.comres);
 			}
+            else // result ==4 VER of crc2
+            {
+            	std::cout << "Command packet header parsed successfully." << std::endl;
+				busy = true;
+				//Send back PENDING reply packet first before further parsing and processing
+				SPIReplyPacket replyPacket;
+				replyPacket.spiMagic = SPIMAGIC;
+				replyPacket.length = commandPacket.length; // Example length
+				replyPacket.seqNo = commandPacket.seqNo;
+				replyPacket.comres = result -1; // VER of crc2
+				std::cout << "Reply packet COMRES: " << result << std::endl;
+				// component header: 16 bytes
+				std::vector<uint8_t> headerData = spiDec->constructSPIReplyPacketHeader(replyPacket);
+				// caculate CRC1
+				replyPacket.crc1 = spiDec->calculateCRC1(headerData.data());
+				if (replyPacket.length > 0x0014 ) {
+					replyPacket.data.clear();
+					replyPacket.data.reserve(commandPacket.data.size());
+					for (signed char c : commandPacket.data) {
+						replyPacket.data.push_back(static_cast<uint8_t>(c));
+					}
+					// Calculate CRC2 based on the entire packet (excluding CRC2 itself)
+					std::vector<uint8_t> packetWithoutCRC2 = spiDec->constructSPIReplyPacketWithoutCRC2(replyPacket);
+					replyPacket.crc2 = spiDec->calculateCRC2(packetWithoutCRC2.data(), packetWithoutCRC2.size());
+				}
+
+				replyPacketData = constructSPIReplyPacket(replyPacket);
+
+				if (replyPacketData.size() > BUFFER_SIZE) {
+					std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
+					return nullptr;
+				}
+            }
 
             // Formulate a reply based on the processed packet
             memset(transfer.tx_buf, 0, BUFFER_SIZE);
             memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
             spiDec->oss.isPending = false;
+            busy = false;
 
             std::cout << "Content of transfer.tx_buf: ";
             for (size_t i = 0; i < replyPacketData.size(); i++) {
@@ -194,9 +229,32 @@ void ThreadManager::stopThreads() {
     b_endMainSignal = true;
 }
 
+bool ThreadManager::isCRC1Valid(SPICommandPacket& commandPacket)
+{
+	std::vector<uint8_t> byteVec(16); // Allocate space
+	std::memcpy(byteVec.data(), &commandPacket, 16); // Copy bytes
+
+	uint32_t crc = spiDec->calculateCRC1(byteVec.data());
+	if(crc == commandPacket.crc1)
+		return true;
+	else
+		return false;
+}
+
+bool ThreadManager::isCRC2Valid(SPICommandPacket& commandPacket)
+{
+	std::vector<uint8_t> byteVec(sizeof(commandPacket)); // Allocate space
+	std::memcpy(byteVec.data(), &commandPacket, commandPacket.length); // Copy bytes
+
+	uint32_t crc = spiDec->calculateCRC2(byteVec.data(), commandPacket.length);
+	if(crc == commandPacket.crc2)
+		return true;
+	else
+		return false;
+}
 // Function to parse SPI command/query packet
 int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket& commandPacket) {
-    if (packet.data.size() < 0x001C) {
+    if (packet.data.size() < 0x0014) {
     	std::cout << "packet size too short:" << packet.data.size() <<std::endl;
     	return 2; // Packet is too short, invalid packet
     }
@@ -220,6 +278,7 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
    }
     commandPacket.seqNo = bytesToInt32BigEndian(packet.data, 8);
     std::cout << "Packet SeqNo:" << commandPacket.seqNo <<std::endl;
+
     commandPacket.opcode = bytesToInt32BigEndian(packet.data, 12);
     std::cout << "Command OpCode:" << commandPacket.opcode <<std::endl;
     // Corrected OPCODE range check
@@ -232,9 +291,9 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
     std::cout << "CRC1: 0x" << std::hex << commandPacket.crc1 << std::endl;
     //check if crc1 is correct or return 3 and set seqno =0
     // Check if CRC1 is correct. Implementation for CRC1 validation should be added here.
-    // if (!isCRC1Valid(commandPacket.crc1)) {
-    //     return 3; // CRC1 Error
-    // }
+    //if (!isCRC1Valid(commandPacket)) {
+    //    return 3; // CRC1 Error
+    //}
 
     // Copy the variable-size data field if present
     if (commandPacket.length > 20) {
@@ -249,6 +308,9 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
         // Parse CRC2 (last 4 bytes)
         commandPacket.crc2 = bytesToInt32BigEndian(packet.data, commandPacket.length - 4);
         std::cout << "CRC2: 0x" << std::hex << commandPacket.crc2 << std::endl;
+        //if (!isCRC2Valid(commandPacket)) {
+        //    return 4; // CRC2 Error
+        //}
     } else {
         // No DATA field, clear data and set CRC2 to 0
         commandPacket.data.clear();
@@ -353,7 +415,7 @@ std::vector<uint8_t> ThreadManager::constructSPIReplyPacket(const SPIReplyPacket
 }
 
 
-std::vector<uint8_t> ThreadManager::constructDefaultPacket() {
+std::vector<uint8_t> ThreadManager::constructDefaultPacket(uint32_t comres) {
     // Fixed field values
     const uint32_t HWR = 1000;  //spiDec
     const uint32_t FWR = 1000;
@@ -361,7 +423,7 @@ std::vector<uint8_t> ThreadManager::constructDefaultPacket() {
     const char* MFD = "20241231";
     const char* LBL = "TWIN_STANDARD";
     uint32_t seqno = 0;
-    uint32_t comres = 0;
+    //uint32_t comres = 0;
 
     // Create DATA payload
     std::vector<uint8_t> data;

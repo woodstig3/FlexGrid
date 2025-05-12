@@ -243,15 +243,17 @@ void PatternGenModule::ProcessPatternGeneration(void)
 		if(is_bRestarted == 0)
 		{
 			is_bRestarted = 1;
-#ifndef _SPI_INTERFACE_
+#ifdef _SPI_INTERFACE_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
 			std::cout << "No stored module 1 pattern" << std::endl;
 #ifdef _TWIN_WSS_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(2) == false)
 				std::cout << "No stored module 2 pattern" << std::endl;
 #endif
-		}
+//		}
+
 #else
+
 			if(SpiCmdDecoder::conf_spi.sus == 1)
 			{
 				if(g_spaCmd->g_cmdDecoder->actionSR->RestoreModule(1) == false)
@@ -311,8 +313,9 @@ void PatternGenModule::ProcessPatternGeneration(void)
 			g_serialMod->cmd_decoder.SetPatternTransferFlag(true);  //drc why still true here WHILE FAILED OUTCOME?
 #else
 			g_spaCmd->g_cmdDecoder->SetPatternTransferFlag(true);
-		}
 #endif
+		}
+
 	}
 
 	pthread_exit(NULL);
