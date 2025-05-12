@@ -274,30 +274,52 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             SpiCmdDecoder::hss.internalTempError = 1;     // Bit 1
             SpiCmdDecoder::hss.thermalShutdown = 1;       // Bit 3
 #else    
-        unsigned int hexValue = 0;
-        int status = mmapTEC->ReadRegister_TEC32(0x007C / 0x4, &hexValue);
-        if (status != 0) {
-            printf("Error: Failed to read INTR_STATE_REG register\n");
-        } else {
-            //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
-            if (hexValue == 0) {
-                printf("[WARNING] Normal alert: Register value is zero\n");
-                std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
-                m_heater2Temp.Raised = false;
-                m_heater2Temp.Degraded = true;
-                m_heater2Temp.DegradedCount += 1;
-                FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
-            } else if (hexValue == 1) {
-                printf("[CRITICAL] Severe alert: Register value is one\n");
-                std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
-                m_heater2Temp.Raised = true;
-                m_heater2Temp.RaisedCount += 1;
-                m_heater2Temp.Degraded = false;
-                FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+            unsigned int hexValue = 0;
+            int status = mmapTEC->ReadRegister_TEC32(0x007C / 0x4, &hexValue);
+            if (status != 0) {
+                printf("Error: Failed to read INTR_STATE_REG register\n");
             } else {
-                printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
-            }
-        }
+                //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
+                const uint8_t byteValue = hexValue & 0xFF; 
+                const uint8_t bit3 = (byteValue >> 3) & 0x1; 
+                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+                printf("[DEBUG] Binary: 0b");
+                for (int i = 7; i >= 0; i--) {
+                    printf("%d", (byteValue >> i) & 0x1); 
+                }
+                printf(", bit3=%d\n", bit3);
+                if (bit3 == 0) {
+                    printf("[WARNING] Normal alert: bit3 is 0\n");
+                    std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                    m_heater2Temp.Raised = false;
+                    m_heater2Temp.Degraded = true;
+                    m_heater2Temp.DegradedCount += 1;
+                    FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+                } else if (bit3 == 1) {
+                    printf("[CRITICAL] Severe alert: bit3 is 1\n");
+                    std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                    m_heater2Temp.Raised = true;
+                    m_heater2Temp.RaisedCount += 1;
+                    m_heater2Temp.Degraded = false;
+                    FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+                }
+                /*
+                if (hexValue == 0) {
+                    printf("[WARNING] Normal alert: Register value is zero\n");
+                    std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                    m_heater2Temp.Raised = false;
+                    m_heater2Temp.Degraded = true;
+                    m_heater2Temp.DegradedCount += 1;
+                    FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+                } else if (hexValue == 1) {
+                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                    std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
+                    m_heater2Temp.Raised = true;
+                    m_heater2Temp.RaisedCount += 1;
+                    m_heater2Temp.Degraded = false;
+                    FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
+                    */
+            } 
             //ProcessUIODevice(UIO_GRID_Temp_H, HisCon_GRIDTemp, DeGRID_Flag, HEATER_2_TEMP);
 #endif
             // Re-enable interrupt if needed:
@@ -317,21 +339,30 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 printf("Error: Failed to read INTR_STATE_REG register\n");
             } else {
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
-                if (hexValue == 0) {
-                    printf("[WARNING] Normal alert: Register value is zero\n");
+                const uint8_t byteValue = hexValue & 0xFF; 
+                const uint8_t bit1 = (byteValue >> 1) & 0x1; 
+                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+                printf("[DEBUG] Binary: 0b");
+                for (int i = 7; i >= 0; i--) {
+                    printf("%d", (byteValue >> i) & 0x1); 
+                }
+                printf(", bit1=%d\n", bit1);
+                if (bit1 == 0) {
+                    printf("[WARNING] Normal alert: bit1 is 0\n");
                     std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
                     m_tecTemp.Raised = false;
                     m_tecTemp.Degraded = true;
                     m_tecTemp.DegradedCount += 1;
                     FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
-                } else if (hexValue == 1) {
-                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                } else if (bit1 == 1) {
+                    printf("[CRITICAL] Severe alert: bit1 is 1\n");
                     std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
                     m_tecTemp.Raised = true;
                     m_tecTemp.RaisedCount += 1;
                     m_tecTemp.Degraded = false;
                     FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
-                } else {
+                }
+				} else {
                     printf("[UNKNOWN] Unexpected register value: %u\n", hexValue);
                 }
             }
@@ -389,15 +420,23 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 printf("Error: Failed to read INTR_STATE_REG register\n");
             } else {
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
-                if (hexValue == 0) {
-                    printf("[WARNING] Normal alert: Register value is zero\n");
+                const uint8_t byteValue = hexValue & 0xFF; 
+                const uint8_t bit2 = (byteValue >> 2) & 0x1; 
+                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+                printf("[DEBUG] Binary: 0b");
+                for (int i = 7; i >= 0; i--) {
+                    printf("%d", (byteValue >> i) & 0x1); 
+                }
+                printf(", bit2=%d\n", bit2);
+                if (bit2 == 0) {
+                    printf("[WARNING] Normal alert: bit2 is 0\n");
                     std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
                     m_heater2Temp.Raised = false;
                     m_heater2Temp.Degraded = true;
                     m_heater2Temp.DegradedCount += 1;
                     FaultMonitor::logFault(HEATER_2_TEMP, m_heater2Temp);
-                } else if (hexValue == 1) {
-                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                } else if (bit2 == 1) {
+                    printf("[CRITICAL] Severe alert: bit2 is 1\n");
                     std::lock_guard<std::mutex> lock(m_heater2Temp.mtx);
                     m_heater2Temp.Raised = true;
                     m_heater2Temp.RaisedCount += 1;
@@ -426,15 +465,23 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 printf("Error: Failed to read INTR_STATE_REG register\n");
             } else {
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
-                if (hexValue == 0) {
-                    printf("[WARNING] Normal alert: Register value is zero\n");
+                const uint8_t byteValue = hexValue & 0xFF; 
+                const uint8_t bit0 = (byteValue >> 0) & 0x1; 
+                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+                printf("[DEBUG] Binary: 0b");
+                for (int i = 7; i >= 0; i--) {
+                    printf("%d", (byteValue >> i) & 0x1); 
+                }
+                printf(", bit0=%d\n", bit0);
+                if (bit0 == 0) {
+                    printf("[WARNING] Normal alert: bit0 is 0\n");
                     std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
                     m_tecTemp.Raised = false;
                     m_tecTemp.Degraded = true;
                     m_tecTemp.DegradedCount += 1;
                     FaultMonitor::logFault(TEC_TEMP, m_tecTemp);
-                } else if (hexValue == 1) {
-                    printf("[CRITICAL] Severe alert: Register value is one\n");
+                } else if (bit0 == 1) {
+                    printf("[CRITICAL] Severe alert: bit0 is 1\n");
                     std::lock_guard<std::mutex> lock(m_tecTemp.mtx);
                     m_tecTemp.Raised = true;
                     m_tecTemp.RaisedCount += 1;

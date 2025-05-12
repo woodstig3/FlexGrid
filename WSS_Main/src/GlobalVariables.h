@@ -11,7 +11,7 @@
 #include <pthread.h>
 
 #define _DEVELOPMENT_MODE_				// <---------- Uncomment it during production mode, Comment if when launching to customer
-//#define _FETCH_PATTERN_
+#define _FETCH_PATTERN_
 #define _TWIN_WSS_						// If not defined then only Module.1 will exist for user to set.
 #define _XILINX_
 

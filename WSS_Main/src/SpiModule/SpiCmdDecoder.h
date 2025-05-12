@@ -94,9 +94,9 @@ public:
 
     // Sample CRC calculation (to be implemented based on your specification)
     //(const SPIReplyPacket& packet);        // Implement your CRC logic based on the IEEE 802.3 standard
-    // 计算包头 CRC1（0x00~0x0F）
+    // For Header before CRC1（0x00~0x0F）
     uint32_t calculateCRC1(const uint8_t* data) ;
-    // 计算全包 CRC2（0x00~[LENGTH-5]）
+    // For whole packet before CRC2 CRC2（0x00~[LENGTH-5]）
     uint32_t calculateCRC2(const uint8_t* data, size_t length) ;
     uint32_t calculateCRC(const uint8_t* data, size_t length);
     std::vector<uint8_t> constructSPIReplyPacketHeader(const SPIReplyPacket& replyPacket);

@@ -254,10 +254,11 @@ bool ThreadManager::isCRC2Valid(SPICommandPacket& commandPacket)
 }
 // Function to parse SPI command/query packet
 int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket& commandPacket) {
-    if (packet.data.size() < 0x0014) {
-    	std::cout << "packet size too short:" << packet.data.size() <<std::endl;
-    	return 2; // Packet is too short, invalid packet
-    }
+    // std::cout << "[DEBUG]: current packet.data.size(): " 
+    // << std::dec << packet.data.size() 
+    // << " (0x" << std::hex << std::setw(4) << std::setfill('0') 
+    // << packet.data.size() << ")" 
+    // << std::endl;
 
     // Copy the fixed-size fields
     commandPacket.spiMagic = bytesToInt32BigEndian(packet.data, 0);
@@ -270,6 +271,16 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
 
     commandPacket.length = bytesToInt32BigEndian(packet.data, 4);
     std::cout << "Packet Length:" << std::dec << commandPacket.length <<std::endl;
+
+    // check packet size is valid
+    if (commandPacket.length < 0x0014) {
+    	std::cout << "packet size too short:" << commandPacket.length <<std::endl;
+    	return 2; // Packet is too short, invalid packet
+    } else if (commandPacket.length > 0x0014 && commandPacket.length < 0x0019) {
+        std::cout << "invalid packet size:" << commandPacket.length <<std::endl;
+    	return 2; 
+    }
+
     // Check if the entire packet size is valid against the specified length
    if (packet.data.size() < commandPacket.length) {
 	   std::cout << "Packet length mismatch: expected " << commandPacket.length
@@ -289,11 +300,24 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
 
     commandPacket.crc1 = bytesToInt32BigEndian(packet.data, 16);
     std::cout << "CRC1: 0x" << std::hex << commandPacket.crc1 << std::endl;
-    //check if crc1 is correct or return 3 and set seqno =0
-    // Check if CRC1 is correct. Implementation for CRC1 validation should be added here.
-    //if (!isCRC1Valid(commandPacket)) {
-    //    return 3; // CRC1 Error
-    //}
+    
+    //check if crc1 is correct 
+    uint32_t calculatedCRC1 = spiDec->calculateCRC1(packet.data.data());
+    // std::cout << "CRC1 Input Data (Hex): ";
+    // for (int i = 0; i < 16; i++) {
+    //     std::cout << std::hex << std::setw(2) << std::setfill('0') 
+    //             << static_cast<int>(packet.data.data()[i]) << " ";
+    // }
+    // std::cout << std::endl;
+    if (calculatedCRC1 != commandPacket.crc1) {
+        std::cerr << "CRC1 validation failed: Expected 0x" 
+          << std::hex << std::setw(8) << std::setfill('0') 
+          << static_cast<uint32_t>(commandPacket.crc1)
+          << " Actual 0x" 
+          << std::setw(8) << static_cast<uint32_t>(calculatedCRC1) 
+          << std::endl;
+        return 3;
+    }
 
     // Copy the variable-size data field if present
     if (commandPacket.length > 20) {
@@ -308,9 +332,17 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
         // Parse CRC2 (last 4 bytes)
         commandPacket.crc2 = bytesToInt32BigEndian(packet.data, commandPacket.length - 4);
         std::cout << "CRC2: 0x" << std::hex << commandPacket.crc2 << std::endl;
-        //if (!isCRC2Valid(commandPacket)) {
-        //    return 4; // CRC2 Error
-        //}
+        //check if crc2 is correct 
+        uint32_t calculatedCRC2 = spiDec->calculateCRC2(packet.data.data(), commandPacket.length);
+        if (calculatedCRC2 != commandPacket.crc2) {
+            std::cerr << "CRC2 validation failed: Expected 0x" 
+              << std::hex << std::setw(8) << std::setfill('0') 
+              << static_cast<uint32_t>(commandPacket.crc2)
+              << " Actual 0x" 
+              << std::setw(8) << static_cast<uint32_t>(calculatedCRC2) 
+              << std::endl;
+            return 4; 
+        }
     } else {
         // No DATA field, clear data and set CRC2 to 0
         commandPacket.data.clear();
@@ -465,7 +497,7 @@ std::vector<uint8_t> ThreadManager::constructDefaultPacket(uint32_t comres) {
     packet.push_back(SPIMAGIC & 0xFF);          // 0x3C
 
     // LENGTH (4 bytes) - calculated after DATA construction
-    uint32_t length = 16 + data.size() + 4; // SPIMAGIC+LENGTH+SEQNO+COMRES+DATA
+    uint32_t length = 20 + data.size() + 4; // SPIMAGIC+LENGTH+SEQNO+COMRES+DATA
     packet.push_back((length >> 24) & 0xFF);
     packet.push_back((length >> 16) & 0xFF);
     packet.push_back((length >> 8) & 0xFF);
@@ -483,18 +515,21 @@ std::vector<uint8_t> ThreadManager::constructDefaultPacket(uint32_t comres) {
     packet.push_back((comres >> 8) & 0xFF);
     packet.push_back(comres & 0xFF);
 
-    // Append DATA
-    packet.insert(packet.end(), data.begin(), data.end());
-
     // Calculate CRC1 (from 0x00 to 0x0F)
     uint32_t crc1 = spiDec->calculateCRC1(packet.data());
+    //std::cout << "[DEBUG] CRC1 (default reply header): 0x" << std::hex << std::setw(8) << std::setfill('0') << crc1 << std::endl;
+
     // Add CRC1 (4 bytes)
     packet.push_back((crc1 >> 24) & 0xFF);
     packet.push_back((crc1 >> 16) & 0xFF);
     packet.push_back((crc1 >> 8) & 0xFF);
     packet.push_back(crc1 & 0xFF);
+
+    // Append DATA
+    packet.insert(packet.end(), data.begin(), data.end());
+
     // Calculate CRC2 (from 0x00 to (LENGTH-0x05))
-    uint32_t crc2 = spiDec->calculateCRC2(packet.data(), packet.size());
+    uint32_t crc2 = spiDec->calculateCRC2(packet.data(), length);
     // Add CRC2 (4 bytes)
     packet.push_back((crc2 >> 24) & 0xFF);
     packet.push_back((crc2 >> 16) & 0xFF);

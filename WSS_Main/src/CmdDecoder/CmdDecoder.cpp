@@ -5130,7 +5130,6 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 
 					break;
 				}
-
 				default:
 				{
 					cout << "ERROR: The command attribute is wrong" << endl;

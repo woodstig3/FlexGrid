@@ -78,6 +78,9 @@ public:
 	//void            ProcessUIODevice(int fd, int& hisCon, bool& deFlag, FaultsName logName);
 	void 			ProcessUIOAlarmMonitoring(void);
 	void            GpioWrite(int fd, char level);
+
+	void            CheckADCPowerSupply();
+	void            CheckDACPowerSupply();
 private:
 	FaultsAttr m_heater1Temp;
 	FaultsAttr m_heater2Temp;
@@ -88,8 +91,7 @@ private:
 	MemoryMapping 	*mmapTEC;
 	MemoryMapping   *mmapGPIO;
 
-	void            CheckADCPowerSupply();
-	void            CheckDACPowerSupply();
+
 	void            HardReset();
 };
 

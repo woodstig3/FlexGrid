@@ -75,9 +75,8 @@ private:
 
     static std::vector<uint8_t> constructSPIReplyPacketHeader(const SPIReplyPacket& replyPacket);
 
-    static uint32_t calculateCRC(const uint8_t* data, size_t length);        // Implement your CRC logic based on the IEEE 802.3 standard
-    static bool   isCRC1Valid(SPICommandPacket& commandPacket);
-    static bool   isCRC2Valid(SPICommandPacket& commandPacket);
+    // static uint32_t calculateCRC(const uint8_t* data, size_t length);        // Implement your CRC logic based on the IEEE 802.3 standard
+    
 
 };
 
