@@ -89,10 +89,10 @@ std::vector<uint8_t> SpiCmdDecoder::processSPIPacket(const SPICommandPacket& com
 			// Process the command
 			return command->process(seqNo);
 		} else {
-			return constructErrorReply(0x02); // Command parsing error
+			return constructErrorReply(0x02); // Command parsing error (AER)
 		}
 	} else {
-		return constructErrorReply(0x01); // Unknown opcode error
+		return constructErrorReply(0x01); // Unknown opcode error (CER)
 	}
 }
 
@@ -121,7 +121,7 @@ std::vector<uint8_t> SpiCmdDecoder:: constructSPIReplyPacket(const SPIReplyPacke
     // 4. Calculate and append CRC2 (0x00~[LENGTH-5])
     uint32_t crc2 = 0;
     if (replyPacket.length > 20) {
-        crc2 = calculateCRC2(rawData.data(), rawData.size());
+        crc2 = calculateCRC2(rawData.data(), rawData.size() + 4);
         appendUint32BigEndian(rawData, crc2); // ensure bigend
     }
 	// print packet

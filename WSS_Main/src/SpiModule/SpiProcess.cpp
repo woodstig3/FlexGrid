@@ -104,7 +104,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             SPICommandPacket commandPacket;   //read out data into struct
 
     		int result = ThreadManager::parseSPICommandPacket(packet, commandPacket);
-            if (result >= 0 && result <= 2 ) {
+            if (result <= 1) {
         		std::cout << "Command packet header parsed successfully." << std::endl;
     		    busy = true;
 				//Send back PENDING reply packet first before further parsing and processing
@@ -112,36 +112,20 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 				replyPacket.spiMagic = SPIMAGIC;
 				replyPacket.length = 0x14; //commandPacket.length; // Example length
 				replyPacket.seqNo = commandPacket.seqNo;
-				replyPacket.comres = result == 0? -1: result; // PENDING or CER/AER
+				replyPacket.comres = result == 0? -1: result; // PENDING or CER
 				std::cout << "Reply packet COMRES: " << result << std::endl;
                 // component header: 16 bytes
                 std::vector<uint8_t> headerData = spiDec->constructSPIReplyPacketHeader(replyPacket);
                 // caculate CRC1
                 replyPacket.crc1 = spiDec->calculateCRC1(headerData.data());
-/*                if (replyPacket.length > 0x0014 ) {
-                    replyPacket.data.clear();
-                    replyPacket.data.reserve(commandPacket.data.size());
-                    for (signed char c : commandPacket.data) {
-                        replyPacket.data.push_back(static_cast<uint8_t>(c));
-                    }
-                    // Calculate CRC2 based on the entire packet (excluding CRC2 itself)
-                    std::vector<uint8_t> packetWithoutCRC2 = spiDec->constructSPIReplyPacketWithoutCRC2(replyPacket);
-                    replyPacket.crc2 = spiDec->calculateCRC2(packetWithoutCRC2.data(), packetWithoutCRC2.size());
-                }
-*/
 				replyPacketData = constructSPIReplyPacket(replyPacket);
-                
-                if (replyPacketData.size() > BUFFER_SIZE) {
-                    std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
-                    return nullptr;
-                }
 				// Formulate a reply based on the processed packet
 				memset(transfer.tx_buf, 0, BUFFER_SIZE);
 				memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
 
 				spiDec->oss.isPending = true;
 
-        		//then pass data content to spiCmdDecoder to extract opcode and arguments to calculate shape
+        		//then pass DATA field content to spiCmdDecoder to extract opcode and arguments to calculate shape
         		if(spiDec) {
         		    replyPacketData = spiDec->processSPIPacket(commandPacket);
         		}
@@ -156,11 +140,12 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 				//Send back Default reply packet first before further parsing and processing
 				SPIReplyPacket replyPacket;
 				replyPacket.comres = result;
+				std::cout << "Reply packet COMRES: " << result << std::endl;
 				replyPacketData = constructDefaultPacket(replyPacket.comres);
 			}
-            else // result ==4 VER of crc2
+            else if(result == 4) // result ==4 VER of crc2
             {
-            	std::cout << "Command packet header parsed successfully." << std::endl;
+            	std::cout << "Command packet format is not correct." << std::endl;
 				busy = true;
 				//Send back PENDING reply packet first before further parsing and processing
 				SPIReplyPacket replyPacket;
@@ -185,14 +170,18 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 				}
 
 				replyPacketData = constructSPIReplyPacket(replyPacket);
-
-				if (replyPacketData.size() > BUFFER_SIZE) {
-					std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
-					return nullptr;
-				}
+            }
+            else
+            {
+            	//Nothing needs to be done and just return previous transfer.tx_buf
+            	return nullptr;
             }
 
             // Formulate a reply based on the processed packet
+            if (replyPacketData.size() > BUFFER_SIZE) {
+				std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
+				return nullptr;
+			}
             memset(transfer.tx_buf, 0, BUFFER_SIZE);
             memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
             spiDec->oss.isPending = false;
