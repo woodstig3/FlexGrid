@@ -1086,7 +1086,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 //			float  edg_factor = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].EDG_FACTOR;  //added for 120 wl test
 			float  edg_factor = 1;  //according to experiment
 
-			if(inputs.ch_att > MAX_ATT_BLOCK)
+			if(inputs.ch_att > MAX_ATT_BLOCK || inputs.ch_adp > VENDOR_MAX_PORT)
 				continue;      				// ATT exceeds max value, then channel is actually blocked so no need to configure channel shape
 			if(g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
@@ -1254,7 +1254,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 //			float  edg_factor = g_serialMod->cmd_decoder.TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].EDG_FACTOR;  //added for 120 wl test
 			float  edg_factor = 1;  //according to experiment
 
-			if(inputs.ch_att > MAX_ATT_BLOCK)
+			if(inputs.ch_att > MAX_ATT_BLOCK || inputs.ch_adp > VENDOR_MAX_PORT)
 				continue;      			// ATT exceeds max value, then channel is actually blocked so no need to configure channel shape
 			if(g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_serialMod->cmd_decoder.FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
@@ -1482,7 +1482,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 #endif
 			float  edg_factor = 1;     //according to experiment
 
-			if(inputs.ch_att > MAX_ATT_BLOCK)
+			if(inputs.ch_att > MAX_ATT_BLOCK || inputs.ch_adp > VENDOR_MAX_PORT)
 				continue;      				// ATT exceeds max value, then channel is actually blocked so no need to configure channel shape
 			if(g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->TF_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)
@@ -1647,7 +1647,7 @@ int PatternGenModule::Calculate_Every_ChannelPattern()
 #endif
 			float  edg_factor = 1;  //according to experiment
 
-			if(inputs.ch_att > MAX_ATT_BLOCK)
+			if(inputs.ch_att > MAX_ATT_BLOCK || inputs.ch_adp > VENDOR_MAX_PORT)
 				continue;      			// ATT exceeds max value, then channel is actually blocked so no need to configure channel shape
 			if(g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F1ContiguousOrNot == 0 &&
 				g_spaCmd->g_cmdDecoder->FG_Channel_DS_For_Pattern[g_moduleNum][channelNo].F2ContiguousOrNot == 0)

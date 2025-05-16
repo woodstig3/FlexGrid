@@ -33,6 +33,8 @@ EEPROMUpdate::EEPROMUpdate() {
 		g_bFileOpen = true;
 	}
 
+	mmapREG = new MemoryMapping(MemoryMapping::REG);
+
 }
 
 EEPROMUpdate::~EEPROMUpdate() {
@@ -47,6 +49,7 @@ EEPROMUpdate::~EEPROMUpdate() {
 	{
 		delete i2c;
 	}
+	delete mmapREG;
 }
 
 int EEPROMUpdate::OpenFile(const char* fileName, unsigned int at, char buff[] ,unsigned int size)
@@ -283,6 +286,7 @@ int EEPROMUpdate::VerifyWriteOperation(void)
 		{
 			b_VerfyPass = 1;
 			printf("Difference At %0x: ReadBuffer = %0x : Original = %0x \r\n", EEPROM_addr, ReadBuffer[i], inputBuffer_Hex_NoHeader[i]);
+			return -1;
 		}
 		++EEPROM_addr;
 	}
@@ -292,5 +296,7 @@ int EEPROMUpdate::VerifyWriteOperation(void)
 		printf("100%% Verification Success !!!\r\n");
 	}
 
+	mmapREG->WriteRegister_Reg2(0x09, 1);  //notify PL
+	sleep(1);
 	return 0;
 }

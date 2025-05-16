@@ -214,17 +214,20 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             //printf("[DEBUG] poll() timed out, no interrupts detected.\n");
             continue;
         } else {
-            printf("[DEBUG] poll() returned %d events.\n", ret);
+            int prevRet = ret;
+        	printf("[DEBUG] poll() returned %d events.\n", ret);
+            if(ret>prevRet) {
+				// Prints the trigger status of each device
+				for (int i = 0; i < 9; i++)
+				{
+					printf("[DEBUG] Device fd=%d, revents=0x%X (%s)\n",
+						   fds[i].fd,
+						   fds[i].revents,
+						   (fds[i].revents & POLLIN) ? "Interrupt!" : "No event");
+				}
+            }
         }
 
-        // Prints the trigger status of each device
-        for (int i = 0; i < 9; i++)
-        {
-            printf("[DEBUG] Device fd=%d, revents=0x%X (%s)\n",
-                   fds[i].fd,
-                   fds[i].revents,
-                   (fds[i].revents & POLLIN) ? "Interrupt!" : "No event");
-        }
 
         // Process each UIO device
         if (fds[0].revents & POLLIN)

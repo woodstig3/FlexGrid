@@ -8,11 +8,13 @@
 #ifndef SRC_INTERFACEMODULE_EEPROMUPDATE_H_
 #define SRC_INTERFACEMODULE_EEPROMUPDATE_H_
 
-#include "InterfaceModule/I2CProtocol.h"
 #include <unistd.h>
 #include <string.h>
 #include <iostream>
 #include <fstream>
+
+#include "I2CProtocol.h"
+#include "MemoryMapping.h"
 
 #define HEX_FILE_SIZE 65577			// .hex File size
 #define HOLO_HEX_DATA_SIZE 13824    // Start 2A, End 362A ; 362A-2A = 13824 in decimal
@@ -28,7 +30,7 @@ public:
 	int 			VerifyWriteOperation(void);					// Test if the data written to EEPROM is same as the one in .hec file or not
 	int 			PrintEEPROM(unsigned int size=HOLO_HEX_DATA_SIZE);
 	int 			LoadAt(const char* fileName, unsigned int address, unsigned int size);
-
+	MemoryMapping   *mmapREG;
 private:
 
 	I2CProtocol 	*i2c = NULL;

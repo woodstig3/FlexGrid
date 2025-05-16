@@ -720,12 +720,12 @@ int MemoryMapping::MMAP_GPIO(int fd)
 	}
 
 	//Done
-	//mmapGPIO->WriteRegister_GPIO(0x000c/0x4, 0x0);usleep(1000);//Done PIN
-	//mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x0);usleep(1000);//Done PIN
+	WriteRegister_GPIO(0x000c/0x4, 0x0);usleep(1000);//Done PIN output
+	WriteRegister_GPIO(0x0008/0x4, 0x0);usleep(1000);//Done PIN
 
 	//Error
-	//mmapGPIO->WriteRegister_GPIO(0x0004/0x4, 0x0);usleep(1000);//Err PIN
-	//mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);//Err PIN
+	WriteRegister_GPIO(0x0004/0x4, 0x0);usleep(1000);//Err PIN output
+	WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);//Err PIN
 
 	//mmapGPIO->WriteRegister_GPIO(0x0004/0x4, 0x1);usleep(1000);//Err PIN
 	//mmapGPIO->ReadRegister_GPIO(0x0000/0x4, &readData);usleep(1000);

@@ -735,6 +735,7 @@ int SerialModule::Serial_WritePort(const std::string& sendMsg)
 		mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x1);usleep(1000);
 		mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);
 	} else {//Error
+		mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x1);usleep(1000);
 		mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
 	}
 

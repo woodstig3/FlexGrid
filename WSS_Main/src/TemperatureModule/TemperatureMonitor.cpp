@@ -254,7 +254,8 @@ void TemperatureMonitor::ProcessTemperatureMonitoring(void)
 //   			      b_isTECStable = false;
 //   		     }
    		     g_serialMod->cmd_decoder.SetPanelInfo(b_isTECStable);
-   		     SpiCmdDecoder::oss.isOpticsNotReady = b_isTECStable; //added for spi cmd
+   		     SpiCmdDecoder::oss.isOpticsNotReady = ~b_isTECStable; //added for spi cmd
+
 
 //end add by jihongwang on 20240722
         }
