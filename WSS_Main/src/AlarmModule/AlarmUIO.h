@@ -13,6 +13,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 
 #include "GlobalVariables.h"
 #include "SpiCmdDecoder.h"
@@ -81,6 +82,10 @@ public:
 
 	void            CheckADCPowerSupply();
 	void            CheckDACPowerSupply();
+	void 			CheckVCC3A();
+	void			CheckVDP1V8();
+	void 			CheckDACOUTD_ADC();
+	void 			WriteVoltageToFile(const std::string& voltageName, double voltage);
 private:
 	FaultsAttr m_heater1Temp;
 	FaultsAttr m_heater2Temp;

@@ -50,6 +50,7 @@ PatternGenModule::PatternGenModule()
 	m_customLCOS_Height = g_LCOS_Height;
 #endif
 
+
 }
 
 PatternGenModule::~PatternGenModule()
@@ -139,7 +140,6 @@ void PatternGenModule::restoreActiveConfig(void)
 
 void PatternGenModule::ProcessPatternGeneration(void)
 {
-	OCMTransfer ocmTrans;
 
 	int is_bPatternDone, is_bRestarted = 0;
 	int status;
@@ -160,7 +160,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 	Load_Background_LUT(); //drc added for loading parameters for background pattern display
 	loadBackgroundPattern();
 
-
+	OCMTransfer ocmTrans;
 	while(true)
 	{
 		usleep(100);
@@ -243,7 +243,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 		if(is_bRestarted == 0)
 		{
 			is_bRestarted = 1;
-#ifdef _SPI_INTERFACE_
+#ifndef _SPI_INTERFACE_
 			if(g_serialMod->cmd_decoder.actionSR->RestoreModule(1) == false)
 			std::cout << "No stored module 1 pattern" << std::endl;
 #ifdef _TWIN_WSS_
@@ -288,6 +288,7 @@ void PatternGenModule::ProcessPatternGeneration(void)
 #else
 			g_spaCmd->g_cmdDecoder->SetPatternTransferFlag(true);
 #endif
+
 #ifdef _FETCH_PATTERN_
 			Save_Pattern_In_FileSystem();
 			g_serialMod->Serial_WritePort("FF\n");	// Fetch File string send to PC software to start fetching
@@ -487,6 +488,10 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 	{
 		if(g_serialMod->cmd_decoder.structDevelopMode.phaseDepth_changed == true)
 		{
+#ifdef _WAVEFRONT_CALIB_
+			g_dpd[currentModule] = g_serialMod->cmd_decoder.structDevelopMode.phaseDepth - g_phaseDepth[currentModule];
+			g_dpd[currentModule] = g_serialMod->cmd_decoder.structDevelopMode.m_dpd;
+#endif
 			g_phaseDepth[currentModule] = g_serialMod->cmd_decoder.structDevelopMode.phaseDepth;
 			updatePhase = true;
 			g_serialMod->cmd_decoder.structDevelopMode.phaseDepth_changed = false;
@@ -551,7 +556,8 @@ int PatternGenModule::Check_Need_For_GlobalParameterUpdate()
 
 	if(updatePhase == true)
 	{
-//		std::cout << "\n\nGrayscale Maximum = " << linearLUT[static_cast<int>(g_phaseDepth*180)] << "\n\n"<< std::endl;	// Print for Yidan to see what grayscale last value is
+//		std::cout << "\n\nGrayscale Maximum in LinearLUT = " << linearLUT[static_cast<int>(g_phaseDepth[currentModule]*180)] << "\n\n"<< std::endl;	// Print for Yidan to see what grayscale last value is
+//		std::cout << "\n\nDPD[currentModule] = " << currentModule << "  "  << static_cast<double>(g_dpd[currentModule]/0.2) << "\n\n"<< std::endl;
 	}
 
 	if(updateLUTRange == true)
@@ -2061,6 +2067,15 @@ int PatternGenModule::Calculate_PhaseLine(const int pixelSize, double sigmaRad, 
 	{
 		phaseLine[Y-1] = (g_phaseDepth[g_moduleNum]*Y*pixelSize*sigmaRad) / lamda;
 		//printf("phaseLine[y] = %f \n\r", phaseLine[Y-1]);
+#ifdef _WAVEFRONT_CALIB_METHOD3_
+		double divFactor, calibedValue;
+
+		divFactor = g_dpd[g_moduleNum]*10/2;
+		calibedValue = divFactor*DPD_LUT.PhaseLineCalib[Y-1];
+//		std::cout << "Factors for PhaseLine Cablib: "<< divFactor << "  " << calibedValue << std::endl;
+		phaseLine[Y-1] += calibedValue;
+#endif
+
 	}
 
 	return (0);
@@ -2076,7 +2091,7 @@ void PatternGenModule::Calculate_Mod_And_RebuildPeriod(unsigned int periodCount[
 		phaseLine_MOD[i] = std::fmod(phaseLine[i], g_phaseDepth[g_moduleNum]);	//mod of 2
 
 		// Rebuild Period
-		if(phaseLine_MOD[i] < (1/calculatedPeriod*g_phaseDepth[g_moduleNum]/2))
+		if(phaseLine_MOD[i] < (1/calculatedPeriod*g_phaseDepth[g_moduleNum]/2))  // for yuhang test
 		{
 			rebuildPeriod[i] =	phaseLine_MOD[i] + g_phaseDepth[g_moduleNum];
 		}
@@ -2187,7 +2202,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const double Aopt,
 			attenuatedPattern_limited[col][Y] = attenuatedPattern[col][Y];
 		}
 
-		if(g_bSigmaNegative == true)    //drc to check how to modify here for edge
+/*		if(g_bSigmaNegative == true)    //drc to check how to modify here for edge
 		{
 			// Need to flip each period data
 			flipArray.push_back(attenuatedPattern_limited[col][Y]);
@@ -2205,7 +2220,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const double Aopt,
 				for(unsigned int j=0; j< flipArray.size(); j++)
 				{
 					temp[j + jump] = flipArray[j];
-//					std::cout << temp[Y] << std::endl;
+					//std::cout << temp[Y] << std::endl;
 				}
 
 				jump+=flipArray.size();
@@ -2213,6 +2228,7 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const double Aopt,
 				periodIndex_track++;
 			}
 		}
+*/
 
 //		printf("%d \t optFactor = %f \t optimizedPattern = %f \t attenuatedPattern = %f \t attenuatedPattern_limited = %f \n",
 //				Y,optFactor, optimizedPattern[Y], attenuatedPattern[Y], attenuatedPattern_limited[Y]);
@@ -2221,12 +2237,23 @@ void PatternGenModule::Calculate_Optimization_And_Attenuation(const double Aopt,
 
 	if(g_bSigmaNegative == true)
 	{
-		for(int y = 0; y < m_customLCOS_Height; y++)
-		{
-			attenuatedPattern_limited[col][y] = temp[y];
-			//printf("attenuatedPattern_limited = %f \n", attenuatedPattern_limited[y]);
-		}
+//		for(int y = 0; y < m_customLCOS_Height; y++)
+//		{
+			//attenuatedPattern_limited[col][y] = temp[y];
+//			printf("BEFORE reverse: attenuatedPattern_limited = %f \n", attenuatedPattern_limited[col][y]);
+			//std::reverse(attenuatedPattern_limited[col], attenuatedPattern_limited[col]+y);
+//		}
+//		std::reverse(std::begin(attenuatedPattern_limited[col]), std::end(attenuatedPattern_limited[col])); // reverse the grayscale alignment of pattern for negative sigma
+		std::reverse(attenuatedPattern_limited[col], attenuatedPattern_limited[col]+m_customLCOS_Height);
+
+//		for(int y = 0; y < m_customLCOS_Height; y++)
+//		{
+			//attenuatedPattern_limited[col][y] = temp[y];
+//			printf("AFTER reverse: attenuatedPattern_limited = %f \n", attenuatedPattern_limited[col][y]);
+			//std::reverse(attenuatedPattern_limited[col], attenuatedPattern_limited[col]+y);
+//		}
 	}
+
 }
 
 
@@ -2237,18 +2264,49 @@ void  PatternGenModule::AjustEdgePixelAttenuation(unsigned int ch, double F1_Pix
 
 void PatternGenModule::Fill_Channel_ColumnData(unsigned int ch)
 {
+	double divFactor, calibedValue;
+	int final;
 	// For every attenuated value in degree find the graylevel from LUT
 	for(int col = 0; col < 3; col++) {//added by drc for : 0 left edge; 1:channel;2 right edge
 		for(int i =0 ; i<m_customLCOS_Height; i++)
 		{
 			unsigned int degree = round(attenuatedPattern_limited[col][i]*180);		// IMPORTANT: NOT DIVIDE BY PI, because attenuatedPattern values have unit PI, so the value doesnt include PI itself
 
+#ifdef _WAVEFRONT_CALIB_METHOD2_
+			if(g_moduleNum == 1)
+				degree += g_dpd[g_moduleNum]*DPD_LUT.PhaseLineCalib[i];
+			else
+				degree += g_dpd[g_moduleNum]*DPD_LUT.PhaseLineCalib[i+540];
+#endif
+
 			if(degree < (0 + startOffsetLUT))										// if startOffset is more than 0, i.e. 2, then any value of degree below 2 will get value of 2 from LUT
 				degree = 0 + startOffsetLUT;
 			else if (degree > (linearLUT.size()-1-endOffsetLUT))				// if endOffset is more than 0, i.e. 5, then any value of degree above max range of LUT available will get max value from LUT, max = linearLUT.size()-1-endOffsetLUT
 				degree = (linearLUT.size()-1-endOffsetLUT);
 #ifndef _OCM_SCAN_
+
 			channelColumnData[col][i + m_customLCOS_Height*ch] = linearLUT[degree];
+#ifdef _WAVEFRONT_CALIB_
+
+			if(col == 1 && g_moduleNum == 1) {
+//				std::cout << "Linear LUT value:  \r\n" << linearLUT[degree]  << std::endl;
+				divFactor = g_dpd[g_moduleNum]*10/2;
+				calibedValue = divFactor*DPD_LUT.GrayScaleCalib[i];
+				final = linearLUT[degree] + round(calibedValue);
+				final = (final > 255? 255:final);
+				channelColumnData[col][i + m_customLCOS_Height*ch] = final;
+//				std::cout << "Calibrated Linear Grayscale value:  \r\n" << final << std::endl;
+			}
+			else if(col == 1 && g_moduleNum == 2) {
+				divFactor = g_dpd[g_moduleNum]*10/2;
+				calibedValue = divFactor*DPD_LUT.GrayScaleCalib[i+540];
+				final = linearLUT[degree] + round(calibedValue);
+				final = (final > 255? 255:final);
+				channelColumnData[col][i + m_customLCOS_Height*ch] = final;
+			}
+
+#endif
+//			std::cout << "Calibrated Linear Grayscale values:  \r\n" << channelColumnData[col][i + m_customLCOS_Height*ch] << std::endl;
 #else
 			if(ch >= g_Total_Channels) //for ocm scan channel
 			{
@@ -3400,7 +3458,26 @@ int PatternGenModule::PatternGen_Initialize(void)
 	thread_id = 0;
 	pthread_attr_init(&thread_attrb);	//Default initialize thread attributes
 
-	constexpr double maxPhase = 2.2;
+
+#if defined(_WAVEFRONT_CALIB_METHOD3_) || defined(_WAVEFRONT_CALIB_METHOD2_) || defined(_WAVEFRONT_CALIB_)
+	constexpr double maxPhase = 2.3;
+
+	bool status = Load_DPD_LUT(DPD_LUT, "/mnt/DPDGrayScale.csv");
+	if(status != 0)
+	{
+		printf("WaveFront Calib LUT Load Failed.\n");
+		g_serialMod->Serial_WritePort("\01INTERNAL_ERROR\04\n");
+
+	}
+/*	 for(int t=0; t<LUT_GRAYSCALE_NUM; t++)
+	 {
+		 std::cout << DPD_LUT.GrayScaleCalib[t] << std::endl;
+	 }
+*/
+#else
+	constexpr double maxPhase = 2.2;    //DPD
+#endif
+
 	Create_Linear_LUT(maxPhase);		// We have fixed LUT for 2.2 PI
 
 
@@ -3485,12 +3562,71 @@ void PatternGenModule::Create_Linear_LUT(double phaseDepth)
 	{
 		 int values = std::min(static_cast<int>(std::round(grayLow + (m * j))), grayHigh);	// before j was replaced with i and i was overshadowing
 		linearLUT.push_back(static_cast< unsigned char > (values));
-		//std::cout << j << " "<<values <<std::endl;
+//		std::cout <<"LUT Table: \n\r"<< j << " "<< values <<std::endl;
 	}
 
-	//std::cout << "lutSize " <<lutSize <<std::endl;
+//	std::cout << "lutSize " <<lutSize <<std::endl;
 
 }
+
+#if defined( _WAVEFRONT_CALIB_) || defined(_WAVEFRONT_CALIB_METHOD2_) || defined(_WAVEFRONT_CALIB_METHOD3_)
+int PatternGenModule::Load_DPD_LUT(DPD_Struct& lut, const std::string& path)
+{
+    std::ifstream file(path);
+
+    if (file.is_open()) {
+//        std::cout << "[PixelPos_LUT] File has been opened" << std::endl;
+    }
+    else {
+        std::cout << "[DPD_LUT] File opening Error" << std::endl;
+        return (-1);
+    }
+
+    std::string row;
+    int tempIndex = 0;
+
+    while (std::getline(file, row)) {
+
+      if(row.empty() == true) continue;
+      double value1, value2;
+
+      // Find the comma position
+	  size_t comma_pos = row.find(',');
+	  if (comma_pos == std::string::npos) {
+		  std::cout << "[DPD_LUT] Invalid format in row: " << row << std::endl;
+		  continue;
+	  }
+
+	  try {
+			  // Extract first column (before comma)
+			  std::string col1_str = row.substr(0, comma_pos);
+			  value1 = std::stod(col1_str);
+			  lut.GrayScaleCalib[tempIndex] = value1;
+
+			  // Extract second column (after comma)
+			  std::string col2_str = row.substr(comma_pos + 1);
+			  value2 = std::stod(col2_str);
+			  lut.PhaseLineCalib[tempIndex] = value2;  // Assuming you have this array in your struct
+
+			  tempIndex++;
+		  }
+		  catch (const std::exception& e) {
+			  std::cout << "[DPD_LUT] Error parsing row " << tempIndex << ": " << e.what() << std::endl;
+			  continue;
+		  }
+    }
+
+     file.close();
+#if 0
+     // Verify
+     for(int t=0; t<LUT_GRAYSCALE_NUM; t++)
+     {
+         std::cout << lut.GrayScaleCalib[t] << " -- " << lut.PhaseLineCalib[t] << std::endl;
+     }
+#endif
+	return (0);
+}
+#endif
 
 //drc added for print map elements in cout below
 template <typename T>std::ostream& operator<<(std::ostream& os, const std::map<std::string, T>& m) {
@@ -3939,9 +4075,6 @@ void PatternGenModule::refreshBackgroundPattern(void)
 		}
 
 	}*/
-
-
-
 
 
 void PatternGenModule::loadPatternFile_Bin(std::string path)

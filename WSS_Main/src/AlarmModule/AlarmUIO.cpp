@@ -189,7 +189,7 @@ void *AlarmModule::ThreadHandle(void *arg)
 
 void AlarmModule::ProcessUIOAlarmMonitoring(void)
 {
-
+    static int prevRet=0;
     while (thread_id != 0) // Add a flag for graceful termination
     {
         // Use poll() to wait for interrupts on all UIO devices
@@ -214,8 +214,8 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             //printf("[DEBUG] poll() timed out, no interrupts detected.\n");
             continue;
         } else {
-            int prevRet = ret;
-        	printf("[DEBUG] poll() returned %d events.\n", ret);
+
+//       	printf("[DEBUG] poll() returned %d events.\n", ret);
             if(ret>prevRet) {
 				// Prints the trigger status of each device
 				for (int i = 0; i < 9; i++)
@@ -226,12 +226,17 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
 						   (fds[i].revents & POLLIN) ? "Interrupt!" : "No event");
 				}
             }
+            prevRet = ret;
         }
 
 
         // Process each UIO device
         if (fds[0].revents & POLLIN)
         {
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[0].fd, &count, sizeof(count)); 
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_DAC_OA interrupt count=%u\n", count); 
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.opticalControlFailure = 1; // Bit 4
             SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
@@ -245,13 +250,22 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             //ProcessUIODevice(UIO_DAC_OA, HisCon_OA, DeOA_Flag, WATCH_DOG_EVENT);
             //WSS_ACCESS
 #endif
-            //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
+                //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
+            } else {
+                perror("Failed to read UIO_DAC_OA interrupt count");
+            }
             // Re-enable interrupt if needed:
             uint32_t enable = 1;
-            write(fds[0].fd, &enable, sizeof(enable));
+            if (write(fds[0].fd, &enable, sizeof(enable)) != sizeof(enable)) {
+                perror("Failed to re-enable UIO_DAC_OA interrupt");
+            }
         }
         if (fds[1].revents & POLLIN)
         {
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[1].fd, &count, sizeof(count));
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_DAC_OD interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.powerSupplyError = 1;      // Bit 5
             SpiCmdDecoder::hss.powerRailError = 1;        // Bit 6
@@ -265,13 +279,22 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             //ProcessUIODevice(UIO_DAC_OD, HisCon_OD, DeOD_Flag, ADC_AD7689_ACCESS_FAILURE);
             //WSS_ACCESS
 #endif
-            //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
-            // Re-enable interrupt if needed:
+                //mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x1);usleep(1000);
+                // Re-enable interrupt if needed:
+            } else {
+                perror("Failed to read UIO_DAC_OD interrupt count");
+            }
             uint32_t enable = 1;
-            write(fds[1].fd, &enable, sizeof(enable));
+            if (write(fds[1].fd, &enable, sizeof(enable)) != sizeof(enable)) {
+                perror("Failed to re-enable UIO_DAC_OD interrupt");
+            }
         }
         if (fds[2].revents & POLLIN)
         {
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[2].fd, &count, sizeof(count));
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_GRID_Temp_H interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             //SpiCmdDecoder::hss.tempControlShutdown = DeGRID_Flag; // Bit 2
             SpiCmdDecoder::hss.internalTempError = 1;     // Bit 1
@@ -325,12 +348,21 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             } 
             //ProcessUIODevice(UIO_GRID_Temp_H, HisCon_GRIDTemp, DeGRID_Flag, HEATER_2_TEMP);
 #endif
+            } else {
+                perror("Failed to read UIO_GRID_Temp_H interrupt count");
+            }
             // Re-enable interrupt if needed:
             uint32_t enable = 1;
-            write(fds[2].fd, &enable, sizeof(enable));
+            if (write(fds[2].fd, &enable, sizeof(enable)) != sizeof(enable)) {
+                perror("Failed to re-enable UIO_GRID_Temp_H interrupt");
+            }
         }
         if (fds[3].revents & POLLIN)
         {
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[3].fd, &count, sizeof(count));
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_LCOS_Temp_H interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
             SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
@@ -344,8 +376,8 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
                 const uint8_t byteValue = hexValue & 0xFF; 
                 const uint8_t bit1 = (byteValue >> 1) & 0x1; 
-                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
-                printf("[DEBUG] Binary: 0b");
+//                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+//                printf("[DEBUG] Binary: 0b");
                 for (int i = 7; i >= 0; i--) {
                     printf("%d", (byteValue >> i) & 0x1); 
                 }
@@ -371,9 +403,14 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             }
             //ProcessUIODevice(UIO_LCOS_Temp_H, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
 #endif
+            } else {
+                perror("Failed to read UIO_LCOS_Temp_H interrupt count");
+            }
             // Re-enable interrupt if needed:
             uint32_t enable = 1;
-            write(fds[3].fd, &enable, sizeof(enable));
+            if (write(fds[3].fd, &enable, sizeof(enable)) != sizeof(enable)) {
+                perror("Failed to re-enable UIO_LCOS_Temp_H interrupt");
+            }
         }
         if (fds[4].revents & POLLIN)
         {
@@ -395,6 +432,13 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             // } else {
             //     perror("Failed to read UIO_Pattern_Received");
             // }
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[5].fd, &count, sizeof(count)); 
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_Pattern_rev_finish interrupt count=%u\n", count);
+            }
+            uint32_t enable = 1;
+            write(fds[5].fd, &enable, sizeof(enable));
         }
         if (fds[6].revents & POLLIN)
         {
@@ -409,9 +453,20 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             // } else {
             //     perror("Failed to read UIO_EEPROM_Load_Ready");
             // }   
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[6].fd, &count, sizeof(count)); 
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_EEPROM_LOAD_READY interrupt count=%u\n", count);
+            }
+            uint32_t enable = 1;
+            write(fds[6].fd, &enable, sizeof(enable));
         }
         if (fds[7].revents & POLLIN)
         {
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[7].fd, &count, sizeof(count));
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_GRID_Temp_L interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
             SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
@@ -425,10 +480,10 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
                 const uint8_t byteValue = hexValue & 0xFF; 
                 const uint8_t bit2 = (byteValue >> 2) & 0x1; 
-                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
-                printf("[DEBUG] Binary: 0b");
+//                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+//                printf("[DEBUG] Binary: 0b");
                 for (int i = 7; i >= 0; i--) {
-                    printf("%d", (byteValue >> i) & 0x1); 
+//                    printf("%d", (byteValue >> i) & 0x1);
                 }
                 printf(", bit2=%d\n", bit2);
                 if (bit2 == 0) {
@@ -451,12 +506,20 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             }
             //ProcessUIODevice(UIO_GRID_Temp_L, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
 #endif
-            // Re-enable interrupt if needed:
+            } else {
+                perror("Failed to read UIO_GRID_Temp_L interrupt count");
+            }
             uint32_t enable = 1;
-            write(fds[7].fd, &enable, sizeof(enable));
+            if (write(fds[7].fd, &enable, sizeof(enable)) != sizeof(enable)) {
+                perror("Failed to re-enable UIO_GRID_Temp_L interrupt");
+            }
         }
         if (fds[8].revents & POLLIN)
         {
+            uint32_t count = 0;
+            ssize_t bytes_read = read(fds[8].fd, &count, sizeof(count));
+            if (bytes_read == sizeof(count)) {
+                printf("[DEBUG] UIO_LCOS_Temp_L interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
             SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
@@ -470,10 +533,10 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
                 const uint8_t byteValue = hexValue & 0xFF; 
                 const uint8_t bit0 = (byteValue >> 0) & 0x1; 
-                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
-                printf("[DEBUG] Binary: 0b");
+//                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+//                printf("[DEBUG] Binary: 0b");
                 for (int i = 7; i >= 0; i--) {
-                    printf("%d", (byteValue >> i) & 0x1); 
+//                    printf("%d", (byteValue >> i) & 0x1);
                 }
                 printf(", bit0=%d\n", bit0);
                 if (bit0 == 0) {
@@ -496,9 +559,13 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             }
             //ProcessUIODevice(UIO_LCOS_Temp_L, HisCon_LCOSTemp, DeLCOS_Flag, HEATER_1_TEMP);
 #endif
-            // Re-enable interrupt if needed:
+                } else {
+                perror("Failed to read UIO_LCOS_Temp_L interrupt count");
+            }
             uint32_t enable = 1;
-            write(fds[8].fd, &enable, sizeof(enable));
+            if (write(fds[8].fd, &enable, sizeof(enable)) != sizeof(enable)) {
+                perror("Failed to re-enable UIO_LCOS_Temp_L interrupt");
+            }
         }     
         //SpiCmdDecoder::hss.caseTempError = DeCase_Flag; //currently not available because no case tempsensor yet.
         //other hardware status polling below:
@@ -623,4 +690,85 @@ void AlarmModule::HardReset(){
     } catch (const std::runtime_error& e) {
         std::cerr << "HardReset Error: " << e.what() << std::endl;
     }
+}
+
+
+void AlarmModule::CheckVCC3A(){
+	// Added: DAC output check section
+	unsigned int hexAdcInput = 0;
+	// const uint16_t ADC_DATA_MASK = 0x0FFF;  // Define 12-bit data mask
+	int dacStatus = mmapTEC->ReadRegister_TEC32(0x0104 / 0x4, &hexAdcInput);
+	if (dacStatus != 0) {
+		printf("Error: Failed to read VCC3A register\n");
+	}
+	// Extract valid 12-bit data (assuming right-aligned)
+	uint16_t adcInputData = hexAdcInput & ADC_DATA_MASK;
+	// printf("[DEBUG] Raw DAC value: 0x%04X | DEC: %u\n", hexAdcInput, hexAdcInput);
+	//printf("[DEBUG] Raw DAC value: 0x%04X | Valid 12-bit: 0x%03X\n", hexAdcInput, adcInputData);
+	// DAC value validation (example conditions)
+	double vadc_tempout = (adcInputData * ADC_REF_VOLTAGE) / 4096;
+	// Calculate DAC output voltage with gain compensation (1 + 33/33)
+	double vdac_out = vadc_tempout * 2;
+	//printf("[DEBUG] VCC3A current output voltage=%.2fV\n", vdac_out);
+    WriteVoltageToFile("VCC3A", vdac_out);
+}
+
+void AlarmModule::CheckVDP1V8(){
+	// Added: DAC output check section
+	unsigned int hexAdcInput = 0;
+	// const uint16_t ADC_DATA_MASK = 0x0FFF;  // Define 12-bit data mask
+	int dacStatus = mmapTEC->ReadRegister_TEC32(0x0108 / 0x4, &hexAdcInput);
+	if (dacStatus != 0) {
+		printf("Error: Failed to read VDP1V8 register\n");
+	}
+	// Extract valid 12-bit data (assuming right-aligned)
+	uint16_t adcInputData = hexAdcInput & ADC_DATA_MASK;
+	// printf("[DEBUG] Raw DAC value: 0x%04X | DEC: %u\n", hexAdcInput, hexAdcInput);
+	//printf("[DEBUG] Raw DAC value: 0x%04X | Valid 12-bit: 0x%03X\n", hexAdcInput, adcInputData);
+	// DAC value validation (example conditions)
+	double vadc_tempout = (adcInputData * ADC_REF_VOLTAGE) / 4096;
+	// Calculate DAC output voltage with gain compensation (1 + 33/33)
+	double vdac_out = vadc_tempout * 2;
+	//printf("[DEBUG] VDP1V8 current output voltage=%.2fV\n", vdac_out);
+    WriteVoltageToFile("VDP1V8", vdac_out);
+}
+
+void AlarmModule::CheckDACOUTD_ADC(){
+	// Added: DAC output check section
+	unsigned int hexAdcInput = 0;
+	// const uint16_t ADC_DATA_MASK = 0x0FFF;  // Define 12-bit data mask
+	int dacStatus = mmapTEC->ReadRegister_TEC32(0x011C / 0x4, &hexAdcInput);
+	if (dacStatus != 0) {
+		printf("Error: Failed to read DACOUTD_ADC register\n");
+	}
+	// Extract valid 12-bit data (assuming right-aligned)
+	uint16_t adcInputData = hexAdcInput & ADC_DATA_MASK;
+	// printf("[DEBUG] Raw DAC value: 0x%04X | DEC: %u\n", hexAdcInput, hexAdcInput);
+	//printf("[DEBUG] Raw DAC value: 0x%04X | Valid 12-bit: 0x%03X\n", hexAdcInput, adcInputData);
+	// DAC value validation (example conditions)
+	double vadc_tempout = (adcInputData * ADC_REF_VOLTAGE) / 4096;
+	// Calculate DAC output voltage with gain compensation (1 + 33/33)
+	double vdac_out = vadc_tempout * 2;
+	//printf("[DEBUG] DACOUTD_ADC current output voltage=%.2fV\n", vdac_out);
+    WriteVoltageToFile("DACOUTD_ADC", vdac_out);
+}
+
+void AlarmModule::WriteVoltageToFile(const std::string& voltageName, double voltage) {
+    std::ofstream outfile;
+    outfile.open("/mnt/voltage_log.txt", std::ios::app);  
+        
+    if (!outfile.is_open()) {
+        printf("Error: Failed to open log file\n");
+        return;
+    }
+    
+    std::time_t now = std::time(nullptr);
+    char timestamp[20];
+    std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    
+    outfile << "[" << timestamp << "] "
+            << voltageName << "=" 
+            << std::fixed << std::setprecision(2) << voltage << "V\n";
+        
+    outfile.close();
 }

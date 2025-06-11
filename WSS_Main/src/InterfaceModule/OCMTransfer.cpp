@@ -71,10 +71,11 @@ int OCMTransfer::SendPatternData(uint8_t *pattern)
 		while (pixel_count < required_size){
 
 			mmapOCM->ReadRegister_OCM32(HEC7020_OCM_READPTR, &RP);
-			//std::cout << "RP = " << RP << std::endl;
+//			std::cout << "RP = " << std::hex << RP << std::endl;
 			//usleep(500);<-STABLE DELAY, but 100ms more time			// THIS DELAY IS MUST! Or RP value will not update
 			mmapOCM->ReadRegister_OCM32(HEC7020_OCM_WRITEPTR, &WP);
 			//usleep(500);<-STABLE DELAY, but 100ms more time			// THIS DELAY IS MUST! Or RP value will not update
+//			std::cout << "WP = " << std::hex << WP << std::endl;
 
 			if (WP==HEC7020_OCM_MEM_END){
 				if (RP!=0){

@@ -22,7 +22,7 @@ struct spi_transfer_data {
     		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     		0xF0, 0x0D,
     	};
-    char rx_buf[BUFFER_SIZE] = {0,};
+    char rx_buf[BUFFER_SIZE] = {0};
     size_t len = BUFFER_SIZE;
 };
 
@@ -39,7 +39,12 @@ struct spi_ioc_transfer {
 
 class SPISlave {
 public:
+
+#ifdef _XILINX_
     SPISlave(const std::string& device = "/dev/spidev1.0");
+#else
+    SPISlave(const std::string& device = "/dev/spidev0.0");  //anlogic
+#endif
     ~SPISlave();
 
     // Delete copy constructor and assignment operator
@@ -53,20 +58,20 @@ public:
     bool isReady() const;
     int spi_transfer(struct spi_transfer_data& transfer);
     // Function to prepare response for next master read
-    bool prepareResponse(const std::vector<uint8_t>& response);
-    void processData(unsigned char* rx_buf, unsigned char* tx_buf, size_t len);
-    void handleCommand(unsigned char* rx_buf, unsigned char* tx_buf, size_t& len);
+//    bool prepareResponse(const std::vector<uint8_t>& response);
+//    void processData(unsigned char* rx_buf, unsigned char* tx_buf, size_t len);
+//    void handleCommand(unsigned char* rx_buf, unsigned char* tx_buf, size_t& len);
 
 private:
     bool configureSPIDevice();
 
     int m_fd;
     std::string m_devicePath;
-    std::vector<uint8_t> m_responseBuffer;
+//    std::vector<uint8_t> m_responseBuffer;
 
     size_t current_mode=0;
     size_t bits=8;
-    size_t speed=50000000;
+    size_t speed=20000000;
     size_t msb_first = 0;
 };
 

@@ -633,9 +633,11 @@ void SerialModule::Serial_Closure(void)
 int SerialModule::Serial_OpenFileDescriptor(void)
 {
 	/*****Change device path as needed (currently set to an standard FTDI USB-UART cable type device)*****/
-
+#ifdef _XILINX_
 	iSerialFD = open("/dev/ttyPS1", O_RDWR | O_NOCTTY);
-
+#else
+	iSerialFD = open("/dev/ttyS1", O_RDWR | O_NOCTTY);
+#endif
 	if(iSerialFD == -1)													// File descriptor opening error
 	{
 		return (-1);

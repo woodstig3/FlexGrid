@@ -59,6 +59,8 @@ struct PixelPos{
 	double 			Pos[LUT_PIXELPOS_FREQ_NUM][LUT_PIXELPOS_TEMP_NUM];
 };
 
+
+
 class PatternCalibModule{
 protected:
 
@@ -174,6 +176,7 @@ private:
 	int 			Load_Att_LUT(Att& lut, const std::string& path);
 	int 			Load_Sigma_LUT(Sigma& lut, const std::string& path);
 	int 			Load_PixelPos_LUT(PixelPos& lut, const std::string& path);
+
 };
 
 #endif /* SRC_PATTERNCALIBMODULE_PATTERNCALIBMODULE_H_ */

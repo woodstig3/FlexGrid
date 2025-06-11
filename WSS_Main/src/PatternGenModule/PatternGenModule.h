@@ -75,6 +75,10 @@ struct OCMScan_Para
 };
 #endif
 
+#if defined(_WAVEFRONT_CALIB_METHOD3_) || defined(_WAVEFRONT_CALIB_METHOD2_) || defined(_WAVEFRONT_CALIB_)
+#define LUT_GRAYSCALE_NUM   540
+#endif
+
 class PatternGenModule {
 protected:
 					PatternGenModule();
@@ -157,6 +161,16 @@ private:
 	int				m_backColor{0};
 	int				m_customLCOS_Height{g_LCOS_Height};
 
+
+
+#if defined(_WAVEFRONT_CALIB_METHOD3_) || defined(_WAVEFRONT_CALIB_METHOD2_) || defined(_WAVEFRONT_CALIB_)
+	double          g_dpd[3]{0.2};
+	struct DPD_Struct{
+		double  GrayScaleCalib[g_LCOS_Height];
+		double  PhaseLineCalib[g_LCOS_Height];
+		};
+	DPD_Struct DPD_LUT;
+#endif
 	float 			calculatedPeriod{0};
 	float 			phaseLine[g_LCOS_Height]{0};
 	float 			phaseLine_MOD[g_LCOS_Height]{0};
@@ -227,6 +241,10 @@ private:
 	int             Contiguous_Logic(const double *ch_f1, const double *ch_f2, const double *other_ch_f1, const double *other_ch_f2);
 	void            refreshBackgroundPattern(void);
 	void            CalculateOCMPattern(void);
+
+#if defined(_WAVEFRONT_CALIB_METHOD3_) || defined(_WAVEFRONT_CALIB_METHOD2_) || defined(_WAVEFRONT_CALIB_)
+	int             Load_DPD_LUT(DPD_Struct& lut, const std::string& path);
+#endif
 };
 
 #endif /* SRC_PATTERNGENMODULE_PATTERNGENMODULE_H_ */

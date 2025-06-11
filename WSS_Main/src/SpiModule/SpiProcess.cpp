@@ -54,7 +54,7 @@ void* ThreadManager::spiListener(void* arg) {
 			if(busy == true)
 			{//previous command or query is not finished
 				std::cerr << "Busy state: Discard incoming data." << std::endl;
-				memset(transfer.rx_buf, 0, BUFFER_SIZE);
+//				memset(transfer.rx_buf, 0, BUFFER_SIZE);
 				continue;  //device pending on the previous processing, discard any incoming packets until pending is finished.
 			}
 
@@ -71,7 +71,7 @@ void* ThreadManager::spiListener(void* arg) {
 
 		}
         // Sleep for a short duration to prevent busy-waiting
-        //usleep(10); // Sleep for 1ms
+        usleep(1000); // Sleep for 1ms
     }
     return nullptr;
 }

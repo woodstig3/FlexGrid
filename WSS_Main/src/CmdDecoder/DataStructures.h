@@ -203,6 +203,9 @@
 
 		//Switch Temperature on TestRig Display LCOS vs Grating
 		bool			m_switch = 0;
+
+		//Wavefront calib
+		double          m_dpd = 0.2;
 	};
 
 	struct Panel

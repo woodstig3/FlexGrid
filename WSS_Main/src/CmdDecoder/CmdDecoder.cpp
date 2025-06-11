@@ -39,9 +39,10 @@ CmdDecoder::CmdDecoder() {
 	eModule1 = TF;
 	arrModules[0].slotSize = "TF";
 #endif
-	eModule2 = FIXEDGRID;
-	arrModules[1].slotSize = "625";
-//	arrModules[1].slotSize = "TF";
+//	eModule2 = FIXEDGRID;
+	eModule2 = TF;
+//	arrModules[1].slotSize = "625";
+	arrModules[1].slotSize = "TF";
 
 	strcpy(customerInfo, "BAIANTEK");
 
@@ -378,6 +379,7 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 				if (((status == VERB_NOTFOUND) || (status == VERB_WRONG)) && (commandCount == 1))
 				{
 					cout << "VERB NOT FOUND " << endl;
+					PrintResponse("\01INVALID_COMMAND_ACTION\04", ERROR_HI_PRIORITY);
 					return (-1);	// Break if verb not found and cmdType is SINGLE; Only for further if first Verb is correct, if first verb is wrong issue error and stop the whole string search
 				}
 			}
@@ -389,8 +391,11 @@ int CmdDecoder::ZTEDecodeCommand(std::vector<std::string> &singleCommandVector, 
 
 				int status = SearchObject(singleCommandVector[index]);
 
-				if (status == -1)			// Print_Search() function call here is only in case when no attribute exist, if attribute exists it will set the flag
-					return (-1);			// Break if error in command
+				if (status == -1) {
+					// Print_Search() function call here is only in case when no object exist, if attribute exists it will set the flag
+					PrintResponse("\01OBJECT_INSTANCE_DOESNT_EXIST\04", ERROR_HI_PRIORITY);
+					return (-1);	//Break
+				}
 
 				if ((commandItems <= 2) && ((eVerb == SET) || (eVerb == ADD) || (eVerb == ACTION && eObject == MODULE) || (eVerb == ACTION && eObject == FWUPGRADE)))
 				{
@@ -1285,12 +1290,14 @@ int CmdDecoder::SearchObject(std::string &object)
 									else
 									{
 										cout << "ERROR: The Module Number is wrong: " << g_moduleNum << endl;
+										PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 										return (-1);
 									}
 								}
 								else
 								{
 									cout << "ERROR: The Module Number is not a numerical value" << endl;
+									PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 									return (-1);
 								}
 
@@ -1298,12 +1305,14 @@ int CmdDecoder::SearchObject(std::string &object)
 							else
 							{
 								cout << "ERROR: The command format is wrong" << endl;
+								PrintResponse("\01INVALID_ATTRIBUTE\04", ERROR_HI_PRIORITY);
 								return (-1);
 							}
 						}
 						else
 						{
 							cout << "ERROR: The command Object is wrong" << endl;
+							PrintResponse("\01INVALID_COMMAND_ACTION\04", ERROR_HI_PRIORITY);
 							return (-1);
 						}
 
@@ -1596,12 +1605,12 @@ int CmdDecoder::SearchObject(std::string &object)
 							{
 								if ((objVec[1] == "1" && eModule1 == TF)	|| (objVec[1] == "2" && eModule2 == TF))	// Read Module Number &Module Type/Slotsize
 								{
-									if (is_SetTFDone() == -1)	// Check if Channels are active and channel numbers are under 96. If not then error
+									if (is_SetTFDone() != 0)	// Check if Channels are active and channel numbers are under 96. If not then error
 										return (-1);
 								}
 								else if ((objVec[1] == "1" && eModule1 == FIXEDGRID) || (objVec[1] == "2" && eModule2 == FIXEDGRID))
 								{
-									if (is_SetNoSlotFGDone() == -1)	// Check if Channels are active,  channel numbers are under 96. If not then error
+									if (is_SetNoSlotFGDone() != 0)	// Check if Channels are active,  channel numbers are under 96. If not then error
 										return (-1);
 								}
 								else
@@ -1614,7 +1623,7 @@ int CmdDecoder::SearchObject(std::string &object)
 							{
 								if ((objVec[1] == "1" && eModule1 == FIXEDGRID) || (objVec[1] == "2" && eModule2 == FIXEDGRID))	// Read Module Number.
 								{
-									if (is_SetSlotFGDone() == -1)	// Check if Channels are active, Slot size is defined (and correct) and channel numbers are under 96. If not then error
+									if (is_SetSlotFGDone() != 0 )	// Check if Channels are active, Slot size is defined (and correct) and channel numbers are under 96. If not then error
 										return (-1);
 								}
 								else
@@ -3069,7 +3078,7 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 				{
 					if (Sscanf(attr[1], fValue,'f'))
 					{
-						TF_Channel_DS[g_moduleNum][g_channelNum].SIGMA = fValue;
+						TF_Channel_DS[g_moduleNum][g_channelNum].SIGMA = fValue;  //drc modified only for test conducted by Yuhang to check
 					}
 					else
 					{
@@ -4506,6 +4515,20 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 							return (-1);
 						}
 					}
+#if defined(_WAVEFRONT_CALIB_METHOD3_) || defined(_WAVEFRONT_CALIB_METHOD2_) || defined(_WAVEFRONT_CALIB_)
+					else if(attr[0] == "DPD" && eVerb == SET) //Wavefront calib
+					{
+						float f_Value;
+						if (Sscanf(attr[1], f_Value, 'f'))
+						{
+							pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
+							structDevelopMode.phaseDepth_changed = true;
+							structDevelopMode.m_dpd = f_Value;
+							pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
+						}
+
+					}
+#endif
 					else
 					{
 						cout << "ERROR: The command attribute is wrong" << endl;
@@ -5265,6 +5288,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			else
 			{
 				cout << "ERROR: Invalid Get Format" << endl;
+				PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 				return (-1);
 			}
 
@@ -5312,6 +5336,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 				else
 				{
 					cout << "ERROR: Invalid Get Format" << endl;
+					PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 					return (-1);
 				}
 			}
@@ -5424,6 +5449,7 @@ int CmdDecoder::Print_SearchAttributes(std::string &attributes)
 			else
 			{
 				cout << "ERROR: Invalid Get Format" << endl;
+				PrintResponse("\01INVALID_OBJECT_INSTANCE\04", ERROR_HI_PRIORITY);
 				return (-1);
 			}
 

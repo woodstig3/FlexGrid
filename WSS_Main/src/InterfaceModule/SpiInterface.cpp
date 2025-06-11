@@ -2,6 +2,7 @@
 #include <fcntl.h>
 
 #include <sys/ioctl.h>
+#include <linux/ioctl.h>
 #include <poll.h>
 #include <system_error>
 #include <iostream>
@@ -13,7 +14,7 @@ SPISlave::SPISlave(const std::string& device)
     : m_fd(-1)
     , m_devicePath(device)
 {
-    m_responseBuffer.resize(BUFFER_SIZE);
+//    m_responseBuffer.resize(BUFFER_SIZE);
 
 }
 
@@ -29,6 +30,8 @@ bool SPISlave::init()
         std::cerr << "Error opening SPI device: " << strerror(errno) << std::endl;
         return false;
     }
+
+    configureSPIDevice();
 
 	if (ioctl(m_fd, SPI_IOC_RD_BITS_PER_WORD, &bits) < 0) {
         std::cerr << "Error setting bits per word: " << strerror(errno) << std::endl;
@@ -96,11 +99,11 @@ bool SPISlave::isReady() const {
     pollfd pfd;
 
     pfd    .fd = m_fd;
-    pfd    .events = POLLIN | POLLOUT; // Monitor for both read and write readiness
+    pfd    .events = POLLIN; // Monitor for both read and write readiness
     pfd    .revents = 0;
 
-    int ret = poll(&pfd, 1, 100); // 100ms timeout
-    return ret > 0 && (pfd.revents & (POLLIN | POLLOUT));
+    int ret = poll(&pfd, 1, 0); // 100ms timeout
+    return ret > 0 && (pfd.revents & POLLIN);
 }
 
 
@@ -124,6 +127,7 @@ int SPISlave::spi_transfer(struct spi_transfer_data &transfer) {
     return ret;
 }
 
+/*
 void SPISlave::processData(unsigned char* rx_buf, unsigned char* tx_buf, size_t len)
 {
     // Default implementation: echo received data
@@ -137,6 +141,7 @@ void SPISlave::processData(unsigned char* rx_buf, unsigned char* tx_buf, size_t 
     // Process any specific commands
     handleCommand(rx_buf, tx_buf, len);
 }
+
 
 void SPISlave::handleCommand(unsigned char* rx_buf, unsigned char* tx_buf, size_t& len)
 {
@@ -166,3 +171,4 @@ bool SPISlave::prepareResponse(const std::vector<uint8_t>& response)
 //    ssize_t bytesWritten = write(m_fd, m_responseBuffer.data(), m_responseBuffer.size());
     return true; //bytesWritten == static_cast<ssize_t>(m_responseBuffer.size());
 }
+*/
