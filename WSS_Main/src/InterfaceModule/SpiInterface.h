@@ -71,7 +71,7 @@ private:
 
     size_t current_mode=0;
     size_t bits=8;
-    size_t speed=20000000;
+    size_t speed=50000000;
     size_t msb_first = 0;
 };
 
