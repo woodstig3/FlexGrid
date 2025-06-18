@@ -26,6 +26,9 @@ std::unique_ptr<SpiCmdDecoder> ThreadManager::spiDec = nullptr;
 std::unique_ptr<SPISlave> ThreadManager::spiSlave = nullptr;
 struct spi_transfer_data ThreadManager::transfer{};
 
+std::atomic<long> ThreadManager::receivedPackets{0};
+std::atomic<long> ThreadManager::processedPackets{0};
+
 // Function to listen for SPI data
 void* ThreadManager::spiListener(void* arg) {
 //    SPISlave* spi = static_cast<SPISlave*>(arg);
@@ -60,8 +63,13 @@ void* ThreadManager::spiListener(void* arg) {
 
 			pthread_mutex_lock(&spiQueueMutex);
 
-			std::vector<uint8_t> buffer(std::begin(transfer.rx_buf), std::end(transfer.rx_buf));
-			std::cout << "Read data from spi rx buffer of size: " << buffer.size() << std::endl;
+            long count = ++receivedPackets;
+            std::cout << "Received packet #" << std::dec << count << std::endl;
+            // mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x1);usleep(1000);
+		    // mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);
+			//std::vector<uint8_t> buffer(std::begin(transfer.rx_buf), std::end(transfer.rx_buf));
+			std::vector<uint8_t> buffer(transfer.rx_buf, transfer.rx_buf + ret);
+            std::cout << "Read data from spi rx buffer of size: " << buffer.size() << std::endl;
 
 			Packet packet{buffer};
 			spiPacketQueue.push(packet);
@@ -71,7 +79,7 @@ void* ThreadManager::spiListener(void* arg) {
 
 		}
         // Sleep for a short duration to prevent busy-waiting
-        usleep(1000); // Sleep for 1ms
+        usleep(10000); // Sleep for 1ms
     }
     return nullptr;
 }
@@ -146,6 +154,8 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
         			std::cout << "Command decoder not in work." << std::endl;
         		}
 				std::cout << "Reply packet constructed successfully." << std::endl;
+                long count = ++processedPackets;
+                std::cout << "Processed packet #" << count << std::endl;
             }
             else if (result == 1) {
         		std::cout << "Command packet format is not correct." << std::endl;
@@ -295,17 +305,59 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
     // << " (0x" << std::hex << std::setw(4) << std::setfill('0') 
     // << packet.data.size() << ")" 
     // << std::endl;
+    size_t offset = 0;
+    bool foundMagic = false;
 
-    // Copy the fixed-size fields
-    commandPacket.spiMagic = bytesToInt32BigEndian(packet.data, 0);
-    std::cout << "SPI MAGIC: 0x" << std::hex << commandPacket.spiMagic <<std::endl;
-    // Validate SPIMAGIC
-    if (commandPacket.spiMagic != SPIMAGIC) {
-    	std::cout << "Wrong SPI MAGIC" << commandPacket.spiMagic <<std::endl;
-    	return 2; // Invalid packet
+    // parse from head
+    for (; offset <= packet.data.size() - 4; ++offset) {
+        uint32_t potentialMagic = bytesToInt32BigEndian(packet.data, offset);
+        if (potentialMagic == SPIMAGIC) {
+            foundMagic = true;
+            break;
+        }
+    }
+    
+    // Search for magic number from the end of the packet backwards
+/*    for (size_t i = packet.data.size() - 4; i >= 0; --i) {
+        // Ensure there are enough bytes remaining for a full magic number check
+        if (i < packet.data.size() - 3) {
+            // Convert next 4 bytes to big-endian uint32_t for magic number check
+            uint32_t potentialMagic = bytesToInt32BigEndian(packet.data, i);
+            
+            // Found candidate position matching the magic number
+            if (potentialMagic == SPIMAGIC) {
+                // Verify we have enough data for length field extraction
+                if (i + 8 <= packet.data.size()) {
+                    // Extract potential packet length (big-endian format)
+                    uint32_t potentialLength = bytesToInt32BigEndian(packet.data, i + 4);
+                    
+                    // Validate length field value and available data:
+                    // - Minimum valid length is 20 bytes (0x14 hex)
+                    // - Length must not exceed remaining buffer space
+                    if (potentialLength >= 0x0014 && 
+                        i + potentialLength <= packet.data.size()) {
+                        foundMagic = true;
+                        offset = i;
+                        break;  // Valid header found, exit search loop
+                    }
+                }
+            }
+        }
+        
+        // Prevent unsigned integer underflow (critical for boundary condition)
+        if (i == 0) break;
+    }
+*/
+    if (!foundMagic) {
+        std::cout << "SPI MAGIC not found in packet." << std::endl;
+        return 2; // Invalid packet
     }
 
-    commandPacket.length = bytesToInt32BigEndian(packet.data, 4);
+    // Copy the fixed-size fields
+    commandPacket.spiMagic = bytesToInt32BigEndian(packet.data, offset);
+    std::cout << "SPI MAGIC: 0x" << std::hex << commandPacket.spiMagic <<std::endl;
+
+    commandPacket.length = bytesToInt32BigEndian(packet.data, offset + 4);
     std::cout << "Packet Length:" << std::dec << commandPacket.length <<std::endl;
 
     // check packet size is valid
@@ -318,15 +370,16 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
     }
 
     // Check if the entire packet size is valid against the specified length
-   if (packet.data.size() < commandPacket.length) {
-	   std::cout << "Packet length mismatch: expected " << commandPacket.length
+    size_t totalPacketSize = offset + commandPacket.length;
+    if (packet.data.size() < totalPacketSize) {
+	    std::cout << "Packet length mismatch: expected " << totalPacketSize
 				 << ", actual " << packet.data.size() << std::endl;
-	   return 2; // Length mismatch, invalid packet
-   }
-    commandPacket.seqNo = bytesToInt32BigEndian(packet.data, 8);
+	    return 2; // Length mismatch, invalid packet
+    }
+    commandPacket.seqNo = bytesToInt32BigEndian(packet.data, offset + 8);
     std::cout << "Packet SeqNo:" << commandPacket.seqNo <<std::endl;
 
-    commandPacket.opcode = bytesToInt32BigEndian(packet.data, 12);
+    commandPacket.opcode = bytesToInt32BigEndian(packet.data, offset + 12);
     std::cout << "Command OpCode:" << commandPacket.opcode <<std::endl;
     // Corrected OPCODE range check
     if (commandPacket.opcode < 0x0001 || commandPacket.opcode > 0x001B) {
@@ -334,27 +387,28 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
     	return 1; // OPCODE ERROR
     }
 
-    commandPacket.crc1 = bytesToInt32BigEndian(packet.data, 16);
+    commandPacket.crc1 = bytesToInt32BigEndian(packet.data, offset + 16);
     std::cout << "CRC1: 0x" << std::hex << commandPacket.crc1 << std::endl;
     
     //check if crc1 is correct 
-    uint32_t calculatedCRC1 = spiDec->calculateCRC1(packet.data.data());
+    std::vector<uint8_t> headerData(packet.data.begin() + offset, packet.data.begin() + offset + 16);
+    uint32_t calculatedCRC1 = spiDec->calculateCRC1(headerData.data());
     // std::cout << "CRC1 Input Data (Hex): ";
     // for (int i = 0; i < 16; i++) {
     //     std::cout << std::hex << std::setw(2) << std::setfill('0') 
     //             << static_cast<int>(packet.data.data()[i]) << " ";
     // }
     // std::cout << std::endl;
-/*    if (calculatedCRC1 != commandPacket.crc1) {
+    if (calculatedCRC1 != commandPacket.crc1) {
         std::cerr << "CRC1 validation failed: Expected 0x" 
           << std::hex << std::setw(8) << std::setfill('0') 
           << static_cast<uint32_t>(commandPacket.crc1)
           << " Actual 0x" 
           << std::setw(8) << static_cast<uint32_t>(calculatedCRC1) 
           << std::endl;
-        return 3;
+        //return 3;
     }
-*/
+
     // Copy the variable-size data field if present
     if (commandPacket.length > 20) {
         // Ensure length includes DATA and CRC2
@@ -364,21 +418,22 @@ int ThreadManager::parseSPICommandPacket(const Packet& packet, SPICommandPacket&
         }
         // Extract DATA field (from byte 20 to LENGTH - 5)
         size_t dataLength = commandPacket.length - 24; // Subtract header (20 bytes) and CRC2 (4 bytes)
-        commandPacket.data.assign(packet.data.begin() + 20, packet.data.begin() + 20 + dataLength);
+        commandPacket.data.assign(packet.data.begin() + offset + 20, packet.data.begin() + offset + 20 + dataLength);
         // Parse CRC2 (last 4 bytes)
-        commandPacket.crc2 = bytesToInt32BigEndian(packet.data, commandPacket.length - 4);
+        commandPacket.crc2 = bytesToInt32BigEndian(packet.data, offset + commandPacket.length - 4);
         std::cout << "CRC2: 0x" << std::hex << commandPacket.crc2 << std::endl;
         //check if crc2 is correct 
-        uint32_t calculatedCRC2 = spiDec->calculateCRC2(packet.data.data(), commandPacket.length);
-/*        if (calculatedCRC2 != commandPacket.crc2) {
+        std::vector<uint8_t> dataWithoutCRC2(packet.data.begin() + offset, packet.data.begin() + offset + 20 + dataLength);
+        uint32_t calculatedCRC2 = spiDec->calculateCRC2(dataWithoutCRC2.data(), dataWithoutCRC2.size() + 4);
+        if (calculatedCRC2 != commandPacket.crc2) {
             std::cerr << "CRC2 validation failed: Expected 0x" 
               << std::hex << std::setw(8) << std::setfill('0') 
               << static_cast<uint32_t>(commandPacket.crc2)
               << " Actual 0x" 
               << std::setw(8) << static_cast<uint32_t>(calculatedCRC2) 
               << std::endl;
-            return 4; 
-        }*/
+            //return 4; 
+        }
     } else {
         // No DATA field, clear data and set CRC2 to 0
         commandPacket.data.clear();
