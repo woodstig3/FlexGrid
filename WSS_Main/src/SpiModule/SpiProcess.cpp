@@ -20,6 +20,8 @@ pthread_mutex_t ThreadManager::spiQueueMutex;
 pthread_cond_t ThreadManager::cv;
 std::atomic<bool> ThreadManager::receiving{true};
 std::atomic<bool> ThreadManager::busy{false};
+//std::atomic<int>ThreadManager::activeBufferIndex{0};    //Atomic index
+
 
 // Initialize static member
 std::unique_ptr<SpiCmdDecoder> ThreadManager::spiDec = nullptr;
@@ -37,20 +39,25 @@ void* ThreadManager::spiListener(void* arg) {
 // Prepare a packet as default reply when there was no previous command received
     std::vector<uint8_t> defReply = constructDefaultPacket(0);
 //  std::memcpy(transfer.tx_buf, defReply.data(), defReply.size()*sizeof(uint8_t));
+
+	//int currentBuffer = activeBufferIndex.load(std::memory_order_acquire);
+	//spi_transfer_data& transfer = transferBuffers[currentBuffer];
     std::copy(defReply.begin(), defReply.end(), transfer.tx_buf);
 
     while (receiving) {
 
     	// Wait for master command by detecting cs and sclk valid at the same time
-    	if(!spiSlave->isReady()) {
+/*    	if(!spiSlave->isReady()) {
     		std::cout << "Waiting for master command ...\n" << std::endl;
     		continue;
     	}
-
+*/
+    	//currentBuffer = activeBufferIndex.load(std::memory_order_acquire);
+    	//transfer = transferBuffers[currentBuffer];
 #ifdef _WATCHDOG_SOFTRESET_
 		watchdog_feed();
 #endif
-    	memset(transfer.rx_buf, 0, BUFFER_SIZE);
+//    	memset(transfer.rx_buf, 0, BUFFER_SIZE);
     	int ret = spiSlave->spi_transfer(transfer);
 		if (ret >= 0 ) {
 	    	std::cout << "Incoming data...\n" << std::endl;
@@ -60,18 +67,22 @@ void* ThreadManager::spiListener(void* arg) {
 //				memset(transfer.rx_buf, 0, BUFFER_SIZE);
 				continue;  //device pending on the previous processing, discard any incoming packets until pending is finished.
 			}
+			// Quickly switch to the other buffer
+			//int nextBuffer = (currentBuffer + 1) % 2;
+			//activeBufferIndex.store(nextBuffer, std::memory_order_release);
 
-			pthread_mutex_lock(&spiQueueMutex);
 
             long count = ++receivedPackets;
             std::cout << "Received packet #" << std::dec << count << std::endl;
             // mmapGPIO->WriteRegister_GPIO(0x0008/0x4, 0x1);usleep(1000);
 		    // mmapGPIO->WriteRegister_GPIO(0x0000/0x4, 0x0);usleep(1000);
-			//std::vector<uint8_t> buffer(std::begin(transfer.rx_buf), std::end(transfer.rx_buf));
-			std::vector<uint8_t> buffer(transfer.rx_buf, transfer.rx_buf + ret);
+			std::vector<uint8_t> buffer(std::begin(transfer.rx_buf), std::end(transfer.rx_buf));
+			//std::vector<uint8_t> buffer(transfer.rx_buf, transfer.rx_buf + ret);
             std::cout << "Read data from spi rx buffer of size: " << buffer.size() << std::endl;
-
 			Packet packet{buffer};
+
+			pthread_mutex_lock(&spiQueueMutex);
+
 			spiPacketQueue.push(packet);
 
 			pthread_mutex_unlock(&spiQueueMutex);
@@ -79,7 +90,7 @@ void* ThreadManager::spiListener(void* arg) {
 
 		}
         // Sleep for a short duration to prevent busy-waiting
-        usleep(10000); // Sleep for 1ms
+        usleep(2000); // Sleep for 1ms
     }
     return nullptr;
 }
@@ -105,9 +116,9 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             // Process the packet
             // Print spi packet data
             std::cout << "Received spi packet: ";
-            for (auto byte : packet.data) {
+/*            for (auto byte : packet.data) {
                 std::cout << std::hex << static_cast<int>(byte) << " ";
-            }
+            }*/
             std::cout << std::dec << std::endl;
             SPICommandPacket commandPacket;   //read out data into struct
 
@@ -140,8 +151,13 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
                     std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
                     //return nullptr;
                 }
+
+                // Only lock when updating the response buffer
+				//int currentBuffer = activeBufferIndex.load(std::memory_order_acquire);
+				//spi_transfer_data& transfer = transferBuffers[(currentBuffer + 1) % 2];
+
 				// Formulate a reply based on the processed packet
-				memset(transfer.tx_buf, 0, BUFFER_SIZE);
+				//memset(transfer.tx_buf, 0, BUFFER_SIZE);
 				memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
 
 				spiDec->oss.isPending = true;
@@ -153,7 +169,8 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
         		else {
         			std::cout << "Command decoder not in work." << std::endl;
         		}
-				std::cout << "Reply packet constructed successfully." << std::endl;
+        		
+        		std::cout << "Reply packet constructed successfully." << std::endl;
                 long count = ++processedPackets;
                 std::cout << "Processed packet #" << count << std::endl;
             }
@@ -165,7 +182,7 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
 				replyPacket.spiMagic = SPIMAGIC;
 				replyPacket.length = commandPacket.length; // Example length
 				replyPacket.seqNo = commandPacket.seqNo;
-				replyPacket.comres = result == result; // CER
+				replyPacket.comres = result; // CER
 				std::cout << "Reply packet COMRES: " << result << std::endl;
                 // caculate CRC1
                 std::vector<uint8_t> header = spiDec->constructSPIReplyPacketHeader(replyPacket);
@@ -237,8 +254,8 @@ void* ThreadManager::spiPacketProcessor(void* arg) {
             if (replyPacketData.size() > BUFFER_SIZE) {
 				std::cerr << "Error: Reply packet size exceeds buffer capacity." << std::endl;
 			}
-            memset(transfer.tx_buf, 0, BUFFER_SIZE);
-            memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
+//            memset(transfer.tx_buf, 0, BUFFER_SIZE);
+			memcpy(transfer.tx_buf, replyPacketData.data(), replyPacketData.size());
             spiDec->oss.isPending = false;
             busy = false;
 

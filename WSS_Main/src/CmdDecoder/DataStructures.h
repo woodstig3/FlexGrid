@@ -206,6 +206,7 @@
 
 		//Wavefront calib
 		double          m_dpd = 0.2;
+		double          m_tav = 0.0;
 	};
 
 	struct Panel

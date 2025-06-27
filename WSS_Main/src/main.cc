@@ -100,9 +100,11 @@ int main(int argc, char* argv[])
 //			serialIns->Serial_InitiateCommandDecoding(temp);
 //		}
 //	}
+
 	AlarmModule *InterUIO = AlarmModule::GetInstance();
 	if(InterUIO->MoveToThread() != 0)
 		printf("Alarm for UIO: MoveToThread Failed");
+
 
 //	MemoryMapping MMAP(MemoryMapping::CLUT);
 //

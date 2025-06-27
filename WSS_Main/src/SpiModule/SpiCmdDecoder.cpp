@@ -21,6 +21,7 @@
 
 #include "SpiCmdDecoder.h"
 #include "TemperatureMonitor.h"
+#include "wdt.h"
 
 
 extern double g_direct_LCOS_Temp;
@@ -598,7 +599,8 @@ std::vector<uint8_t> SpiResetCmdCommand::process(uint32_t seqNo) {
 	spiCmd->oss.isModuleRestarted = true;
 
 	try {
-		const std::string mainAppPath = "/mnt/startwss.elf";
+sleep(20);
+		const std::string mainAppPath = "/mnt/wss.elf";
 		
 		// Step 1: Verify main application existence
 		if (access(mainAppPath.c_str(), F_OK) != 0) {

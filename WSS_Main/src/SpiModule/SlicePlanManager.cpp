@@ -110,17 +110,13 @@ void SlicePlanManager::updateRanges(uint8_t wss_id, const SliceRange& new_range,
         // Left non-overlapping part (keep original config)
         if (existing_range.start < new_range.start) {
             to_add.emplace_back(
-                SliceRange{existing_range.start, static_cast<uint16_t>(new_range.start-1)},
-                existing_config
-            );
+                SliceRange{existing_range.start, static_cast<uint16_t>(new_range.start-1)}, existing_config);
         }
 
         // Right non-overlapping part (keep original config)
         if (existing_range.end > new_range.end) {
             to_add.emplace_back(
-                SliceRange{static_cast<uint16_t>(new_range.end+1), existing_range.end},
-                existing_config
-            );
+                SliceRange{static_cast<uint16_t>(new_range.end+1), existing_range.end}, existing_config);
         }
     }
 

@@ -189,7 +189,7 @@ void *AlarmModule::ThreadHandle(void *arg)
 
 void AlarmModule::ProcessUIOAlarmMonitoring(void)
 {
-    static int prevRet=0;
+//    static int prevRet=0;
     while (thread_id != 0) // Add a flag for graceful termination
     {
         // Use poll() to wait for interrupts on all UIO devices
@@ -213,20 +213,6 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
         } else if (ret == 0){
             //printf("[DEBUG] poll() timed out, no interrupts detected.\n");
             continue;
-        } else {
-
-//       	printf("[DEBUG] poll() returned %d events.\n", ret);
-            if(ret>prevRet) {
-				// Prints the trigger status of each device
-				for (int i = 0; i < 9; i++)
-				{
-					printf("[DEBUG] Device fd=%d, revents=0x%X (%s)\n",
-						   fds[i].fd,
-						   fds[i].revents,
-						   (fds[i].revents & POLLIN) ? "Interrupt!" : "No event");
-				}
-            }
-            prevRet = ret;
         }
 
 
@@ -236,7 +222,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             uint32_t count = 0;
             ssize_t bytes_read = read(fds[0].fd, &count, sizeof(count)); 
             if (bytes_read == sizeof(count)) {
-                printf("[DEBUG] UIO_DAC_OA interrupt count=%u\n", count); 
+//                printf("[DEBUG] UIO_DAC_OA interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.opticalControlFailure = 1; // Bit 4
             SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
@@ -265,7 +251,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             uint32_t count = 0;
             ssize_t bytes_read = read(fds[1].fd, &count, sizeof(count));
             if (bytes_read == sizeof(count)) {
-                printf("[DEBUG] UIO_DAC_OD interrupt count=%u\n", count);
+//                printf("[DEBUG] UIO_DAC_OD interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.powerSupplyError = 1;      // Bit 5
             SpiCmdDecoder::hss.powerRailError = 1;        // Bit 6
@@ -294,7 +280,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             uint32_t count = 0;
             ssize_t bytes_read = read(fds[2].fd, &count, sizeof(count));
             if (bytes_read == sizeof(count)) {
-                printf("[DEBUG] UIO_GRID_Temp_H interrupt count=%u\n", count);
+//                printf("[DEBUG] UIO_GRID_Temp_H interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             //SpiCmdDecoder::hss.tempControlShutdown = DeGRID_Flag; // Bit 2
             SpiCmdDecoder::hss.internalTempError = 1;     // Bit 1
@@ -308,8 +294,8 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
                 //printf("[DEBUG] Raw INTR_STATE_REG value: 0x%04X | DEC: %u\n", hexValue, hexValue);
                 const uint8_t byteValue = hexValue & 0xFF; 
                 const uint8_t bit3 = (byteValue >> 3) & 0x1; 
-                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
-                printf("[DEBUG] Binary: 0b");
+//                printf("[DEBUG] 8-bit Register Value: 0x%02X\n", byteValue);
+//                printf("[DEBUG] Binary: 0b");
                 for (int i = 7; i >= 0; i--) {
                     printf("%d", (byteValue >> i) & 0x1); 
                 }
@@ -435,7 +421,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             uint32_t count = 0;
             ssize_t bytes_read = read(fds[5].fd, &count, sizeof(count)); 
             if (bytes_read == sizeof(count)) {
-                printf("[DEBUG] UIO_Pattern_rev_finish interrupt count=%u\n", count);
+//                printf("[DEBUG] UIO_Pattern_rev_finish interrupt count=%u\n", count);
             }
             uint32_t enable = 1;
             write(fds[5].fd, &enable, sizeof(enable));
@@ -519,7 +505,7 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
             uint32_t count = 0;
             ssize_t bytes_read = read(fds[8].fd, &count, sizeof(count));
             if (bytes_read == sizeof(count)) {
-                printf("[DEBUG] UIO_LCOS_Temp_L interrupt count=%u\n", count);
+//                printf("[DEBUG] UIO_LCOS_Temp_L interrupt count=%u\n", count);
 #ifdef _SPI_INTERFACE_
             SpiCmdDecoder::hss.tempControlShutdown = 1;   // Bit 2
             SpiCmdDecoder::hss.internalFailure = 1;       // Bit 7
@@ -570,8 +556,8 @@ void AlarmModule::ProcessUIOAlarmMonitoring(void)
         //SpiCmdDecoder::hss.caseTempError = DeCase_Flag; //currently not available because no case tempsensor yet.
         //other hardware status polling below:
         //ADC/DAC Access Error
-        CheckADCPowerSupply();
-		CheckDACPowerSupply();
+        //CheckADCPowerSupply();
+	//	CheckDACPowerSupply();
         //TRANSFER_FAILURE
 
         //Watch_Dog_Event
@@ -615,55 +601,6 @@ void AlarmModule::GpioWrite(int fd, char level)
 	}
 }
 
-void AlarmModule::CheckADCPowerSupply(){
-	// Added: Check if the 5V ADC power supply voltage is normal
-	unsigned int hexAdcVoltage = 0;
-	int adcStatus = mmapTEC->ReadRegister_TEC32(ADC_REG_ADDR / 0x4, &hexAdcVoltage);
-	if (adcStatus != 0) {
-		printf("Error: Failed to read 5V ADC power supply register\n");
-	}
-	//printf("[DEBUG] Raw ADC value: 0x%04X | DEC: %u\n", hexAdcVoltage, hexAdcVoltage);
-
-	double hexAdcVoltage_adjusted = (hexAdcVoltage / 33.2) * (33.2 + 91);
-	double vadc_out = (hexAdcVoltage_adjusted * ADC_REF_VOLTAGE) / 4096;
-	if (vadc_out < 4.5 || vadc_out > 5.5) {
-		printf("[ERROR] ADC not enabled! 5V power supply abnormal: current voltage=%.2fV\n", vadc_out);
-		std::lock_guard<std::mutex> lock(m_adcAccessFailure.mtx);
-		m_adcAccessFailure.Raised = true;
-		m_adcAccessFailure.RaisedCount += 1;
-		m_adcAccessFailure.Degraded = true;
-		m_adcAccessFailure.DegradedCount = m_adcAccessFailure.RaisedCount;
-        FaultMonitor::logFault(ADC_AD7689_ACCESS_FAILURE,m_adcAccessFailure);
-	}
-}
-
-void AlarmModule::CheckDACPowerSupply(){
-	// Added: DAC output check section
-	unsigned int hexAdcInput = 0;
-	// const uint16_t ADC_DATA_MASK = 0x0FFF;  // Define 12-bit data mask
-	int dacStatus = mmapTEC->ReadRegister_TEC32(DAC_REG_ADDR / 0x4, &hexAdcInput);
-	if (dacStatus != 0) {
-		printf("Error: Failed to read portD(ADC input/DAC output) register\n");
-	}
-	// Extract valid 12-bit data (assuming right-aligned)
-	uint16_t adcInputData = hexAdcInput & ADC_DATA_MASK;
-	// printf("[DEBUG] Raw DAC value: 0x%04X | DEC: %u\n", hexAdcInput, hexAdcInput);
-	//printf("[DEBUG] Raw DAC value: 0x%04X | Valid 12-bit: 0x%03X\n", hexAdcInput, adcInputData);
-	// DAC value validation (example conditions)
-	double vadc_tempout = (adcInputData * ADC_REF_VOLTAGE) / 4096;
-	// Calculate DAC output voltage with gain compensation (1 + 33/33)
-	double vdac_out = (vadc_tempout * (1 + 33 + 33)) / 33;
-	//printf("[DEBUG] DAC current output voltage=%.2fV\n", vdac_out);
-	if (vdac_out < 1 || vdac_out > 1.25) {
-		printf("[ERROR] DAC output abnormal: current voltage=%.2fV\n", vdac_out);
-		std::lock_guard<std::mutex> lock(m_dacAccessFailure.mtx);
-		m_dacAccessFailure.Raised = true;
-		m_dacAccessFailure.RaisedCount += 1;
-		m_dacAccessFailure.Degraded = true;
-		m_dacAccessFailure.DegradedCount = m_dacAccessFailure.RaisedCount;
-        FaultMonitor::logFault(DAC_AD5624_ACCESS_FAILURE,m_dacAccessFailure);
-	}
-}
 
 void AlarmModule::HardReset(){
     try {
@@ -692,7 +629,7 @@ void AlarmModule::HardReset(){
     }
 }
 
-
+/*
 void AlarmModule::CheckVCC3A(){
 	// Added: DAC output check section
 	unsigned int hexAdcInput = 0;
@@ -772,3 +709,4 @@ void AlarmModule::WriteVoltageToFile(const std::string& voltageName, double volt
         
     outfile.close();
 }
+*/

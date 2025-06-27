@@ -14,6 +14,7 @@
 #include <cstring>
 #include <pthread.h>
 #include <cmath>
+#include <sys/reboot.h>
 
 #include "CmdDecoder.h"
 #include "LCOSDisplayTest.h"
@@ -34,15 +35,15 @@ CmdDecoder::CmdDecoder() {
 
 #ifdef _SPI_INTERFACE_
 	eModule1 = FIXEDGRID;
+	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "625";
+	arrModules[1].slotSize = "625";
 #else
 	eModule1 = TF;
+	eModule2 = FIXEDGRID;
 	arrModules[0].slotSize = "TF";
+	arrModules[1].slotSize = "625";
 #endif
-//	eModule2 = FIXEDGRID;
-	eModule2 = TF;
-//	arrModules[1].slotSize = "625";
-	arrModules[1].slotSize = "TF";
 
 	strcpy(customerInfo, "BAIANTEK");
 
@@ -1283,9 +1284,18 @@ int CmdDecoder::SearchObject(std::string &object)
 									{
 										eObject = RESTART;
 										b_RestartNeeded = true;				// Get the module number use in attribute functions
+										sleep(16); //sleep to allow wdt timeout and cpu reset
 
 //										sync();
 //										reboot(RB_AUTOBOOT);
+									}
+									else if(g_moduleNum == 2)
+									{
+										eObject = RESTART;
+										b_RestartNeeded = true;				// Get the module number use in attribute functions
+
+										sync();
+										reboot(RB_AUTOBOOT);		//hard reset
 									}
 									else
 									{
@@ -4528,6 +4538,19 @@ int CmdDecoder::Set_SearchAttributes(std::string &attributes)
 						}
 
 					}
+					else if(attr[0] == "TAV" && eVerb == SET) //Wavefront calib
+					{
+						float f_Value;
+						if (Sscanf(attr[1], f_Value, 'f'))
+						{
+							pthread_mutex_lock(&global_mutex[LOCK_DEVMODE_VARS]);
+							structDevelopMode.phaseDepth_changed = true;
+							structDevelopMode.m_tav = f_Value;
+							pthread_mutex_unlock(&global_mutex[LOCK_DEVMODE_VARS]);
+						}
+
+					}
+
 #endif
 					else
 					{

@@ -43,6 +43,9 @@ public:
     void startThreads();
     void stopThreads();
     bool b_endMainSignal = false;
+
+    static std::atomic<long> receivedPackets;  
+    static std::atomic<long> processedPackets;
 private:
     ThreadManager() {
         pthread_mutex_init(&spiQueueMutex, nullptr);
@@ -64,6 +67,8 @@ private:
     static std::atomic<bool> receiving;
     static std::atomic<bool> busy;
 
+	//static struct spi_transfer_data transferBuffers[2]; //Double buffer
+	//static std::atomic<int>activeBufferIndex;    //Atomic index
 	static struct spi_transfer_data transfer;
 
     pthread_t spiListenerThread;
